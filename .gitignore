@@ -1,0 +1,15 @@
+.pulp-cache
+.psc-package
+
+bower_components
+node_modules
+output
+generated-docs
+
+.psc*
+.purs*
+.psa*
+.spago
+
+# ignore bundled example output 
+example/app.js

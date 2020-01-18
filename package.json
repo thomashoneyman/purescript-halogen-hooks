@@ -1,0 +1,16 @@
+{
+  "name": "halogen-hooks",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Hooks for Halogen",
+  "repository": "https://github.com/thomashoneyman/purescript-halogen-hooks",
+  "author": "Thomas Honeyman",
+  "license": "MIT",
+  "scripts": {
+    "clean": "rm -rf .spago output node_modules *.lock",
+    "postinstall": "spago install",
+    "build": "spago build --no-install",
+    "watch": "spago build --watch --no-install",
+    "bundle": "spago bundle-app --main Example.Main --to example/app.js --no-install"
+  }
+}
