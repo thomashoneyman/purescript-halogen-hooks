@@ -1,5 +1,6 @@
 .pulp-cache
 .psc-package
+.vscode
 
 bower_components
 node_modules
@@ -11,5 +12,5 @@ generated-docs
 .psa*
 .spago
 
-# ignore bundled example output 
+# ignore bundled example output
 example/app.js
