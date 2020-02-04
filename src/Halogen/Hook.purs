@@ -4,79 +4,114 @@ import Prelude
 
 import Control.Monad.Free (Free, foldFree, liftF)
 import Data.Array as Array
-import Data.Maybe (Maybe(..), fromJust)
+import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
+import Effect.Aff (Aff)
+import Halogen (HalogenQ(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Partial.Unsafe (unsafePartial)
+import Unsafe.Coerce (unsafeCoerce)
 
-data HookF state a
-  = UseState Int state ((Tuple state ((state -> state) -> Action)) -> a)
+data HookF a
+  = UseState Int (Unit -> StateValue) (StateInterface -> a)
 
-derive instance functorHookF :: Functor (HookF state)
+derive instance functorHookF :: Functor HookF
 
-type Hook state = Free (HookF state)
+type Hook = Free HookF
 
-useState :: forall state. Int -> state -> Hook state (Tuple state ((state -> state) -> Action))
-useState index initialState = liftF (UseState index initialState identity)
+type HTML = H.ComponentHTML Action () Aff 
 
--- Temporary for testing purposes
-type StateType = String
-
+-- Effects that the user ought to be able to run in this component are
+-- represented as actions with accompanying handlers.
 data Action
-  = Initialize
-  | HookAction HookAction
+  = ModifyState Int StateValue
 
-data HookAction
-  = ModifyState Int (StateType -> StateType)
+handleAction
+  :: forall output 
+   . (HookF ~> H.HalogenM InternalState Action () output Aff)
+  -> Action 
+  -> H.HalogenM InternalState Action () output Aff Unit
+handleAction interpretHook = case _ of
+  ModifyState id newState -> do
+    let unsafeUpdate arr = unsafePartial (fromJust (Array.modifyAt id (const newState) arr))
+    { hook } <- H.modify \st -> st { state = unsafeUpdate st.state }
+    html <- foldFree interpretHook hook
+    H.modify_ _ { html = html }
 
-type State m =
-  { html :: H.ComponentHTML Action () m
-  , state :: Array StateType
-  , hook :: Hook StateType (H.ComponentHTML Action () m)
+--  State
+
+foreign import data StateValue :: Type
+
+toStateValue :: forall state. state -> StateValue
+toStateValue = unsafeCoerce
+
+fromStateValue :: forall state. StateValue -> state
+fromStateValue = unsafeCoerce
+
+type StateInterface =
+  { set :: StateValue -> Action
+  , get :: StateValue
   }
 
-type Input m =
-  { hook :: Hook StateType (H.ComponentHTML Action () m)
+type State state = Tuple state (state -> Action)
+
+useState :: forall state. Int -> (Unit -> state) -> Hook (State state)
+useState id initialState = liftF (UseState id initialStateValue hookInterface)
+  where
+  initialStateValue :: Unit -> StateValue
+  initialStateValue = map toStateValue initialState
+
+  hookInterface :: StateInterface -> State state
+  hookInterface { get, set } = Tuple (fromStateValue get) (set <<< toStateValue) 
+
+-- Underlying component
+
+type InternalState =
+  { html :: HTML
+  , hook :: Hook HTML
+  , state :: Array StateValue
   }
 
-hookComponent :: forall f o m. H.Component HH.HTML f (Input m) o m
-hookComponent =
+component :: forall q i o. Hook HTML -> H.Component HH.HTML q i o Aff
+component hook =
   H.mkComponent
-    { initialState
-    , render: _.html
-    , eval: H.mkEval $ H.defaultEval
-        { initialize = Just Initialize
-        , handleAction = handleAction
+    { initialState: \_ -> 
+        { html: HH.text ""
+        , state: []
+        , hook 
         }
+    , render: _.html
+    , eval: case _ of
+        Initialize a -> do
+          html <- foldFree (interpretHook true) hook
+          H.modify_ _ { html = html }
+          pure a
+
+        Query _ reply -> 
+          pure (reply unit)
+
+        Action act a -> 
+          handleAction (interpretHook false) act *> pure a
+
+        Receive _ a -> 
+          pure a
+
+        Finalize a -> 
+          pure a
     }
   where
-  initialState :: Input m -> State m
-  initialState input = { html: HH.text "", state: [], hook: input.hook }
-
-  handleAction :: Action -> H.HalogenM (State m) _ () _ m Unit
-  handleAction = case _ of
-    Initialize -> do
-      { hook } <- H.get
-      html <- foldFree (interpretHook true) hook
-      H.modify_ _ { html = html }
-
-    HookAction (ModifyState ix f) -> do
-      let unsafeModifyAt arr = unsafePartial (fromJust (Array.modifyAt ix f arr))
-      H.modify_ \st -> st { state = unsafeModifyAt st.state }
-
-      { hook } <- H.get
-      html <- foldFree (interpretHook false) hook
-      H.modify_ _ { html = html }
-
-  interpretHook :: Boolean -> HookF StateType ~> H.HalogenM (State m) Action () o m
-  interpretHook isInitializer = case _ of
-    UseState index initial reply -> do
-      if isInitializer then do
-        let unsafeInsert arr = (unsafePartial (fromJust (Array.insertAt index initial arr)))
-        { state } <- H.modify \st -> st { state = unsafeInsert st.state }
-        pure (reply (Tuple initial (HookAction <<< ModifyState index)))
+  interpretHook :: Boolean -> HookF ~> H.HalogenM InternalState Action () o Aff
+  interpretHook isInitial = case _ of
+    UseState id initial' reply -> do
+      if isInitial then do
+        let 
+          initial = initial' unit
+          unsafeInsert arr = unsafePartial (fromJust (Array.insertAt id initial arr))
+        st <- H.modify \st -> st { state = unsafeInsert st.state }
+        pure (reply { get: initial, set: ModifyState id })
+      
       else do
-        let unsafeIndex arr = unsafePartial (fromJust (Array.index arr index))
+        let unsafeGet arr = unsafePartial (fromJust (Array.index arr id))
         { state } <- H.get
-        pure (reply (Tuple (unsafeIndex state) (HookAction <<< ModifyState index)))
+        pure (reply { get: unsafeGet state, set: ModifyState id })

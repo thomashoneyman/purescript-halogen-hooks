@@ -3,6 +3,18 @@ let upstream =
 
 let overrides = {=}
 
-let additions = {=}
+let additions =
+  { halogen-storybook =
+      { dependencies =
+          [ "halogen"
+          , "routing"
+          , "foreign-object"
+          ]
+      , repo =
+          "https://github.com/rnons/purescript-halogen-storybook.git"
+      , version =
+          "v1.0.0-rc.1"
+      }
+  }
 
 in  upstream // overrides // additions

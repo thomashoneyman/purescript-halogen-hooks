@@ -3,27 +3,42 @@ module Example.Main where
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
+import Data.Tuple.Nested ((/\))
 import Effect (Effect)
-import Halogen as H
+import Effect.Aff (Aff)
+import Example.Basic.Button as Basic
+import Example.Effects.Random as Random
+import Foreign.Object as Object
 import Halogen.Aff as HA
 import Halogen.HTML as HH
-import Halogen.HTML.Events as HE
-import Halogen.Hook (Hook)
+import Halogen.HTML.Properties as HP
 import Halogen.Hook as Hook
-import Halogen.VDom.Driver (runUI)
+import Halogen.Storybook (Stories, runStorybook)
 
 main :: Effect Unit
 main = HA.runHalogenAff do
-  body <- HA.awaitBody
-  runUI Hook.hookComponent { hook: testHook } body
+  HA.awaitBody >>= runStorybook 
+    { stories: examples
+    , logo: Just $ HH.text "Halogen Hooks Examples" 
+    }
 
-testHook :: forall m. Hook String (H.ComponentHTML Hook.Action () m)
-testHook = do
-  Tuple helloState modifyHello <- Hook.useState 0 "Hello"
-  Tuple worldState modifyWorld <- Hook.useState 1 "World"
-
-  pure $
-    HH.button
-      [ HE.onClick \_ -> Just $ modifyWorld (_ <> "!") ]
-      [ HH.text (helloState <> " " <> worldState) ]
+examples :: Stories Aff
+examples = 
+  Object.fromFoldable
+    [ "" /\ index
+    , "Halogen|Basic" /\ Basic.component
+    , "Halogen|Effect: Random" /\ Random.component
+    ]
+  where
+  index = Hook.component $ pure do
+    HH.div_
+      [ HH.h1_
+        [ HH.text "Halogen Hooks" ]
+      , HH.p_
+        [ HH.text "See the Halogen Hooks "
+        , HH.a
+          [ HP.href "https://github.com/thomashoneyman/purescript-halogen-hooks" ]
+          [ HH.text "README" ]
+        , HH.text " for details."
+        ]
+      ]
