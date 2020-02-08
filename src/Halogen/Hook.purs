@@ -1,4 +1,17 @@
-module Halogen.Hook where
+module Halogen.Hook 
+  ( useState 
+  , UseState
+  , useAction
+  , UseAction
+  , Hook
+  , Hooked
+  , Action
+  , component
+  , bind
+  , discard
+  , pure
+  )
+where
 
 import Control.Applicative.Indexed (class IxApplicative, ipure)
 import Control.Apply.Indexed (class IxApply)
@@ -128,9 +141,7 @@ type QueueState =
   }
 
 -- An identifier for to a piece of state. A user should not be able to
--- construct this.
---
--- TODO: Don't export
+-- construct this and it is not exported.
 newtype StateId = StateId Int
 
 -- Effects that the user ought to be able to run in this component are
@@ -143,7 +154,7 @@ data Action
 
 handleAction
   :: forall hooks
-   . Hook hooks (H.ComponentHTML Action () Aff)
+   . Hooked Unit hooks (H.ComponentHTML Action () Aff)
   -> (HookF ~> H.HalogenM HookState Action () Void Aff)
   -> Action 
   -> H.HalogenM HookState Action () Void Aff Unit
@@ -172,7 +183,7 @@ handleAction (Hooked (Indexed hookF)) interpretHook = case _ of
     html <- foldFree interpretHook hookF
     H.modify_ _ { html = html }
 
-component :: forall hooks q i. Hook hooks (H.ComponentHTML Action () Aff) -> H.Component HH.HTML q i Void Aff
+component :: forall hooks q i. Hooked Unit hooks (H.ComponentHTML Action () Aff) -> H.Component HH.HTML q i Void Aff
 component hook@(Hooked (Indexed hookF)) =
   H.mkComponent
     { initialState: \_ -> { html: HH.text "", state: { queue: [], total: 0, index: 0 } }
