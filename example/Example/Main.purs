@@ -11,8 +11,6 @@ import Example.Effects.Random as Random
 import Foreign.Object as Object
 import Halogen.Aff as HA
 import Halogen.HTML as HH
-import Halogen.HTML.Properties as HP
-import Halogen.Hook as Hook
 import Halogen.Storybook (Stories, runStorybook)
 
 main :: Effect Unit
@@ -25,20 +23,23 @@ main = HA.runHalogenAff do
 examples :: Stories Aff
 examples = 
   Object.fromFoldable
-    [ "" /\ index
-    , "Halogen|Basic" /\ Basic.component
+    [ -- "" /\ index
+      "Halogen|Basic" /\ Basic.component
     , "Halogen|Effect: Random" /\ Random.component
     ]
-  where
-  index = Hook.component $ pure do
-    HH.div_
-      [ HH.h1_
-        [ HH.text "Halogen Hooks" ]
-      , HH.p_
-        [ HH.text "See the Halogen Hooks "
-        , HH.a
-          [ HP.href "https://github.com/thomashoneyman/purescript-halogen-hooks" ]
-          [ HH.text "README" ]
-        , HH.text " for details."
-        ]
-      ]
+  
+  -- TODO: Support pure components which are just HTML
+  -- where
+  -- index :: forall q i. H.Component HH.HTML q i Void Aff
+  -- index = Hook.component $ ?a do
+  --   HH.div_
+  --     [ HH.h1_
+  --       [ HH.text "Halogen Hooks" ]
+  --     , HH.p_
+  --       [ HH.text "See the Halogen Hooks "
+  --       , HH.a
+  --         [ HP.href "https://github.com/thomashoneyman/purescript-halogen-hooks" ]
+  --         [ HH.text "README" ]
+  --       , HH.text " for details."
+  --       ]
+  --     ]

@@ -1,13 +1,5 @@
 { name = "halogen-hooks"
-, dependencies =
-    [ "console"
-    , "debug"
-    , "effect"
-    , "halogen"
-    , "halogen-storybook"
-    , "psci-support"
-    , "random"
-    ]
+, dependencies = [ "halogen", "indexed-monad" ]
 , packages = ./packages.dhall
-, sources = [ "src/**/*.purs", "test/**/*.purs", "example/**/*.purs" ]
+, sources = [ "src/**/*.purs" ]
 }
