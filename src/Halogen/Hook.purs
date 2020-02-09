@@ -239,12 +239,12 @@ initializeHook mkInitialState = Prelude.do
 
     queue =
       { queue: Array.snoc state.queue initialState
-      , index: state.index
+      , index: 0
       , total: state.total + 1
       }
 
   H.modify_ _ { state = queue }
-  Prelude.pure { state: initialState, id: StateId state.index }
+  Prelude.pure { state: initialState, id: StateId state.total }
 
 stepHook 
   :: forall a s o
@@ -261,8 +261,8 @@ stepHook = Prelude.do
 
     queue = 
       { queue: state.queue
-      , total: state.total
       , index: nextIndex 
+      , total: state.total
       }
 
   H.modify_ _ { state = queue }
