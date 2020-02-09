@@ -129,9 +129,10 @@ useAction handler initialState = Hooked $ Indexed $ liftF $ UseAction hookHandle
 
 -- Underlying component
 
-type HookState = 
+type HookState input = 
   { state :: QueueState
   , html :: H.ComponentHTML Action () Aff
+  , input :: input
   }
 
 type QueueState =
@@ -153,16 +154,17 @@ data Action
   | RunAction StateId ActionHandler ActionValue
 
 handleAction
-  :: forall hooks
-   . Hooked Unit hooks (H.ComponentHTML Action () Aff)
-  -> (HookF ~> H.HalogenM HookState Action () Void Aff)
+  :: forall input hooks
+   . (input -> Hooked Unit hooks (H.ComponentHTML Action () Aff))
+  -> (HookF ~> H.HalogenM (HookState input) Action () Void Aff)
   -> Action 
-  -> H.HalogenM HookState Action () Void Aff Unit
-handleAction (Hooked (Indexed hookF)) interpretHook = case _ of
+  -> H.HalogenM (HookState input) Action () Void Aff Unit
+handleAction hookFn interpretHook = case _ of
   ModifyState stateId newState -> Prelude.do
-    { state} <- H.get
+    { input, state} <- H.get
     H.modify_ _ { state { queue = unsafeSetState stateId newState state.queue } }
 
+    let Hooked (Indexed hookF) = hookFn input
     html <- foldFree interpretHook hookF
     H.modify_ _ { html = html }
 
@@ -170,26 +172,32 @@ handleAction (Hooked (Indexed hookF)) interpretHook = case _ of
     current <- H.get
 
     let 
-      toState :: StateValue -> HookState
+      toState :: StateValue -> HookState input
       toState stateValue =
         current { state { queue = unsafeSetState stateId stateValue current.state.queue } }
 
-      fromState :: HookState -> StateValue
+      fromState :: HookState input -> StateValue
       fromState = \state -> unsafeGetState stateId state.state.queue
 
     -- Run the action
     (mapAction (RunAction stateId handler)) (imapState toState fromState (handler action))
 
+    let Hooked (Indexed hookF) = hookFn current.input
     html <- foldFree interpretHook hookF
     H.modify_ _ { html = html }
 
-component :: forall hooks q i. Hooked Unit hooks (H.ComponentHTML Action () Aff) -> H.Component HH.HTML q i Void Aff
-component hook@(Hooked (Indexed hookF)) =
+component
+  :: forall hooks q i
+   . (i -> Hooked Unit hooks (H.ComponentHTML Action () Aff))
+  -> H.Component HH.HTML q i Void Aff
+component hookFn =
   H.mkComponent
-    { initialState: \_ -> { html: HH.text "", state: { queue: [], total: 0, index: 0 } }
+    { initialState
     , render: _.html
     , eval: case _ of
         Initialize a -> Prelude.do
+          { input } <- H.get
+          let Hooked (Indexed hookF) = hookFn input
           html <- foldFree (interpretHook true) hookF
           H.modify_ _ { html = html }
           Prelude.pure a
@@ -198,39 +206,50 @@ component hook@(Hooked (Indexed hookF)) =
           Prelude.pure (reply unit)
 
         Action act a -> 
-          handleAction hook (interpretHook false) act *> Prelude.pure a
+          handleAction hookFn (interpretHook false) act *> Prelude.pure a
 
-        Receive _ a -> 
+        Receive input a -> Prelude.do
+          H.modify_ _ { input = input }
+          let Hooked (Indexed hookF) = hookFn input
+          html <- foldFree (interpretHook true) hookF
+          H.modify_ _ { html = html }
           Prelude.pure a
 
         Finalize a -> 
           Prelude.pure a
     }
   where
-  interpretHook :: Boolean -> HookF ~> H.HalogenM HookState Action () Void Aff
+  initialState :: i -> HookState i 
+  initialState input = 
+    { html: HH.text ""
+    , state: { queue: [], total: 0, index: 0 } 
+    , input
+    }
+
+  interpretHook :: Boolean -> HookF ~> H.HalogenM (HookState i) Action () Void Aff
   interpretHook isInitial = case _ of
-    UseState initialState reply ->
+    UseState initial reply ->
       if isInitial then Prelude.do 
-        { state, id } <- initializeHook initialState
+        { state, id } <- initializeHook initial
         Prelude.pure $ reply { get: state, set: ModifyState id }
       
       else Prelude.do
         { state, id } <- stepHook
         Prelude.pure $ reply { get: state, set: ModifyState id }
 
-    UseAction handler initialState reply -> Prelude.do
+    UseAction handler initial reply -> Prelude.do
       if isInitial then Prelude.do
-        { state, id } <- initializeHook initialState
+        { state, id } <- initializeHook initial
         Prelude.pure $ reply $ Tuple state (RunAction id handler)
 
       else Prelude.do
         { state, id } <- stepHook
         Prelude.pure $ reply $ Tuple state (RunAction id handler)
-
+    
 initializeHook 
-  :: forall a s o
+  :: forall i a s o m
    . (Unit -> StateValue) 
-  -> H.HalogenM HookState a s o Aff { state :: StateValue, id :: StateId }
+  -> H.HalogenM (HookState i) a s o m { state :: StateValue, id :: StateId }
 initializeHook mkInitialState = Prelude.do
   { state } <- H.get
 
@@ -247,8 +266,8 @@ initializeHook mkInitialState = Prelude.do
   Prelude.pure { state: initialState, id: StateId state.total }
 
 stepHook 
-  :: forall a s o
-   . H.HalogenM HookState a s o Aff { state :: StateValue, id :: StateId }
+  :: forall i a s o m
+   . H.HalogenM (HookState i) a s o m { state :: StateValue, id :: StateId }
 stepHook = Prelude.do
   { state } <- H.get
 

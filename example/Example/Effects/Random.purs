@@ -20,7 +20,7 @@ handleAction = case _ of
     H.put (Just newNumber)
 
 component :: forall f i. H.Component HH.HTML f i Void Aff
-component = Hook.component Hook.do
+component = Hook.component \_ -> Hook.do
   state /\ action <- Hook.useAction handleAction \_ -> Nothing
 
   let value = maybe "No number generated yet" show state

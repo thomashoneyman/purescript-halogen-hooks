@@ -13,7 +13,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Hook as Hook
 
 component :: H.Component HH.HTML (Const Void) Unit Void Aff
-component = Hook.component Hook.do
+component = Hook.component \_ -> Hook.do
   state /\ setState <- Hook.useState \_ -> { enabled: false }
 
   let label = if state.enabled then "On" else "Off"
