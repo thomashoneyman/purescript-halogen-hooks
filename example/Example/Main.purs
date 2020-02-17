@@ -33,7 +33,7 @@ examples =
     , "Halogen|Inputs" /\ Inputs.Container.component
     ]
   where
-  index :: forall q i. H.Component HH.HTML q i Void Aff
+  index :: forall q i o m. Functor m => H.Component HH.HTML q i o m
   index = Hook.component \_ -> Hook.pure do
     HH.div_
       [ HH.h1_

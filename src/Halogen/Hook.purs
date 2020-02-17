@@ -1,12 +1,13 @@
-module Halogen.Hook 
-  ( useState 
+module Halogen.Hook
+  ( useState
   , UseState
-  , useAction
-  , UseAction
+  , useEval
+  , UseEval
   , Hook
   , Hooked
   , Action
   , component
+  , defaultEval
   , bind
   , discard
   , pure
@@ -19,35 +20,34 @@ import Control.Bind.Indexed (class IxBind, ibind)
 import Control.Monad.Free (Free, foldFree, liftF)
 import Control.Monad.Indexed (class IxMonad)
 import Data.Array as Array
+import Data.Foldable (for_)
 import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (fromJust)
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Tuple (Tuple(..))
-import Effect.Aff (Aff)
-import Halogen (HalogenQ(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Query.HalogenM (imapState, mapAction)
 import Partial.Unsafe (unsafePartial)
-import Prelude (Void, Unit, class Functor, type (~>), (<<<), ($), unit, const, map, (*>), (+), (<))
+import Prelude (class Functor, type (~>), Unit, const, map, mempty, unit, ($), (+), (<), (<<<))
 import Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | The Hook API: a set of primitive building blocks that can be used on their
 -- | own to share stateful logic or used to create new hooks.
-data HookF a
-  = UseState (Unit -> StateValue) (StateInterface -> a)
-  | UseAction ActionHandler (Unit -> StateValue) (Tuple StateValue (ActionValue -> Action) -> a)
+data HookF out m a
+  = UseState StateValue (StateInterface out m -> a)
+  | UseEval StateValue (ConcreteEvalSpec out m) (EvalInterface out m -> a)
 
-derive instance functorHookF :: Functor HookF
+derive instance functorHookF :: Functor (HookF out m)
 
-newtype Hooked i o a = Hooked (Indexed (Free HookF) i o a)
+newtype Hooked out m i o a = Hooked (Indexed (Free (HookF out m)) i o a)
 
-derive newtype instance ixFunctorIndexed :: IxFunctor Hooked
-derive newtype instance ixApplyIndexed :: IxApply Hooked
-derive newtype instance ixApplicativeIndexed :: IxApplicative Hooked
-derive newtype instance ixBindIndexed :: IxBind Hooked
-derive newtype instance ixMonadIndexed :: IxMonad Hooked
+derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked out m)
+derive newtype instance ixApplyIndexed :: IxApply (Hooked out m)
+derive newtype instance ixApplicativeIndexed :: IxApplicative (Hooked out m)
+derive newtype instance ixBindIndexed :: IxBind (Hooked out m)
+derive newtype instance ixMonadIndexed :: IxMonad (Hooked out m)
 
 -- | Exported for use with qualified-do syntax
 bind :: forall a b x y z m. IxBind m => m x y a -> (a -> m y z b) -> m x z b
@@ -61,11 +61,12 @@ discard = ibind
 pure :: forall a x m. IxApplicative m => a -> m x x a
 pure = ipure
 
-type Hook (newHook :: Type -> Type) a
-  = forall hooks. Hooked hooks (newHook hooks) a
+type Hook out m (newHook :: Type -> Type) a
+  = forall hooks. Hooked out m hooks (newHook hooks) a
 
 --  State
 
+-- Must structurally match state
 foreign import data UseState :: Type -> Type -> Type
 
 foreign import data StateValue :: Type
@@ -76,25 +77,27 @@ toStateValue = unsafeCoerce
 fromStateValue :: forall state. StateValue -> state
 fromStateValue = unsafeCoerce
 
-type StateInterface =
-  { set :: StateValue -> Action
-  , get :: StateValue
+type StateInterface out m =
+  { setState :: StateValue -> Action out m
+  , getState :: StateValue
   }
 
-type State state = Tuple state (state -> Action)
-
-useState :: forall state. (Unit -> state) -> Hook (UseState state) (State state)
+useState
+  :: forall state out m
+   . state
+  -> Hook out m (UseState state) (Tuple state (state -> Action out m))
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialStateValue hookInterface
   where
-  initialStateValue :: Unit -> StateValue
-  initialStateValue = map toStateValue initialState
+  initialStateValue :: StateValue
+  initialStateValue = toStateValue initialState
 
-  hookInterface :: StateInterface -> State state
-  hookInterface { get, set } = Tuple (fromStateValue get) (set <<< toStateValue) 
+  hookInterface :: StateInterface out m -> Tuple state (state -> Action out m)
+  hookInterface { getState, setState } = Tuple (fromStateValue getState) (setState <<< toStateValue)
 
 -- Action
 
-foreign import data UseAction :: Type -> Type -> Type -> Type
+-- Must match state, action, slots, out, and monad
+foreign import data UseEval :: Type -> Type -> # Type -> Type -> (Type -> Type) -> Type ->  Type
 
 foreign import data ActionValue :: Type
 
@@ -104,34 +107,77 @@ toActionValue = unsafeCoerce
 fromActionValue :: forall action. ActionValue -> action
 fromActionValue = unsafeCoerce
 
-type ActionHandler = ActionValue -> H.HalogenM StateValue ActionValue () Void Aff Unit
+foreign import data SlotValue :: # Type
 
-useAction 
-  :: forall state action
-   . (action -> H.HalogenM state action () Void Aff Unit)
-  -> (Unit -> state) 
-  -> Hook (UseAction state action) (Tuple state (action -> Action))
-useAction handler initialState = Hooked $ Indexed $ liftF $ UseAction hookHandler initialStateValue hookInterface
+hideSlotsHalogenM
+  :: forall state action slots out m
+   . H.HalogenM state action slots out m
+  ~> H.HalogenM state action SlotValue out m
+hideSlotsHalogenM m = unsafeCoerce m
+
+hideSlotsComponentHTML
+  :: forall action slots m
+   . H.ComponentHTML action slots m
+  -> H.ComponentHTML action SlotValue m
+hideSlotsComponentHTML m = unsafeCoerce m
+
+-- | Like a Halogen EvalSpec type, but without a receiver (input is handled
+-- | differently in this Hook implementation)
+type EvalSpec state action slots out m =
+  { initialize :: Maybe action
+  , handleAction :: action -> H.HalogenM state action slots out m Unit
+  , finalize :: Maybe action
+  }
+
+defaultEval :: forall state action slots out m. EvalSpec state action slots out m
+defaultEval =
+  { initialize: Nothing
+  , handleAction: mempty
+  , finalize: Nothing
+  }
+
+type ConcreteEvalSpec out m =
+  { handleAction :: ActionValue -> H.HalogenM StateValue ActionValue SlotValue out m Unit
+  , initialize :: Maybe ActionValue
+  , finalize :: Maybe ActionValue
+  }
+
+type EvalInterface out m =
+  { getState :: StateValue
+  , runAction :: ActionValue -> Action out m
+  }
+
+useEval
+  :: forall state action slots out m
+   . Functor m
+  => state
+  -> EvalSpec state action slots out m
+  -> Hook out m (UseEval state action slots out m) (Tuple state (action -> Action out m))
+useEval initialState spec =
+  Hooked $ Indexed $ liftF $ UseEval initialStateValue concreteSpec hookInterface
   where
-  initialStateValue :: Unit -> StateValue
-  initialStateValue = Prelude.map toStateValue initialState
+  initialStateValue :: StateValue
+  initialStateValue = toStateValue initialState
 
-  hookHandler :: ActionValue -> H.HalogenM StateValue ActionValue () Void Aff Unit
-  hookHandler actionValue = do
-    let 
-      handler' :: H.HalogenM StateValue action () Void Aff Unit 
-      handler' = imapState toStateValue fromStateValue (handler (fromActionValue actionValue))
+  concreteSpec :: ConcreteEvalSpec out m
+  concreteSpec =
+    { initialize: map toActionValue spec.initialize
+    , handleAction: convertHalogenM <<< spec.handleAction <<< fromActionValue
+    , finalize: map toActionValue spec.finalize
+    }
 
-    mapAction toActionValue handler'
+  convertHalogenM :: H.HalogenM state action slots out m ~> H.HalogenM StateValue ActionValue SlotValue out m
+  convertHalogenM = hideSlotsHalogenM <<< mapAction toActionValue <<< imapState toStateValue fromStateValue
 
-  hookInterface :: Tuple StateValue (ActionValue -> Action) -> Tuple state (action -> Action)
-  hookInterface (Tuple st fn) = Tuple (fromStateValue st) (fn <<< toActionValue)
+  hookInterface :: EvalInterface out m -> Tuple state (action -> Action out m)
+  hookInterface { getState, runAction } =
+    Tuple (fromStateValue getState) (runAction <<< toActionValue)
 
 -- Underlying component
 
-type HookState input = 
+type HookState input out m =
   { state :: QueueState
-  , html :: H.ComponentHTML Action () Aff
+  , html :: H.ComponentHTML (Action out m) SlotValue m
   , input :: input
   }
 
@@ -149,113 +195,153 @@ newtype StateId = StateId Int
 -- represented as actions with accompanying handlers. These actions need
 -- a reference to the piece of state they are acting on, but that reference
 -- shouldn't be constructable by the end user.
-data Action
+data Action out m
   = ModifyState StateId StateValue
-  | RunAction StateId ActionHandler ActionValue
+  | RunAction StateId (ActionValue -> H.HalogenM StateValue ActionValue SlotValue out m Unit) ActionValue
 
 handleAction
-  :: forall input hooks
-   . (input -> Hooked Unit hooks (H.ComponentHTML Action () Aff))
-  -> (HookF ~> H.HalogenM (HookState input) Action () Void Aff)
-  -> Action 
-  -> H.HalogenM (HookState input) Action () Void Aff Unit
-handleAction hookFn interpretHook = case _ of
+  :: forall input out hooks m
+   . Functor m
+  => (HookF out m ~> H.HalogenM (HookState input out m) (Action out m) SlotValue out m)
+  -> (input -> Hooked out m Unit hooks (H.ComponentHTML (Action out m) SlotValue m))
+  -> Action out m
+  -> H.HalogenM (HookState input out m) (Action out m) SlotValue out m Unit
+handleAction interpreter hookFn = case _ of
   ModifyState stateId newState -> Prelude.do
     { input, state} <- H.get
     H.modify_ _ { state { queue = unsafeSetState stateId newState state.queue } }
 
     let Hooked (Indexed hookF) = hookFn input
-    html <- foldFree interpretHook hookF
+    html <- foldFree interpreter hookF
     H.modify_ _ { html = html }
 
   RunAction stateId handler action -> Prelude.do
     current <- H.get
 
-    let 
-      toState :: StateValue -> HookState input
+    let
+      toState :: StateValue -> HookState input out m
       toState stateValue =
         current { state { queue = unsafeSetState stateId stateValue current.state.queue } }
 
-      fromState :: HookState input -> StateValue
+      fromState :: HookState input out m -> StateValue
       fromState = \state -> unsafeGetState stateId state.state.queue
 
     -- Run the action
     (mapAction (RunAction stateId handler)) (imapState toState fromState (handler action))
 
     let Hooked (Indexed hookF) = hookFn current.input
-    html <- foldFree interpretHook hookF
+    html <- foldFree interpreter hookF
     H.modify_ _ { html = html }
 
+data InterpretHookReason
+  = Initialize
+  | Step
+  | Finalize
+
 component
-  :: forall hooks q i
-   . (i -> Hooked Unit hooks (H.ComponentHTML Action () Aff))
-  -> H.Component HH.HTML q i Void Aff
-component hookFn =
+  :: forall hooks slots q i o m
+   . Functor m
+  => (i -> Hooked o m Unit hooks (H.ComponentHTML (Action o m) slots m))
+  -> H.Component HH.HTML q i o m
+component hookFn' = do
+  let
+    -- Hide the slot value internally.
+    hookFn :: i -> Hooked o m Unit hooks (H.ComponentHTML (Action o m) SlotValue m)
+    hookFn i = do
+      let (Hooked (Indexed x)) = hookFn' i
+      Hooked $ Indexed $ map hideSlotsComponentHTML x
+
   H.mkComponent
     { initialState
     , render: _.html
     , eval: case _ of
-        Initialize a -> Prelude.do
-          { input } <- H.get
-          let Hooked (Indexed hookF) = hookFn input
-          html <- foldFree (interpretHook true) hookF
-          H.modify_ _ { html = html }
+        H.Initialize a -> Prelude.do
+          runInterpreter Initialize hookFn
           Prelude.pure a
 
-        Query _ reply -> 
+        H.Query query reply -> Prelude.do
+          -- runInterpreter (Query query reply) hookFn
           Prelude.pure (reply unit)
 
-        Action act a -> 
-          handleAction hookFn (interpretHook false) act *> Prelude.pure a
-
-        Receive input a -> Prelude.do
-          H.modify_ _ { input = input }
-          let Hooked (Indexed hookF) = hookFn input
-          html <- foldFree (interpretHook true) hookF
-          H.modify_ _ { html = html }
+        H.Action act a -> Prelude.do
+          handleAction (interpretHook Step hookFn) hookFn act
           Prelude.pure a
 
-        Finalize a -> 
+        H.Receive input a -> Prelude.do
+          H.modify_ _ { input = input }
+          runInterpreter Step hookFn
+          Prelude.pure a
+
+        H.Finalize a -> Prelude.do
+          runInterpreter Finalize hookFn
           Prelude.pure a
     }
   where
-  initialState :: i -> HookState i 
-  initialState input = 
+  initialState :: i -> HookState i o m
+  initialState input =
     { html: HH.text ""
-    , state: { queue: [], total: 0, index: 0 } 
+    , state: { queue: [], total: 0, index: 0 }
     , input
     }
 
-  interpretHook :: Boolean -> HookF ~> H.HalogenM (HookState i) Action () Void Aff
-  interpretHook isInitial = case _ of
-    UseState initial reply ->
-      if isInitial then Prelude.do 
-        { state, id } <- initializeHook initial
-        Prelude.pure $ reply { get: state, set: ModifyState id }
-      
-      else Prelude.do
-        { state, id } <- stepHook
-        Prelude.pure $ reply { get: state, set: ModifyState id }
+runInterpreter
+  :: forall i o m hooks
+   . Functor m
+  => InterpretHookReason
+  -> (i -> Hooked o m Unit hooks (H.ComponentHTML (Action o m) SlotValue m))
+  -> H.HalogenM (HookState i o m) (Action o m) SlotValue o m Unit
+runInterpreter reason hookFn = Prelude.do
+  { input } <- H.get
 
-    UseAction handler initial reply -> Prelude.do
-      if isInitial then Prelude.do
-        { state, id } <- initializeHook initial
-        Prelude.pure $ reply $ Tuple state (RunAction id handler)
+  let
+    Hooked (Indexed hookF) = hookFn input
+    interpret = interpretHook reason hookFn
 
-      else Prelude.do
+  html <- foldFree interpret hookF
+  H.modify_ _ { html = html }
+  Prelude.pure unit
+
+interpretHook
+  :: forall i o m hooks
+   . Functor m
+  => InterpretHookReason
+  -> (i -> Hooked o m Unit hooks (H.ComponentHTML (Action o m) SlotValue m))
+  -> HookF o m
+  ~> H.HalogenM (HookState i o m) (Action o m) SlotValue o m
+interpretHook reason hookFn = case _ of
+  UseState initial reply ->
+    case reason of
+      Initialize -> Prelude.do
+        { id } <- initializeHook initial
+        Prelude.pure $ reply { getState: initial, setState: ModifyState id }
+
+      _ -> Prelude.do
         { state, id } <- stepHook
-        Prelude.pure $ reply $ Tuple state (RunAction id handler)
-    
-initializeHook 
-  :: forall i a s o m
-   . (Unit -> StateValue) 
-  -> H.HalogenM (HookState i) a s o m { state :: StateValue, id :: StateId }
-initializeHook mkInitialState = Prelude.do
+        Prelude.pure $ reply { getState: state, setState: ModifyState id }
+
+  UseEval initial spec reply ->
+    case reason of
+      Initialize -> Prelude.do
+        { id } <- initializeHook initial
+        for_ spec.initialize \act ->
+          handleAction (interpretHook Step hookFn) hookFn (RunAction id spec.handleAction act)
+        Prelude.pure $ reply { getState: initial, runAction: RunAction id spec.handleAction }
+
+      Step -> Prelude.do
+        { state, id } <- stepHook
+        Prelude.pure $ reply { getState: state, runAction: RunAction id spec.handleAction }
+
+      Finalize -> Prelude.do
+        { state, id } <- stepHook
+        for_ spec.finalize \act ->
+          handleAction (interpretHook Step hookFn) hookFn (RunAction id spec.handleAction act)
+        Prelude.pure $ reply { getState: state, runAction: RunAction id spec.handleAction }
+
+initializeHook :: forall i a s o m. StateValue -> H.HalogenM (HookState i o m) a s o m { id :: StateId }
+initializeHook initialState = Prelude.do
   { state } <- H.get
 
   let
-    initialState = mkInitialState unit
-
     queue =
       { queue: Array.snoc state.queue initialState
       , index: 0
@@ -263,29 +349,29 @@ initializeHook mkInitialState = Prelude.do
       }
 
   H.modify_ _ { state = queue }
-  Prelude.pure { state: initialState, id: StateId state.total }
+  Prelude.pure { id: StateId state.total }
 
-stepHook 
-  :: forall i a s o m
-   . H.HalogenM (HookState i) a s o m { state :: StateValue, id :: StateId }
+stepHook :: forall i a s o m. H.HalogenM (HookState i o m) a s o m { state :: StateValue, id :: StateId }
 stepHook = Prelude.do
   { state } <- H.get
 
   let
     stateValue = unsafeGetState (StateId state.index) state.queue
-    nextIndex = 
-      if state.index + 1 < state.total 
-        then state.index + 1 
+    nextIndex =
+      if state.index + 1 < state.total
+        then state.index + 1
         else 0
 
-    queue = 
+    queue =
       { queue: state.queue
-      , index: nextIndex 
+      , index: nextIndex
       , total: state.total
       }
 
   H.modify_ _ { state = queue }
   Prelude.pure { state: stateValue, id: StateId state.index }
+
+-- Utilities for updating state
 
 unsafeGetState :: StateId -> Array StateValue -> StateValue
 unsafeGetState (StateId index) array = unsafePartial (Array.unsafeIndex array index)
