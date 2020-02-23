@@ -12,20 +12,18 @@ import Halogen.HTML.Properties as HP
 import Halogen.Hook as Hook
 
 component :: forall q i o m. H.Component HH.HTML q i o m
-component = Hook.component \_ -> Hook.do
-  state /\ id <- Hook.useState { enabled: false }
-  state2 /\ id2 <- Hook.useState true
+component = Hook.component \_ _ -> Hook.do
+  state /\ _state <- Hook.useState { enabled: false }
 
   let
     label = if state.enabled then "On" else "Off"
 
-    handleClick = do
-      EH.modify_ id \st -> { enabled: not st.enabled }
-      EH.modify_ id2 \_ -> false
+    handleClick = Just do
+      EH.modify_ _state \st -> { enabled: not st.enabled }
 
   Hook.pure do
     HH.button
       [ HP.title label
-      , HE.onClick \_ -> Just handleClick
+      , HE.onClick \_ -> handleClick
       ]
       [ HH.text label ]

@@ -7,6 +7,7 @@ import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Example.Basic.Button as Basic
+import Example.Components.Container as Components
 import Example.Components.Inputs.Container as Inputs.Container
 import Example.Effects.Random as Random
 import Foreign.Object as Object
@@ -29,12 +30,13 @@ examples =
   Object.fromFoldable
     [ "" /\ index
     , "Halogen|Basic" /\ Basic.component
+    , "Halogen|Components" /\ Components.component
     , "Halogen|Effect: Random" /\ Random.component
     , "Halogen|Inputs" /\ Inputs.Container.component
     ]
   where
-  index :: forall q i o m. Functor m => H.Component HH.HTML q i o m
-  index = Hook.component \_ -> Hook.pure do
+  index :: forall q i o m. H.Component HH.HTML q i o m
+  index = Hook.component \_ _ -> Hook.pure do
     HH.div_
       [ HH.h1_
         [ HH.text "Halogen Hooks" ]
