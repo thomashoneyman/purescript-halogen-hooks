@@ -19,13 +19,13 @@ import Halogen.Storybook (Stories, runStorybook)
 
 main :: Effect Unit
 main = HA.runHalogenAff do
-  HA.awaitBody >>= runStorybook 
+  HA.awaitBody >>= runStorybook
     { stories: examples
-    , logo: Just $ HH.text "Halogen Hooks Examples" 
+    , logo: Just $ HH.text "Halogen Hooks Examples"
     }
 
 examples :: Stories Aff
-examples = 
+examples =
   Object.fromFoldable
     [ "" /\ index
     , "Halogen|Basic" /\ Basic.component
