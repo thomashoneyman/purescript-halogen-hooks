@@ -16,7 +16,7 @@ import Halogen.Hook as Hook
 _display = SProxy :: SProxy "display"
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-component = Hook.component \_ _ -> Hook.do
+component = Hook.component \_ -> Hook.do
   state /\ _state <- Hook.useState 1
 
   let

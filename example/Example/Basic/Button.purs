@@ -12,7 +12,7 @@ import Halogen.HTML.Properties as HP
 import Halogen.Hook as Hook
 
 component :: forall q i o m. H.Component HH.HTML q i o m
-component = Hook.component \_ _ -> Hook.do
+component = Hook.component \_ -> Hook.do
   state /\ _state <- Hook.useState { enabled: false }
 
   let

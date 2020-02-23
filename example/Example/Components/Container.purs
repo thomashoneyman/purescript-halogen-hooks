@@ -13,10 +13,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.Hook as Hook
 
-data Action
-  = HandleButton Button.Message
-  | CheckButtonState
-
 type State =
   { toggleCount :: Int
   , buttonState :: Maybe Boolean
@@ -36,23 +32,20 @@ _button :: SProxy "button"
 _button = SProxy
 
 component :: forall q i o m. H.Component HH.HTML q i o m
-component = Hook.component \_ _ -> Hook.do
+component = Hook.component \_ -> Hook.do
   state /\ _state <- Hook.useState initialState
 
   let
-    handle :: Action -> Maybe (EH.EvalHookM ChildSlots o m Unit)
-    handle = Just <<< case _ of
-      HandleButton (Button.Toggled _) -> do
-        EH.modify_ _state \st -> st { toggleCount = st.toggleCount + 1 }
+    handleButton (Button.Toggled _) = Just do
+      EH.modify_ _state \st -> st { toggleCount = st.toggleCount + 1 }
 
-      CheckButtonState -> do
-        buttonState <- EH.query _button unit $ H.request Button.IsOn
-        EH.modify_ _state _ { buttonState = buttonState }
-        pure unit
+    handleClick = Just do
+      buttonState <- EH.query _button unit $ H.request Button.IsOn
+      EH.modify_ _state _ { buttonState = buttonState }
 
   Hook.pure do
     HH.div_
-      [ HH.slot _button unit Button.component unit (handle <<< HandleButton)
+      [ HH.slot _button unit Button.component unit handleButton
       , HH.p_
           [ HH.text $ "Button has been toggled " <> show state.toggleCount <> " time(s)" ]
       , HH.p_
@@ -62,7 +55,7 @@ component = Hook.component \_ _ -> Hook.do
               , ". "
               ]
           , HH.button
-              [ HE.onClick \_ -> handle CheckButtonState ]
+              [ HE.onClick \_ -> handleClick ]
               [ HH.text "Check now" ]
           ]
       ]

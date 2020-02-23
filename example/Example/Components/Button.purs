@@ -23,7 +23,7 @@ initialState :: State
 initialState = { enabled: false }
 
 component :: forall i m. H.Component HH.HTML Query i Message m
-component = Hook.component \queryToken _ -> Hook.do
+component = Hook.componentWithQuery \queryToken _ -> Hook.do
   state /\ _state <- Hook.useState initialState
 
   Hook.useQuery queryToken case _ of
