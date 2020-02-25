@@ -1,4 +1,4 @@
-module Example.Components.Button (Slot, Query(..), Message(..), component) where
+module Example.Halogen.Components.Button (Slot, Query(..), Message(..), component) where
 
 import Prelude
 

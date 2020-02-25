@@ -1,4 +1,4 @@
-module Example.Basic.Button where
+module Example.Halogen.Basic.Button where
 
 import Prelude
 

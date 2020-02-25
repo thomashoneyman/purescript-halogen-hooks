@@ -9,6 +9,7 @@ module Halogen.Hook
   , UseFinalizer
   , Hook
   , Hooked
+  , coerce
   , component
   , componentWithQuery
   , bind
@@ -32,7 +33,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple.Nested ((/\), type (/\))
 import Halogen as H
 import Halogen.HTML as HH
-import Prelude (class Functor, type (~>), Unit, map, unit, ($), (+), (<), (<<<))
+import Prelude (class Functor, type (~>), Unit, map, mempty, unit, ($), (+), (<), (<<<))
 import Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -110,6 +111,12 @@ foreign import data UseFinalizer :: Type -> Type
 useFinalizer :: forall q ps o m. EvalHookM ps o m Unit -> Hook q ps o m UseFinalizer Unit
 useFinalizer finalizer = Hooked $ Indexed $ liftF $ UseFinalizer finalizer unit
 
+-- Coercion
+
+-- | Use when you want to turn a stack of hooks into a new custom hook type.
+coerce :: forall hooks h' h q ps o m a. Hooked q ps o m hooks h' a -> Hooked q ps o m hooks h a
+coerce = unsafeCoerce
+
 data InterpretHookReason
   = Initialize
   | Step
@@ -135,6 +142,7 @@ componentWithQuery inputHookFn = do
     , eval: case _ of
         H.Initialize a -> Prelude.do
           interpretHookFn Initialize hookFn
+          interpretHookFn Step hookFn
           Prelude.pure a
 
         H.Query query reply -> Prelude.do
@@ -143,15 +151,11 @@ componentWithQuery inputHookFn = do
             Nothing ->
               Prelude.pure (reply unit)
             Just fn -> Prelude.do
-              let (EvalHookM eval) = unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) query
-              foldFree interpretEvalHook eval
+              let runHooks = interpretHookFn Step hookFn
+              evalM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) query
 
-        H.Action (EvalHookM act) a -> Prelude.do
-          -- TODO: It's necessary to pass the hook interpreter to the evalHook
-          -- interpreter so that state updates can always cause a re-render in
-          -- the html in state.
-          foldFree interpretEvalHook act
-          interpretHookFn Step hookFn
+        H.Action act a -> Prelude.do
+          evalM (interpretHookFn Step hookFn) act
           Prelude.pure a
 
         H.Receive input a -> Prelude.do
@@ -172,61 +176,61 @@ componentWithQuery inputHookFn = do
     , queryFn: Nothing
     }
 
-  interpretHookFn reason hookFn = Prelude.do
-    { input } <- H.get
-    let Hooked (Indexed hookF) = hookFn input
-    html <- foldFree (interpretHook reason) hookF
-    H.modify_ _ { html = html }
-    Prelude.pure unit
-
-interpretHook
-  :: forall q i ps o m
+interpretHookFn
+  :: forall hooks q i ps o m
    . InterpretHookReason
-  -> HookF q ps o m
-  ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
-interpretHook reason = case _ of
-  UseState initial reply ->
-    case reason of
-      Initialize -> Prelude.do
-        { state } <- H.get
+  -> (i -> Hooked q ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
+  -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
+interpretHookFn reason hookFn = Prelude.do
+  { input } <- H.get
+  let Hooked (Indexed hookF) = hookFn input
+  html <- foldFree interpretHook hookF
+  H.modify_ _ { html = html }
+  where
+  interpretHook :: HookF q ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
+  interpretHook = case _ of
+    UseState initial reply ->
+      case reason of
+        Initialize -> Prelude.do
+          { state } <- H.get
 
-        let
-          newState =
-            { queue: Array.snoc state.queue initial
-            , index: 0
-            , total: state.total + 1
-            }
+          let
+            newState =
+              { queue: Array.snoc state.queue initial
+              , index: 0
+              , total: state.total + 1
+              }
 
-        H.modify_ _ { state = newState }
-        Prelude.pure $ reply { getState: initial, stateToken: StateToken (StateId state.total) }
+          H.modify_ _ { state = newState }
+          Prelude.pure $ reply { getState: initial, stateToken: StateToken (StateId state.total) }
 
-      _ -> Prelude.do
-        { state } <- H.get
+        _ -> Prelude.do
+          { state } <- H.get
 
-        let
-          stateValue = unsafeGetState (StateId state.index) state.queue
-          nextIndex = if state.index + 1 < state.total then state.index + 1 else 0
-          newState =
-            { queue: state.queue
-            , index: nextIndex
-            , total: state.total
-            }
+          let
+            stateValue = unsafeGetState (StateId state.index) state.queue
+            nextIndex = if state.index + 1 < state.total then state.index + 1 else 0
+            newState =
+              { queue: state.queue
+              , index: nextIndex
+              , total: state.total
+              }
 
-        H.modify_ _ { state = newState }
-        Prelude.pure $ reply { getState: stateValue, stateToken: StateToken (StateId state.index) }
+          H.modify_ _ { state = newState }
+          Prelude.pure $ reply { getState: stateValue, stateToken: StateToken (StateId state.index) }
 
-  UseQuery _ handler a -> Prelude.do
-    H.modify_ _ { queryFn = Just (toQueryFn handler) }
-    Prelude.pure a
+    UseQuery _ handler a -> Prelude.do
+      H.modify_ _ { queryFn = Just (toQueryFn handler) }
+      Prelude.pure a
 
-  UseInitializer (EvalHookM act) a -> Prelude.do
-    case reason of
-      Initialize -> foldFree interpretEvalHook act
-      _ -> Prelude.pure unit
-    Prelude.pure a
+    UseInitializer act a -> Prelude.do
+      case reason of
+        Initialize -> evalM mempty act
+        _ -> Prelude.pure unit
+      Prelude.pure a
 
-  UseFinalizer (EvalHookM act) a -> Prelude.do
-    case reason of
-      Finalize -> foldFree interpretEvalHook act
-      _ -> Prelude.pure unit
-    Prelude.pure a
+    UseFinalizer act a -> Prelude.do
+      case reason of
+        Finalize -> evalM mempty act
+        _ -> Prelude.pure unit
+      Prelude.pure a

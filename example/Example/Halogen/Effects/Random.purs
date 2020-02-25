@@ -1,4 +1,4 @@
-module Example.Effects.Random where
+module Example.Halogen.Effects.Random where
 
 import Prelude
 

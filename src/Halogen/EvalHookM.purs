@@ -2,27 +2,38 @@ module Halogen.EvalHookM where
 
 import Prelude
 
-import Control.Monad.Free (Free, liftF)
+import Control.Applicative.Free (FreeAp, hoistFreeAp, retractFreeAp)
+import Control.Monad.Free (Free, foldFree, liftF)
+import Control.Parallel (parallel, sequential)
 import Data.Array as Array
 import Data.Maybe (Maybe(..), fromJust, maybe)
+import Data.Newtype (class Newtype)
 import Data.Symbol (class IsSymbol, SProxy)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.Data.Slot as Slot
 import Halogen.Query.ChildQuery as CQ
+import Halogen.Query.EventSource as ES
 import Partial.Unsafe (unsafePartial)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
+import Web.DOM (Element)
 
 -- | The EvalHook API: a set of primitive building blocks that can be used as
 -- | an alternate interface to HalogenM when evaluating hooks. Implemented so
 -- | that multiple states can be accessed by different hooks.
 data EvalHookF slots output m a
   = Modify (StateToken StateValue) (StateValue -> StateValue) (StateValue -> a)
+  | Subscribe (H.SubscriptionId -> ES.EventSource m (EvalHookM slots output m Unit)) (H.SubscriptionId -> a)
+  | Unsubscribe H.SubscriptionId a
   | Lift (m a)
   | ChildQuery (CQ.ChildQueryBox slots a)
   | Raise output a
+  | Par (EvalHookAp slots output m a)
+  | Fork (EvalHookM slots output m Unit) (H.ForkId -> a)
+  | Kill H.ForkId a
+  | GetRef H.RefLabel (Maybe Element -> a)
 
 derive instance functorHookF :: Functor m => Functor (EvalHookF slots output m)
 
@@ -42,6 +53,14 @@ instance monadEffectEvalHookM :: MonadEffect m => MonadEffect (EvalHookM slots o
 
 instance monadAffEvalHookM :: MonadAff m => MonadAff (EvalHookM slots output m) where
   liftAff = EvalHookM <<< liftF <<< Lift <<< liftAff
+
+-- | An applicative-only version of `EvalHookM` to allow for parallel evaluation.
+newtype EvalHookAp slots output m a = EvalHookAp (FreeAp (EvalHookM slots output m) a)
+
+derive instance newtypeEvalHookAp :: Newtype (EvalHookAp slots output m a) _
+derive newtype instance functorEvalHookAp :: Functor (EvalHookAp slots output m)
+derive newtype instance applyEvalHookAp :: Apply (EvalHookAp slots output m)
+derive newtype instance applicativeEvalHookAp :: Applicative (EvalHookAp slots output m)
 
 -- Query
 
@@ -101,6 +120,17 @@ query
 query label p q = EvalHookM $ liftF $ ChildQuery $ CQ.mkChildQueryBox $
   CQ.ChildQuery (\k → maybe (pure Nothing) k <<< Slot.lookup label p) q identity
 
+-- Subscription
+
+subscribe :: forall slots output m. ES.EventSource m (EvalHookM slots output m Unit) -> EvalHookM slots output m H.SubscriptionId
+subscribe es = EvalHookM $ liftF $ Subscribe (\_ -> es) identity
+
+subscribe' :: forall slots output m. (H.SubscriptionId -> ES.EventSource m (EvalHookM slots output m Unit)) -> EvalHookM slots output m Unit
+subscribe' esc = EvalHookM $ liftF $ Subscribe esc (const unit)
+
+unsubscribe :: forall slots output m. H.SubscriptionId -> EvalHookM slots output m Unit
+unsubscribe sid = EvalHookM $ liftF $ Unsubscribe sid unit
+
 -- Interpreter
 
 foreign import data QueryFn :: (Type -> Type) -> # Type -> Type -> (Type -> Type) -> Type
@@ -130,23 +160,48 @@ derive newtype instance eqStateId :: Eq StateId
 derive newtype instance ordStateId :: Ord StateId
 derive newtype instance showStateId :: Show StateId
 
-interpretEvalHook :: forall q i a ps o m. EvalHookF ps o m ~> H.HalogenM (HookState q i ps o m) a ps o m
-interpretEvalHook = case _ of
-  Modify (StateToken token) f reply -> do
-    state <- H.get
+evalM
+  :: forall q i ps o m
+   . H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
+  -> EvalHookM ps o m
+  ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
+evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
+  where
+  interpretEvalHook :: EvalHookF ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
+  interpretEvalHook = case _ of
+    Modify (StateToken token) f reply -> do
+      state <- H.get
+      let v = f (unsafeGetState token state.state.queue)
+      H.put $ state { state { queue = unsafeSetState token v state.state.queue } }
+      runHooks
+      pure (reply v)
 
-    let
-      v = unsafeGetState token state.state.queue
-      v' = f v
+    Subscribe eventSource reply -> do
+      H.HalogenM $ liftF $ H.Subscribe eventSource reply
 
-    H.put $ state { state { queue = unsafeSetState token v' state.state.queue } }
-    pure (reply v')
+    Unsubscribe sid a ->
+      H.HalogenM $ liftF $ H.Unsubscribe sid a
 
-  Lift f -> H.HalogenM $ liftF $ H.Lift f
+    Lift f ->
+      H.HalogenM $ liftF $ H.Lift f
 
-  ChildQuery box -> H.HalogenM $ liftF $ H.ChildQuery box
+    ChildQuery box ->
+      H.HalogenM $ liftF $ H.ChildQuery box
 
-  Raise o a -> H.raise o *> pure a
+    Raise o a ->
+      H.raise o *> pure a
+
+    Par (EvalHookAp p) ->
+      sequential $ retractFreeAp $ hoistFreeAp (parallel <<< evalM runHooks) p
+
+    Fork hmu reply ->
+      H.HalogenM $ liftF $ H.Fork (evalM runHooks hmu) reply
+
+    Kill fid a ->
+      H.HalogenM $ liftF $ H.Kill fid a
+
+    GetRef p reply ->
+      H.HalogenM $ liftF $ H.GetRef p reply
 
 -- Utilities for updating state
 

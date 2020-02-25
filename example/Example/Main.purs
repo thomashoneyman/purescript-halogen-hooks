@@ -6,10 +6,11 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
-import Example.Basic.Button as Basic
-import Example.Components.Container as Components
-import Example.Components.Inputs.Container as Inputs.Container
-import Example.Effects.Random as Random
+import Example.Halogen.Basic.Button as Halogen.Basic
+import Example.Halogen.Components.Container as Halogen.Components.Container
+import Example.Halogen.ComponentsInputs.Container as Halogen.ComponentsInputs.Container
+import Example.Halogen.Effects.Random as Halogen.Effects.Random
+import Example.Hooks.Components as HookComponents
 import Foreign.Object as Object
 import Halogen as H
 import Halogen.Aff as HA
@@ -29,10 +30,11 @@ examples :: Stories Aff
 examples =
   Object.fromFoldable
     [ "" /\ index
-    , "Halogen|Basic" /\ Basic.component
-    , "Halogen|Components" /\ Components.component
-    , "Halogen|Effect: Random" /\ Random.component
-    , "Halogen|Inputs" /\ Inputs.Container.component
+    , "Hooks|useWindowWidth" /\ HookComponents.windowWidth
+    , "Halogen|Basic" /\ Halogen.Basic.component
+    , "Halogen|Components" /\ Halogen.Components.Container.component
+    , "Halogen|Components: Inputs" /\ Halogen.ComponentsInputs.Container.component
+    , "Halogen|Effects: Random" /\ Halogen.Effects.Random.component
     ]
   where
   index :: forall q i o m. H.Component HH.HTML q i o m

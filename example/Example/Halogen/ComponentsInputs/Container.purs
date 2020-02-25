@@ -1,4 +1,4 @@
-module Example.Components.Inputs.Container where
+module Example.Halogen.ComponentsInputs.Container where
 
 import Prelude
 
@@ -6,7 +6,7 @@ import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect)
-import Example.Components.Inputs.Display as Display
+import Example.Halogen.ComponentsInputs.Display as Display
 import Halogen as H
 import Halogen.EvalHookM as EH
 import Halogen.HTML as HH

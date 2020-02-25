@@ -12,5 +12,7 @@ generated-docs
 .psa*
 .spago
 
+*.lock
+
 # ignore bundled example output
 example/app.js

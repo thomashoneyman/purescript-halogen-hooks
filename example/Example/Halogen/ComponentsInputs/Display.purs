@@ -1,4 +1,4 @@
-module Example.Components.Inputs.Display where
+module Example.Halogen.ComponentsInputs.Display where
 
 import Prelude
 

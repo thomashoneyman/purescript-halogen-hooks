@@ -1,4 +1,4 @@
-module Example.Components.Container (component) where
+module Example.Halogen.Components.Container (component) where
 
 import Prelude
 
@@ -6,7 +6,7 @@ import Data.Foldable (fold)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Symbol (SProxy(..))
 import Data.Tuple.Nested ((/\))
-import Example.Components.Button as Button
+import Example.Halogen.Components.Button as Button
 import Halogen as H
 import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
