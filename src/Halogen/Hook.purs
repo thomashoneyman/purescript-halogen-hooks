@@ -1,12 +1,11 @@
 module Halogen.Hook
   ( useState
   , UseState
+  , useEffect
+  , UseEffect
   , useQuery
   , UseQuery
-  , useInitializer
-  , UseInitializer
-  , useFinalizer
-  , UseFinalizer
+  , captures
   , Hook
   , Hooked
   , coerce
@@ -27,23 +26,26 @@ import Control.Monad.Free (Free, foldFree, liftF)
 import Control.Monad.Indexed (class IxMonad)
 import Data.Array as Array
 import Data.Coyoneda (unCoyoneda)
+import Data.Foldable (for_)
 import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Tuple.Nested ((/\), type (/\))
+import Foreign.Object (Object)
+import Foreign.Object as Object
 import Halogen as H
 import Halogen.HTML as HH
-import Prelude (class Functor, type (~>), Unit, map, mempty, unit, ($), (+), (<), (<<<))
+import Prelude (class Functor, type (~>), Unit, map, mempty, unit, unless, void, when, ($), (+), (-), (<), (<<<), (||), (>))
 import Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
+import Unsafe.Reference (unsafeRefEq)
 
 -- | The Hook API: a set of primitive building blocks that can be used on their
 -- | own to share stateful logic or used to create new hooks.
 data HookF q ps o m a
   = UseState StateValue (StateInterface -> a)
+  | UseEffect (Maybe (Array MemoValue)) (EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))) a
   | UseQuery (QueryToken q) (forall b. q b -> EvalHookM ps o m (Maybe b)) a
-  | UseInitializer (EvalHookM ps o m Unit) a
-  | UseFinalizer (EvalHookM ps o m Unit) a
 
 derive instance functorHookF :: Functor (HookF q ps o m)
 
@@ -101,15 +103,59 @@ useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token handler unit
 
 -- Lifecycle
 
-foreign import data UseInitializer :: Type -> Type
+foreign import data UseEffect :: Type -> Type
 
-useInitializer :: forall q ps o m. EvalHookM ps o m Unit -> Hook q ps o m UseInitializer Unit
-useInitializer initializer = Hooked $ Indexed $ liftF $ UseInitializer initializer unit
+-- | Given a record, uses the value of each key as a separate value to capture.
+-- | Used for hooks like `useEffect` and `useMemo` which use these values to
+-- | prevent unnecessarily running effects or recomputing values.
+captures :: forall r a. Record r -> (Array MemoValue -> a) -> a
+captures rec fn = fn (Object.values (toObject rec))
+  where
+  -- We can convert the record to an object because records are
+  -- represented as objects in the underlying JavaScript
+  toObject :: forall x. Record r -> Object x
+  toObject = unsafeCoerce
 
-foreign import data UseFinalizer :: Type -> Type
+-- | Produces a hook for running post-render effects like subscriptions, timers,
+-- | logging, and more. This replaces the usual Halogen `Initialize` and
+-- | `Finalize` actions and extends them with the ability to run the same effect
+-- | on each render so you don't have to manually call the effect after modifying
+-- | state.
+-- |
+-- | The provided effect can return another effect to run as the finalizer.
+-- |
+-- | If the provided array of memo values is empty then the effect will run once
+-- | at component mount and, if there is a provided finalizer, once at component
+-- | unmount. If memo values are provided then the effect will also run on any
+-- | render in which one of the memo values has changed.
+-- |
+-- | To run only on initialize and finalize:
+-- |
+-- | ```purs
+-- | Hook.useEffect [] do
+-- |   ...
+-- | ```
+-- |
+-- | To run on initialize, finalize, and when a particular memo value has changed:
+-- |
+-- | ```purs
+-- | Hook.captures { memoA, memoB } Hook.useEffect do
+-- |   ...
+-- | ```
+useEffect
+  :: forall q ps o m
+   . Array MemoValue
+  -> EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
+  -> Hook q ps o m UseEffect Unit
+useEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
-useFinalizer :: forall q ps o m. EvalHookM ps o m Unit -> Hook q ps o m UseFinalizer Unit
-useFinalizer finalizer = Hooked $ Indexed $ liftF $ UseFinalizer finalizer unit
+-- | Like `useEffect`, but runs after every render. If you are experiencing
+-- | performance issues, consider switching to `useEffect`.
+useTickEffect
+  :: forall q ps o m
+   . EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
+  -> Hook q ps o m UseEffect Unit
+useTickEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
 -- Coercion
 
@@ -171,9 +217,11 @@ componentWithQuery inputHookFn = do
   initialState :: i -> HookState q i ps o m
   initialState input =
     { html: HH.text ""
-    , state: { queue: [], total: 0, index: 0 }
+    , stateCells: { queue: [], index: 0 }
+    , memoCells: { queue: [], index: 0 }
     , input
     , queryFn: Nothing
+    , finalizerFn: Nothing
     }
 
 interpretHookFn
@@ -192,45 +240,59 @@ interpretHookFn reason hookFn = Prelude.do
     UseState initial reply ->
       case reason of
         Initialize -> Prelude.do
-          { state } <- H.get
+          { stateCells: { queue } } <- H.get
 
           let
-            newState =
-              { queue: Array.snoc state.queue initial
-              , index: 0
-              , total: state.total + 1
-              }
+            newQueue = Array.snoc queue initial
+            stateToken = StateToken (StateId (Array.length newQueue - 1))
 
-          H.modify_ _ { state = newState }
-          Prelude.pure $ reply { getState: initial, stateToken: StateToken (StateId state.total) }
+          H.modify_ _ { stateCells { queue = newQueue } }
+          Prelude.pure $ reply { getState: initial, stateToken }
 
         _ -> Prelude.do
-          { state } <- H.get
+          { stateCells: { index, queue } } <- H.get
 
           let
-            stateValue = unsafeGetState (StateId state.index) state.queue
-            nextIndex = if state.index + 1 < state.total then state.index + 1 else 0
-            newState =
-              { queue: state.queue
-              , index: nextIndex
-              , total: state.total
-              }
+            stateValue = unsafeGetState (StateId index) queue
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            stateToken = StateToken (StateId index)
 
-          H.modify_ _ { state = newState }
-          Prelude.pure $ reply { getState: stateValue, stateToken: StateToken (StateId state.index) }
+          H.modify_ _ { stateCells { index = nextIndex } }
+          Prelude.pure $ reply { getState: stateValue, stateToken }
 
     UseQuery _ handler a -> Prelude.do
       H.modify_ _ { queryFn = Just (toQueryFn handler) }
       Prelude.pure a
 
-    UseInitializer act a -> Prelude.do
+    UseEffect mbMemos act a -> Prelude.do
       case reason of
-        Initialize -> evalM mempty act
-        _ -> Prelude.pure unit
-      Prelude.pure a
+        Initialize -> Prelude.do
+          for_ mbMemos \memos ->
+            when (Array.length memos > 0) Prelude.do
+              { memoCells: { queue } } <- H.get
+              H.modify_ _ { memoCells { queue = Array.snoc queue memos } }
 
-    UseFinalizer act a -> Prelude.do
-      case reason of
-        Finalize -> evalM mempty act
-        _ -> Prelude.pure unit
+          finalizer <- evalM mempty act
+          when (isJust finalizer) Prelude.do
+            H.modify_ _ { finalizerFn = finalizer }
+
+        Step -> case mbMemos of
+          Nothing ->
+            void $ evalM mempty act
+          Just memos -> Prelude.do
+            { memoCells: { index, queue } } <- H.get
+
+            let
+              oldMemos = unsafeGetMemos (MemoId index) queue
+              newQueue = unsafeSetMemos (MemoId index) memos queue
+              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+
+            H.modify_ _ { memoCells = { index: nextIndex, queue: newQueue } }
+            unless (Array.null memos || unsafeRefEq oldMemos memos) Prelude.do
+              void $ evalM mempty act
+
+        Finalize -> Prelude.do
+          { finalizerFn } <- H.get
+          for_ finalizerFn (evalM mempty)
+
       Prelude.pure a

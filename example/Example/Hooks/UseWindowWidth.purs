@@ -6,14 +6,12 @@ module Example.Hooks.UseWindowWidth
 
 import Prelude
 
-import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
-import Halogen as H
 import Halogen.EvalHookM as EH
-import Halogen.Hook (Hook, UseFinalizer, UseInitializer, UseState)
+import Halogen.Hook (Hook, UseEffect, UseState)
 import Halogen.Hook as Hook
 import Halogen.Query.EventSource as ES
 import Unsafe.Coerce (unsafeCoerce)
@@ -25,8 +23,7 @@ import Web.HTML.Window as Window
 
 foreign import data UseWindowWidth :: Type -> Type
 
-type UseWindowWidth' hooks =
-  UseFinalizer (UseInitializer (UseState (Maybe H.SubscriptionId) (UseState (Maybe Int) hooks)))
+type UseWindowWidth' hooks = UseEffect (UseState (Maybe Int) hooks)
 
 useWindowWidth :: forall q ps o m. MonadAff m => Hook q ps o m UseWindowWidth (Maybe Int)
 useWindowWidth = Hook.coerce hook
@@ -34,21 +31,20 @@ useWindowWidth = Hook.coerce hook
   hook :: Hook q ps o m UseWindowWidth' (Maybe Int)
   hook = Hook.do
     width /\ widthState <- Hook.useState Nothing
-    subscriptionId /\ subscriptionIdState <- Hook.useState Nothing
 
-    Hook.useInitializer do
+    Hook.useEffect [] do
+      let
+        readWidth = EH.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
+
       window <- liftEffect HTML.window
-      let readWidth = EH.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
-      readWidth window
-      sid <- EH.subscribe do
+      subscriptionId <- EH.subscribe do
         ES.eventListenerEventSource
           (EventType "resize")
           (Window.toEventTarget window)
           (Event.target >>> map (fromEventTarget >>> readWidth))
-      EH.put subscriptionIdState (Just sid)
 
-    Hook.useFinalizer do
-      for_ subscriptionId EH.unsubscribe
+      readWidth window
+      pure (Just $ EH.unsubscribe subscriptionId)
 
     Hook.pure width
 

@@ -17,26 +17,21 @@ data Query a = IsOn (Boolean -> a)
 
 data Message = Toggled Boolean
 
-type State = { enabled :: Boolean }
-
-initialState :: State
-initialState = { enabled: false }
-
 component :: forall i m. H.Component HH.HTML Query i Message m
 component = Hook.componentWithQuery \queryToken _ -> Hook.do
-  state /\ _state <- Hook.useState initialState
+  enabled /\ enabledState <- Hook.useState false
 
   Hook.useQuery queryToken case _ of
     IsOn reply -> do
-      { enabled } <- EH.get _state
-      pure (Just (reply enabled))
+      isEnabled <- EH.get enabledState
+      pure (Just (reply isEnabled))
 
   let
-    label = if state.enabled then "On" else "Off"
+    label = if enabled then "On" else "Off"
 
     handleClick = Just do
-      newState <- EH.modify _state \st -> st { enabled = not st.enabled }
-      EH.raise (Toggled newState.enabled)
+      isEnabled <- EH.modify enabledState not
+      EH.raise (Toggled isEnabled)
 
   Hook.pure do
     HH.button

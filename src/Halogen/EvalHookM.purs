@@ -66,6 +66,16 @@ derive newtype instance applicativeEvalHookAp :: Applicative (EvalHookAp slots o
 
 foreign import data QueryToken :: (Type -> Type) -> Type
 
+-- Memo
+
+newtype MemoId = MemoId Int
+
+derive newtype instance eqMemoId :: Eq MemoId
+derive newtype instance ordMemoId :: Ord MemoId
+derive newtype instance showMemoId :: Show MemoId
+
+foreign import data MemoValue :: Type
+
 -- State
 
 foreign import data StateValue :: Type
@@ -142,15 +152,16 @@ fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> EvalHookM 
 fromQueryFn = unsafeCoerce
 
 type HookState q i ps o m =
-  { state :: QueueState
+  { stateCells :: QueueState StateValue
+  , memoCells :: QueueState (Array MemoValue)
   , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
   , input :: i
   , queryFn :: Maybe (QueryFn q ps o m)
+  , finalizerFn :: Maybe (EvalHookM ps o m Unit)
   }
 
-type QueueState =
-  { queue :: Array StateValue
-  , total :: Int
+type QueueState a =
+  { queue :: Array a
   , index :: Int
   }
 
@@ -171,8 +182,8 @@ evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
   interpretEvalHook = case _ of
     Modify (StateToken token) f reply -> do
       state <- H.get
-      let v = f (unsafeGetState token state.state.queue)
-      H.put $ state { state { queue = unsafeSetState token v state.state.queue } }
+      let v = f (unsafeGetState token state.stateCells.queue)
+      H.put $ state { stateCells { queue = unsafeSetState token v state.stateCells.queue } }
       runHooks
       pure (reply v)
 
@@ -210,3 +221,9 @@ unsafeGetState (StateId index) array = unsafePartial (Array.unsafeIndex array in
 
 unsafeSetState :: StateId -> StateValue -> Array StateValue -> Array StateValue
 unsafeSetState (StateId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
+
+unsafeGetMemos :: MemoId -> Array (Array MemoValue) -> Array MemoValue
+unsafeGetMemos (MemoId index) array = unsafePartial (Array.unsafeIndex array index)
+
+unsafeSetMemos :: MemoId -> (Array MemoValue) -> Array (Array MemoValue) -> Array (Array MemoValue)
+unsafeSetMemos (MemoId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
