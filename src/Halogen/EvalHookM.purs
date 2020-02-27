@@ -74,7 +74,18 @@ derive newtype instance eqMemoId :: Eq MemoId
 derive newtype instance ordMemoId :: Ord MemoId
 derive newtype instance showMemoId :: Show MemoId
 
-foreign import data MemoValue :: Type
+foreign import data MemoValues :: Type
+
+type MemoValues' memos =
+  { eq :: Record memos -> Record memos -> Boolean
+  , memos :: Record memos
+  }
+
+toMemoValues :: forall memos. MemoValues' memos -> MemoValues
+toMemoValues = unsafeCoerce
+
+fromMemoValues :: forall memos. MemoValues -> MemoValues' memos
+fromMemoValues = unsafeCoerce
 
 -- State
 
@@ -153,7 +164,7 @@ fromQueryFn = unsafeCoerce
 
 type HookState q i ps o m =
   { stateCells :: QueueState StateValue
-  , memoCells :: QueueState (Array MemoValue)
+  , memoCells :: QueueState MemoValues
   , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
   , input :: i
   , queryFn :: Maybe (QueryFn q ps o m)
@@ -222,8 +233,8 @@ unsafeGetState (StateId index) array = unsafePartial (Array.unsafeIndex array in
 unsafeSetState :: StateId -> StateValue -> Array StateValue -> Array StateValue
 unsafeSetState (StateId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
 
-unsafeGetMemos :: MemoId -> Array (Array MemoValue) -> Array MemoValue
+unsafeGetMemos :: MemoId -> Array MemoValues -> MemoValues
 unsafeGetMemos (MemoId index) array = unsafePartial (Array.unsafeIndex array index)
 
-unsafeSetMemos :: MemoId -> (Array MemoValue) -> Array (Array MemoValue) -> Array (Array MemoValue)
+unsafeSetMemos :: MemoId -> MemoValues -> Array MemoValues -> Array MemoValues
 unsafeSetMemos (MemoId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))

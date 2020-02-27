@@ -32,9 +32,8 @@ useWindowWidth = Hook.coerce hook
   hook = Hook.do
     width /\ widthState <- Hook.useState Nothing
 
-    Hook.useEffect [] do
-      let
-        readWidth = EH.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
+    Hook.useLifecycleEffect do
+      let readWidth = EH.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
 
       window <- liftEffect HTML.window
       subscriptionId <- EH.subscribe do

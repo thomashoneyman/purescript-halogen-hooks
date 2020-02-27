@@ -1,11 +1,13 @@
 module Halogen.Hook
   ( useState
   , UseState
-  , useEffect
+  , useLifecycleEffect
+  , useTickEffect
   , UseEffect
   , useQuery
   , UseQuery
   , captures
+  , capturesWith
   , Hook
   , Hooked
   , coerce
@@ -31,20 +33,17 @@ import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..), isJust, maybe)
 import Data.Tuple.Nested ((/\), type (/\))
-import Foreign.Object (Object)
-import Foreign.Object as Object
 import Halogen as H
 import Halogen.HTML as HH
-import Prelude (class Functor, type (~>), Unit, map, mempty, unit, unless, void, when, ($), (+), (-), (<), (<<<), (||), (>))
+import Prelude (class Eq, class Functor, type (~>), Unit, map, mempty, not, unit, void, when, ($), (+), (-), (<), (<<<), (==), (||))
 import Prelude as Prelude
 import Unsafe.Coerce (unsafeCoerce)
-import Unsafe.Reference (unsafeRefEq)
 
 -- | The Hook API: a set of primitive building blocks that can be used on their
 -- | own to share stateful logic or used to create new hooks.
 data HookF q ps o m a
   = UseState StateValue (StateInterface -> a)
-  | UseEffect (Maybe (Array MemoValue)) (EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))) a
+  | UseEffect (Maybe MemoValues) (EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))) a
   | UseQuery (QueryToken q) (forall b. q b -> EvalHookM ps o m (Maybe b)) a
 
 derive instance functorHookF :: Functor (HookF q ps o m)
@@ -105,16 +104,13 @@ useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token handler unit
 
 foreign import data UseEffect :: Type -> Type
 
--- | Given a record, uses the value of each key as a separate value to capture.
--- | Used for hooks like `useEffect` and `useMemo` which use these values to
--- | prevent unnecessarily running effects or recomputing values.
-captures :: forall r a. Record r -> (Array MemoValue -> a) -> a
-captures rec fn = fn (Object.values (toObject rec))
-  where
-  -- We can convert the record to an object because records are
-  -- represented as objects in the underlying JavaScript
-  toObject :: forall x. Record r -> Object x
-  toObject = unsafeCoerce
+-- |
+-- | performance issues, consider switching to `useEffect`.
+useLifecycleEffect
+  :: forall q ps o m
+   . EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
+  -> Hook q ps o m UseEffect Unit
+useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
 -- | Produces a hook for running post-render effects like subscriptions, timers,
 -- | logging, and more. This replaces the usual Halogen `Initialize` and
@@ -142,22 +138,57 @@ captures rec fn = fn (Object.values (toObject rec))
 -- | Hook.captures { memoA, memoB } Hook.useEffect do
 -- |   ...
 -- | ```
-useEffect
-  :: forall q ps o m
-   . Array MemoValue
-  -> EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
-  -> Hook q ps o m UseEffect Unit
-useEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
-
--- | Like `useEffect`, but runs after every render. If you are experiencing
--- | performance issues, consider switching to `useEffect`.
 useTickEffect
   :: forall q ps o m
-   . EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
+   . MemoValues
+  -> EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
   -> Hook q ps o m UseEffect Unit
-useTickEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
+useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
--- Coercion
+-- Captures / Memo values
+
+-- | Used to improve performance for hooks which may be expensive to run on
+-- | many renders (like `useTickEffect` and `useMemo`). Uses a value equality
+-- | check to verify values have changed before re-running a function.
+-- |
+-- | Some values may be expensive to check for value equality. If you only want
+-- | to check referential equality or check a subpart of your captured values
+-- | for value equality, please see `capturesWith`.
+captures :: forall memos a. Eq (Record memos) => Record memos -> (MemoValues -> a) -> a
+captures memos fn = fn (toMemoValues { eq: (==), memos })
+
+-- | Like `captures`, but without an `Eq` constraint. Use with other equality
+-- | checks when you only want to check equality for part of a memoized value
+-- | or when you only want to verify referential equality.
+-- |
+-- | ```purs
+-- | -- This function is used to implement the usual `captures`
+-- | Hooks.captures { memoA, memoB } == Hooks.capturesWith eq { memoA }
+-- |
+-- | -- You can choose to test referential equality for efficiency (this is
+-- | -- unsafe and can fire in unexpected ways, so be careful)
+-- | Hooks.captures unsafeRefEq {}
+-- |
+-- | -- You can also choose to improve performance by testing only a sub-part
+-- | -- of your memoized values. Remember that this equality check is used to
+-- | -- decide whether to re-run your effect or function, so make sure to test
+-- | -- everything in your captures list.
+-- | let
+-- |   customEq memoA memoB =
+-- |     memoA.user.id == memoB.user.id
+-- |       && memoA.data == memoB.data
+-- |
+-- | Hooks.capturesWith customEq { user, data }
+-- | ```
+capturesWith
+  :: forall memos a
+   . (Record memos -> Record memos -> Boolean)
+  -> Record memos
+  -> (MemoValues -> a)
+  -> a
+capturesWith memosEq memos fn = fn (toMemoValues { eq: memosEq, memos })
+
+-- Coercing hooks
 
 -- | Use when you want to turn a stack of hooks into a new custom hook type.
 coerce :: forall hooks h' h q ps o m a. Hooked q ps o m hooks h' a -> Hooked q ps o m hooks h a
@@ -267,28 +298,31 @@ interpretHookFn reason hookFn = Prelude.do
     UseEffect mbMemos act a -> Prelude.do
       case reason of
         Initialize -> Prelude.do
-          for_ mbMemos \memos ->
-            when (Array.length memos > 0) Prelude.do
-              { memoCells: { queue } } <- H.get
-              H.modify_ _ { memoCells { queue = Array.snoc queue memos } }
+          for_ mbMemos \memos -> Prelude.do
+            { memoCells: { queue } } <- H.get
+            H.modify_ _ { memoCells { queue = Array.snoc queue memos } }
 
           finalizer <- evalM mempty act
           when (isJust finalizer) Prelude.do
             H.modify_ _ { finalizerFn = finalizer }
 
-        Step -> case mbMemos of
-          Nothing ->
-            void $ evalM mempty act
-          Just memos -> Prelude.do
+        Step ->
+          for_ mbMemos \memos -> Prelude.do
             { memoCells: { index, queue } } <- H.get
 
             let
-              oldMemos = unsafeGetMemos (MemoId index) queue
               newQueue = unsafeSetMemos (MemoId index) memos queue
               nextIndex = if index + 1 < Array.length queue then index + 1 else 0
 
+              oldMemos :: forall memos. MemoValues' memos
+              oldMemos = fromMemoValues (unsafeGetMemos (MemoId index) queue)
+
+              newMemos :: forall memos. MemoValues' memos
+              newMemos = fromMemoValues memos
+
             H.modify_ _ { memoCells = { index: nextIndex, queue: newQueue } }
-            unless (Array.null memos || unsafeRefEq oldMemos memos) Prelude.do
+
+            when (newMemos.memos == {} || not newMemos.eq oldMemos newMemos) Prelude.do
               void $ evalM mempty act
 
         Finalize -> Prelude.do
