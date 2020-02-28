@@ -9,8 +9,10 @@ import Data.Array as Array
 import Data.Maybe (Maybe(..), fromJust, maybe)
 import Data.Newtype (class Newtype)
 import Data.Symbol (class IsSymbol, SProxy)
+import Data.Tuple.Nested (type (/\))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Foreign.Object (Object)
 import Halogen as H
 import Halogen.Data.Slot as Slot
 import Halogen.Query.ChildQuery as CQ
@@ -74,6 +76,27 @@ fromQueryValue = unsafeCoerce
 
 foreign import data QueryToken :: (Type -> Type) -> Type
 
+-- Effect
+
+newtype EffectId = EffectId Int
+
+derive newtype instance eqEffectId :: Eq EffectId
+derive newtype instance ordEffectId :: Ord EffectId
+derive newtype instance showEffectId :: Show EffectId
+
+foreign import data MemoValues :: Type
+
+type MemoValuesImpl =
+  { eq :: Object MemoValue -> Object MemoValue -> Boolean
+  , memos :: Object MemoValue
+  }
+
+toMemoValues :: MemoValuesImpl -> MemoValues
+toMemoValues = unsafeCoerce
+
+fromMemoValues :: MemoValues -> MemoValuesImpl
+fromMemoValues = unsafeCoerce
+
 -- Memo
 
 newtype MemoId = MemoId Int
@@ -82,18 +105,14 @@ derive newtype instance eqMemoId :: Eq MemoId
 derive newtype instance ordMemoId :: Ord MemoId
 derive newtype instance showMemoId :: Show MemoId
 
-foreign import data MemoValues :: Type
+foreign import data MemoValue :: Type
 
-type MemoValues' memos =
-  { eq :: Record memos -> Record memos -> Boolean
-  , memos :: Record memos
-  }
+toMemoValue :: forall memo. memo -> MemoValue
+toMemoValue = unsafeCoerce
 
-toMemoValues :: forall memos. MemoValues' memos -> MemoValues
-toMemoValues = unsafeCoerce
+fromMemoValue :: forall memo. MemoValue -> memo
+fromMemoValue = unsafeCoerce
 
-fromMemoValues :: forall memos. MemoValues -> MemoValues' memos
-fromMemoValues = unsafeCoerce
 
 -- State
 
@@ -171,12 +190,13 @@ fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> EvalHookM 
 fromQueryFn = unsafeCoerce
 
 type HookState q i ps o m =
-  { stateCells :: QueueState StateValue
-  , memoCells :: QueueState MemoValues
+  { input :: i
   , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
-  , input :: i
   , queryFn :: Maybe (QueryFn q ps o m)
   , finalizerFn :: Maybe (EvalHookM ps o m Unit)
+  , stateCells :: QueueState StateValue
+  , effectCells :: QueueState MemoValues
+  , memoCells :: QueueState (MemoValues /\ MemoValue)
   }
 
 type QueueState a =
@@ -201,8 +221,8 @@ evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
   interpretEvalHook = case _ of
     Modify (StateToken token) f reply -> do
       state <- H.get
-      let v = f (unsafeGetState token state.stateCells.queue)
-      H.put $ state { stateCells { queue = unsafeSetState token v state.stateCells.queue } }
+      let v = f (unsafeGetStateCell token state.stateCells.queue)
+      H.put $ state { stateCells { queue = unsafeSetStateCell token v state.stateCells.queue } }
       runHooks
       pure (reply v)
 
@@ -235,14 +255,20 @@ evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
 
 -- Utilities for updating state
 
-unsafeGetState :: StateId -> Array StateValue -> StateValue
-unsafeGetState (StateId index) array = unsafePartial (Array.unsafeIndex array index)
+unsafeGetStateCell :: StateId -> Array StateValue -> StateValue
+unsafeGetStateCell (StateId index) array = unsafePartial (Array.unsafeIndex array index)
 
-unsafeSetState :: StateId -> StateValue -> Array StateValue -> Array StateValue
-unsafeSetState (StateId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
+unsafeSetStateCell :: StateId -> StateValue -> Array StateValue -> Array StateValue
+unsafeSetStateCell (StateId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
 
-unsafeGetMemos :: MemoId -> Array MemoValues -> MemoValues
-unsafeGetMemos (MemoId index) array = unsafePartial (Array.unsafeIndex array index)
+unsafeGetEffectCell :: EffectId -> Array MemoValues -> MemoValues
+unsafeGetEffectCell (EffectId index) array = unsafePartial (Array.unsafeIndex array index)
 
-unsafeSetMemos :: MemoId -> MemoValues -> Array MemoValues -> Array MemoValues
-unsafeSetMemos (MemoId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
+unsafeSetEffectCell :: EffectId -> MemoValues -> Array MemoValues -> Array MemoValues
+unsafeSetEffectCell (EffectId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
+
+unsafeGetMemoCell :: MemoId -> Array (MemoValues /\ MemoValue) -> MemoValues /\ MemoValue
+unsafeGetMemoCell (MemoId index) array = unsafePartial (Array.unsafeIndex array index)
+
+unsafeSetMemoCell :: MemoId -> MemoValues /\ MemoValue -> Array (MemoValues /\ MemoValue) -> Array (MemoValues /\ MemoValue)
+unsafeSetMemoCell (MemoId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
