@@ -64,6 +64,14 @@ derive newtype instance applicativeEvalHookAp :: Applicative (EvalHookAp slots o
 
 -- Query
 
+foreign import data QueryValue :: Type -> Type
+
+toQueryValue :: forall q a. q a -> QueryValue a
+toQueryValue = unsafeCoerce
+
+fromQueryValue :: forall q a. QueryValue a -> q a
+fromQueryValue = unsafeCoerce
+
 foreign import data QueryToken :: (Type -> Type) -> Type
 
 -- Memo

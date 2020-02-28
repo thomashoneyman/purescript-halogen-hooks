@@ -41,20 +41,20 @@ import Unsafe.Coerce (unsafeCoerce)
 
 -- | The Hook API: a set of primitive building blocks that can be used on their
 -- | own to share stateful logic or used to create new hooks.
-data HookF q ps o m a
+data HookF ps o m a
   = UseState StateValue (StateInterface -> a)
   | UseEffect (Maybe MemoValues) (EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))) a
-  | UseQuery (QueryToken q) (forall b. q b -> EvalHookM ps o m (Maybe b)) a
+  | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> EvalHookM ps o m (Maybe b)) a
 
-derive instance functorHookF :: Functor (HookF q ps o m)
+derive instance functorHookF :: Functor (HookF ps o m)
 
-newtype Hooked q ps o m pre post a = Hooked (Indexed (Free (HookF q ps o m)) pre post a)
+newtype Hooked ps o m pre post a = Hooked (Indexed (Free (HookF ps o m)) pre post a)
 
-derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked q ps o m)
-derive newtype instance ixApplyIndexed :: IxApply (Hooked q ps o m)
-derive newtype instance ixApplicativeIndexed :: IxApplicative (Hooked q ps o m)
-derive newtype instance ixBindIndexed :: IxBind (Hooked q ps o m)
-derive newtype instance ixMonadIndexed :: IxMonad (Hooked q ps o m)
+derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked ps o m)
+derive newtype instance ixApplyIndexed :: IxApply (Hooked ps o m)
+derive newtype instance ixApplicativeIndexed :: IxApplicative (Hooked ps o m)
+derive newtype instance ixBindIndexed :: IxBind (Hooked ps o m)
+derive newtype instance ixMonadIndexed :: IxMonad (Hooked ps o m)
 
 -- | Exported for use with qualified-do syntax
 bind :: forall a b x y z m. IxBind m => m x y a -> (a -> m y z b) -> m x z b
@@ -68,8 +68,8 @@ discard = ibind
 pure :: forall a x m. IxApplicative m => a -> m x x a
 pure = ipure
 
-type Hook q ps o m (newHook :: Type -> Type) a
-  = forall hooks. Hooked q ps o m hooks (newHook hooks) a
+type Hook ps o m (newHook :: Type -> Type) a
+  = forall hooks. Hooked ps o m hooks (newHook hooks) a
 
 --  State
 
@@ -80,7 +80,7 @@ type StateInterface =
   , getState :: StateValue
   }
 
-useState :: forall state q ps o m. state -> Hook q ps o m (UseState state) (state /\ StateToken state)
+useState :: forall state ps o m. state -> Hook ps o m (UseState state) (state /\ StateToken state)
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: StateValue
@@ -97,8 +97,14 @@ useQuery
   :: forall q ps o m
    . QueryToken q
   -> (forall a. q a -> EvalHookM ps o m (Maybe a))
-  -> Hook q ps o m UseQuery Unit
-useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token handler unit
+  -> Hook ps o m UseQuery Unit
+useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token' handler' unit
+  where
+  token' :: QueryToken QueryValue
+  token' = unsafeCoerce token
+
+  handler' :: forall a. QueryValue a -> EvalHookM ps o m (Maybe a)
+  handler' = handler <<< fromQueryValue
 
 -- Lifecycle
 
@@ -107,9 +113,9 @@ foreign import data UseEffect :: Type -> Type
 -- |
 -- | performance issues, consider switching to `useEffect`.
 useLifecycleEffect
-  :: forall q ps o m
+  :: forall ps o m
    . EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
-  -> Hook q ps o m UseEffect Unit
+  -> Hook ps o m UseEffect Unit
 useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
 -- | Produces a hook for running post-render effects like subscriptions, timers,
@@ -139,10 +145,10 @@ useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 -- |   ...
 -- | ```
 useTickEffect
-  :: forall q ps o m
+  :: forall ps o m
    . MemoValues
   -> EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))
-  -> Hook q ps o m UseEffect Unit
+  -> Hook ps o m UseEffect Unit
 useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
 -- Captures / Memo values
@@ -191,7 +197,7 @@ capturesWith memosEq memos fn = fn (toMemoValues { eq: memosEq, memos })
 -- Coercing hooks
 
 -- | Use when you want to turn a stack of hooks into a new custom hook type.
-coerce :: forall hooks h' h q ps o m a. Hooked q ps o m hooks h' a -> Hooked q ps o m hooks h a
+coerce :: forall hooks h' h ps o m a. Hooked ps o m hooks h' a -> Hooked ps o m hooks h a
 coerce = unsafeCoerce
 
 data InterpretHookReason
@@ -201,13 +207,13 @@ data InterpretHookReason
 
 component
   :: forall hooks i ps o m
-   . (forall q. i -> Hooked q ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
+   . (i -> Hooked ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
   -> (forall q. H.Component HH.HTML q i o m)
 component hookFn = componentWithQuery (\_ i -> hookFn i)
 
 componentWithQuery
   :: forall hooks q i ps o m
-   . (QueryToken q -> i -> Hooked q ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
+   . (QueryToken q -> i -> Hooked ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
   -> H.Component HH.HTML q i o m
 componentWithQuery inputHookFn = do
   let
@@ -258,7 +264,7 @@ componentWithQuery inputHookFn = do
 interpretHookFn
   :: forall hooks q i ps o m
    . InterpretHookReason
-  -> (i -> Hooked q ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
+  -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
   -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
 interpretHookFn reason hookFn = Prelude.do
   { input } <- H.get
@@ -266,7 +272,7 @@ interpretHookFn reason hookFn = Prelude.do
   html <- foldFree interpretHook hookF
   H.modify_ _ { html = html }
   where
-  interpretHook :: HookF q ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
+  interpretHook :: HookF ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
   interpretHook = case _ of
     UseState initial reply ->
       case reason of
@@ -292,7 +298,11 @@ interpretHookFn reason hookFn = Prelude.do
           Prelude.pure $ reply { getState: stateValue, stateToken }
 
     UseQuery _ handler a -> Prelude.do
-      H.modify_ _ { queryFn = Just (toQueryFn handler) }
+      let
+        handler' :: forall a. q a -> EvalHookM ps o m (Maybe a)
+        handler' = handler <<< toQueryValue
+
+      H.modify_ _ { queryFn = Just (toQueryFn handler') }
       Prelude.pure a
 
     UseEffect mbMemos act a -> Prelude.do
