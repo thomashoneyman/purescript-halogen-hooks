@@ -21,6 +21,8 @@ import Partial.Unsafe (unsafePartial)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM (Element)
+import Web.HTML (HTMLElement)
+import Web.HTML.HTMLElement as HTMLElement
 
 -- | The EvalHook API: a set of primitive building blocks that can be used as
 -- | an alternate interface to HalogenM when evaluating hooks. Implemented so
@@ -113,7 +115,6 @@ toMemoValue = unsafeCoerce
 fromMemoValue :: forall memo. MemoValue -> memo
 fromMemoValue = unsafeCoerce
 
-
 -- State
 
 foreign import data StateValue :: Type
@@ -154,6 +155,23 @@ modify token f = EvalHookM $ liftF $ Modify token' f' state
 
 raise :: forall slots output m. output -> EvalHookM slots output m Unit
 raise output = EvalHookM $ liftF $ Raise output unit
+
+-- Refs
+
+-- | Retrieves a `HTMLElement` value that is associated with a `Ref` in the
+-- | rendered output of a component. If there is no currently rendered value (or
+-- | it is not an `HTMLElement`) for the request will return `Nothing`.
+getHTMLElementRef
+  :: forall slots output m
+   . H.RefLabel
+  -> EvalHookM slots output m (Maybe HTMLElement)
+getHTMLElementRef = map (HTMLElement.fromElement =<< _) <<< getRef
+
+-- | Retrieves an `Element` value that is associated with a `Ref` in the
+-- | rendered output of a component. If there is no currently rendered value for
+-- | the requested ref this will return `Nothing`.
+getRef :: forall slots output m. H.RefLabel -> EvalHookM slots output m (Maybe Element)
+getRef p = EvalHookM $ liftF $ GetRef p identity
 
 -- Querying
 query

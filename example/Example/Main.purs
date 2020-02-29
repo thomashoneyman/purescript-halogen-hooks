@@ -10,6 +10,7 @@ import Example.Halogen.Basic.Button as Halogen.Basic
 import Example.Halogen.Components.Container as Halogen.Components.Container
 import Example.Halogen.ComponentsInputs.Container as Halogen.ComponentsInputs.Container
 import Example.Halogen.Effects.Random as Halogen.Effects.Random
+import Example.Halogen.InputRef.Component as Halogen.InputRef
 import Example.Hooks.Components as HookComponents
 import Foreign.Object as Object
 import Halogen as H
@@ -30,11 +31,19 @@ examples :: Stories Aff
 examples =
   Object.fromFoldable
     [ "" /\ index
+
+    -- Examples of writing hooks
     , "Hooks|useWindowWidth" /\ HookComponents.windowWidth
+
+    -- Examples from the existing Halogen documentation
     , "Halogen|Basic" /\ Halogen.Basic.component
     , "Halogen|Components" /\ Halogen.Components.Container.component
     , "Halogen|Components: Inputs" /\ Halogen.ComponentsInputs.Container.component
     , "Halogen|Effects: Random" /\ Halogen.Effects.Random.component
+    -- Not quite the Ace component, but the code for Ace is very old and I had
+    -- trouble getting it to run properly. Still, the point is to demonstrate refs
+    -- , subscriptions, and queries, and the latter two are covered elsewhere.
+    , "Halogen|InputRef" /\ Halogen.InputRef.component
     ]
   where
   index :: forall q i o m. H.Component HH.HTML q i o m
