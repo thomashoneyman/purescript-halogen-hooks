@@ -34,6 +34,8 @@ examples =
 
     -- Examples of writing hooks
     , "Hooks|useWindowWidth" /\ HookComponents.windowWidth
+    , "Hooks|usePreviousValue" /\ HookComponents.previousValue
+    , "Hooks|useLocalStorage" /\ HookComponents.localStorage
 
     -- Examples from the existing Halogen documentation
     , "Halogen|Basic" /\ Halogen.Basic.component
