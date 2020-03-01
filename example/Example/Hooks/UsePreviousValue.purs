@@ -9,24 +9,29 @@ import Prelude
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
-import Halogen.EvalHookM as EH
-import Halogen.Hook (Hook, UseEffect, UseState)
+import Effect.Class (liftEffect)
+import Effect.Ref as Ref
+import Halogen.Hook (Hook, UseEffect, UseRef)
 import Halogen.Hook as Hook
+
+type UsePreviousValue' a hooks = UseEffect (UseRef (Maybe a) hooks)
 
 foreign import data UsePreviousValue :: Type -> Type -> Type
 
-type UsePreviousValue' a hooks = UseEffect (UseState a hooks)
-
--- TODO: Introduce a useRef hook which allows this to happen without state updates
-usePreviousValue :: forall ps o m a. MonadAff m => Eq a => a -> Hook ps o m (UsePreviousValue a) a
+usePreviousValue
+  :: forall ps o m a
+   . MonadAff m
+  => Eq a
+  => a
+  -> Hook ps o m (UsePreviousValue a) (Maybe a)
 usePreviousValue value = Hook.coerce hook
   where
-  hook :: Hook ps o m (UsePreviousValue' a) a
+  hook :: Hook ps o m (UsePreviousValue' a) (Maybe a)
   hook = Hook.do
-    prevValue /\ prevValueState <- Hook.useState value
+    prev /\ ref <- Hook.useRef Nothing
 
-    Hook.captures { value } Hook.useTickEffect do
-      EH.put prevValueState value
+    Hook.captures { } Hook.useTickEffect do
+      liftEffect $ Ref.write (Just value) ref
       pure Nothing
 
-    Hook.pure prevValue
+    Hook.pure prev

@@ -21,9 +21,9 @@ import Web.Event.EventTarget (EventTarget)
 import Web.HTML as HTML
 import Web.HTML.Window as Window
 
-foreign import data UseWindowWidth :: Type -> Type
-
 type UseWindowWidth' hooks = UseEffect (UseState (Maybe Int) hooks)
+
+foreign import data UseWindowWidth :: Type -> Type
 
 useWindowWidth :: forall ps o m. MonadAff m => Hook ps o m UseWindowWidth (Maybe Int)
 useWindowWidth = Hook.coerce hook

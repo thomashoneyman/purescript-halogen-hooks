@@ -11,9 +11,9 @@ import Halogen.EvalHookM (EvalHookM)
 import Halogen.Hook (Hook, UseEffect)
 import Halogen.Hook as Hook
 
-foreign import data UseInitializer :: Type -> Type
-
 type UseInitializer' hooks = UseEffect hooks
+
+foreign import data UseInitializer :: Type -> Type
 
 useInitializer :: forall ps o m. EvalHookM ps o m Unit -> Hook ps o m UseInitializer Unit
 useInitializer eval = Hook.coerce hook

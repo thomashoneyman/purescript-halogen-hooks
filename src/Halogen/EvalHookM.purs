@@ -12,6 +12,7 @@ import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple.Nested (type (/\))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Ref (Ref)
 import Foreign.Object (Object)
 import Halogen as H
 import Halogen.Data.Slot as Slot
@@ -115,6 +116,22 @@ toMemoValue = unsafeCoerce
 fromMemoValue :: forall memo. MemoValue -> memo
 fromMemoValue = unsafeCoerce
 
+-- Refs
+
+newtype RefId = RefId Int
+
+derive newtype instance eqRefId :: Eq RefId
+derive newtype instance ordRefId :: Ord RefId
+derive newtype instance showRefId :: Show RefId
+
+foreign import data RefValue :: Type
+
+toRefValue :: forall a. a -> RefValue
+toRefValue = unsafeCoerce
+
+fromRefValue :: forall a. RefValue -> a
+fromRefValue = unsafeCoerce
+
 -- State
 
 foreign import data StateValue :: Type
@@ -207,7 +224,7 @@ toQueryFn = unsafeCoerce
 fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> EvalHookM ps o m (Maybe a))
 fromQueryFn = unsafeCoerce
 
-type HookState q i ps o m =
+newtype HookState q i ps o m = HookState
   { input :: i
   , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
   , queryFn :: Maybe (QueryFn q ps o m)
@@ -215,7 +232,11 @@ type HookState q i ps o m =
   , stateCells :: QueueState StateValue
   , effectCells :: QueueState MemoValues
   , memoCells :: QueueState (MemoValues /\ MemoValue)
+  , refCells :: QueueState (Ref RefValue)
+  , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit)
   }
+
+derive instance newtypeHookState :: Newtype (HookState q i ps o m) _
 
 type QueueState a =
   { queue :: Array a
@@ -238,16 +259,16 @@ evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
   interpretEvalHook :: EvalHookF ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
   interpretEvalHook = case _ of
     Modify (StateToken token) f reply -> do
-      state <- H.get
+      HookState state <- H.get
       let v = f (unsafeGetStateCell token state.stateCells.queue)
-      H.put $ state { stateCells { queue = unsafeSetStateCell token v state.stateCells.queue } }
+      H.put $ HookState $ state { stateCells { queue = unsafeSetStateCell token v state.stateCells.queue } }
       runHooks
       pure (reply v)
 
     Subscribe eventSource reply -> do
       H.HalogenM $ liftF $ H.Subscribe eventSource reply
 
-    Unsubscribe sid a ->
+    Unsubscribe sid a -> do
       H.HalogenM $ liftF $ H.Unsubscribe sid a
 
     Lift f ->
@@ -290,3 +311,9 @@ unsafeGetMemoCell (MemoId index) array = unsafePartial (Array.unsafeIndex array 
 
 unsafeSetMemoCell :: MemoId -> MemoValues /\ MemoValue -> Array (MemoValues /\ MemoValue) -> Array (MemoValues /\ MemoValue)
 unsafeSetMemoCell (MemoId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
+
+unsafeGetRefCell :: RefId -> Array (Ref RefValue) -> Ref RefValue
+unsafeGetRefCell (RefId index) array = unsafePartial (Array.unsafeIndex array index)
+
+unsafeSetRefCell :: RefId -> Ref RefValue -> Array (Ref RefValue) -> Array (Ref RefValue)
+unsafeSetRefCell (RefId index) a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))

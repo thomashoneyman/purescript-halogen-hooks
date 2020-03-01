@@ -24,9 +24,9 @@ import Web.HTML (window)
 import Web.HTML.Window (localStorage)
 import Web.Storage.Storage (getItem, setItem)
 
-foreign import data UseLocalStorage :: Type -> Type -> Type
-
 type UseLocalStorage' a hooks = UseEffect (UseInitializer (UseState (Either String a) hooks))
+
+foreign import data UseLocalStorage :: Type -> Type -> Type
 
 type StorageInterface a =
   { key :: Key

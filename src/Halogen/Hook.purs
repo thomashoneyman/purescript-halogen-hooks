@@ -8,6 +8,8 @@ module Halogen.Hook
   , UseQuery
   , useMemo
   , UseMemo
+  , useRef
+  , UseRef
   , captures
   , capturesWith
   , Hook
@@ -31,14 +33,19 @@ import Control.Monad.Indexed (class IxMonad)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Coyoneda (unCoyoneda)
-import Data.Foldable (for_)
+import Data.Foldable (for_, sequence_)
 import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (Maybe(..), isJust, maybe)
+import Data.Maybe (Maybe(..), maybe)
+import Data.Newtype (over)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
+import Effect.Ref (Ref)
+import Effect.Ref as Ref
+import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object (Object)
 import Foreign.Object as Object
+import Halogen (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Prelude (class Eq, class Functor, type (~>), Unit, map, mempty, not, unit, void, when, ($), (+), (-), (<), (<<<), (==), (||))
@@ -52,6 +59,7 @@ data HookF ps o m a
   | UseEffect (Maybe MemoValues) (EvalHookM ps o m (Maybe (EvalHookM ps o m Unit))) a
   | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> EvalHookM ps o m (Maybe b)) a
   | UseMemo MemoValues (Unit -> MemoValue) (MemoValue -> a)
+  | UseRef RefValue (RefInterface -> a)
 
 derive instance functorHookF :: Functor (HookF ps o m)
 
@@ -246,6 +254,24 @@ capturesWith memosEq memos fn = fn (toMemoValues { eq: eq', memos: toObject memo
   eq' :: Object MemoValue -> Object MemoValue -> Boolean
   eq' a b = toRecord a `memosEq` toRecord b
 
+-- Refs
+
+foreign import data UseRef :: Type -> Type -> Type
+
+type RefInterface =
+  { ref :: Ref RefValue
+  , value :: RefValue
+  }
+
+useRef :: forall a ps o m. a -> Hook ps o m (UseRef a) (a /\ Ref a)
+useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
+  where
+  initialValue' :: RefValue
+  initialValue' = toRefValue initialValue
+
+  interface :: RefInterface -> a /\ Ref a
+  interface { ref, value } = fromRefValue value /\ (unsafeCoerce :: Ref RefValue -> Ref a) ref
+
 -- Coercing hooks
 
 -- | Use when you want to turn a stack of hooks into a new custom hook type.
@@ -254,6 +280,7 @@ coerce = unsafeCoerce
 
 data InterpretHookReason
   = Initialize
+  | Queued
   | Step
   | Finalize
 
@@ -273,38 +300,44 @@ componentWithQuery inputHookFn = do
 
   H.mkComponent
     { initialState
-    , render: _.html
+    , render: \(HookState { html }) -> html
     , eval: case _ of
         H.Initialize a -> Prelude.do
           interpretHookFn Initialize hookFn
-          interpretHookFn Step hookFn
+          runEvalQueue
           Prelude.pure a
 
         H.Query query reply -> Prelude.do
-          { queryFn } <- H.get
+          HookState { queryFn } <- H.get
           case queryFn of
             Nothing ->
               Prelude.pure (reply unit)
             Just fn -> Prelude.do
-              let runHooks = interpretHookFn Step hookFn
+              let
+                runHooks = Prelude.do
+                  interpretHookFn Step hookFn
+                  runEvalQueue
               evalM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) query
 
         H.Action act a -> Prelude.do
           evalM (interpretHookFn Step hookFn) act
+          runEvalQueue
           Prelude.pure a
 
         H.Receive input a -> Prelude.do
-          H.modify_ _ { input = input }
+          H.modify_ (over HookState _ { input = input })
           interpretHookFn Step hookFn
+          runEvalQueue
           Prelude.pure a
 
         H.Finalize a -> Prelude.do
           interpretHookFn Finalize hookFn
+          runEvalQueue
           Prelude.pure a
     }
   where
   initialState :: i -> HookState q i ps o m
-  initialState input =
+  initialState input = HookState
     { input
     , html: HH.text ""
     , queryFn: Nothing
@@ -312,7 +345,17 @@ componentWithQuery inputHookFn = do
     , stateCells: { queue: [], index: 0 }
     , effectCells: { queue: [], index: 0 }
     , memoCells: { queue: [], index: 0 }
+    , refCells: { queue: [], index: 0 }
+    , evalQueue: []
     }
+
+-- When hooks are interpreted effects are queued. This queue needs to be processed
+-- immediately after.
+runEvalQueue :: forall q i ps o m. H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
+runEvalQueue = Prelude.do
+  HookState { evalQueue } <- H.get
+  sequence_ evalQueue
+  H.modify_ (over HookState _ { evalQueue = [] })
 
 interpretHookFn
   :: forall hooks q i ps o m
@@ -320,58 +363,69 @@ interpretHookFn
   -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (EvalHookM ps o m Unit) ps m))
   -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
 interpretHookFn reason hookFn = Prelude.do
-  { input } <- H.get
+  HookState { input } <- H.get
   let Hooked (Indexed hookF) = hookFn input
   html <- foldFree interpretHook hookF
-  H.modify_ _ { html = html }
+  H.modify_ (over HookState _ { html = html })
   where
   interpretHook :: HookF ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
   interpretHook = case _ of
     UseState initial reply ->
       case reason of
         Initialize -> Prelude.do
-          { stateCells: { queue } } <- H.get
+          HookState { stateCells: { queue } } <- H.get
 
           let
             newQueue = Array.snoc queue initial
             stateToken = StateToken (StateId (Array.length newQueue - 1))
 
-          H.modify_ _ { stateCells { queue = newQueue } }
+          H.modify_ (over HookState _ { stateCells { queue = newQueue } })
           Prelude.pure $ reply { getState: initial, stateToken }
 
         _ -> Prelude.do
-          { stateCells: { index, queue } } <- H.get
+          HookState { stateCells: { index, queue } } <- H.get
 
           let
             stateValue = unsafeGetStateCell (StateId index) queue
             nextIndex = if index + 1 < Array.length queue then index + 1 else 0
             stateToken = StateToken (StateId index)
 
-          H.modify_ _ { stateCells { index = nextIndex } }
+          H.modify_ (over HookState _ { stateCells { index = nextIndex } })
           Prelude.pure $ reply { getState: stateValue, stateToken }
 
-    UseQuery _ handler a -> Prelude.do
-      let
-        handler' :: forall a. q a -> EvalHookM ps o m (Maybe a)
-        handler' = handler <<< toQueryValue
+    UseQuery _ handler a ->
+      case reason of
+        Initialize -> Prelude.do
+          let
+            handler' :: forall a. q a -> EvalHookM ps o m (Maybe a)
+            handler' = handler <<< toQueryValue
 
-      H.modify_ _ { queryFn = Just (toQueryFn handler') }
-      Prelude.pure a
+          H.modify_ (over HookState _ { queryFn = Just (toQueryFn handler') })
+          Prelude.pure a
+
+        _ ->
+          Prelude.pure a
 
     UseEffect mbMemos act a -> Prelude.do
       case reason of
         Initialize -> Prelude.do
           for_ mbMemos \memos -> Prelude.do
-            { effectCells: { queue } } <- H.get
-            H.modify_ _ { effectCells { queue = Array.snoc queue memos } }
+            H.modify_ \(HookState st) ->
+              HookState $ st { effectCells { queue = Array.snoc st.effectCells.queue memos } }
 
-          finalizer <- evalM mempty act
-          when (isJust finalizer) Prelude.do
-            H.modify_ _ { finalizerFn = finalizer }
+          let
+            eval = Prelude.do
+              finalizer <- evalM (interpretHookFn Queued hookFn) act
+              H.modify_ (over HookState _ { finalizerFn = finalizer })
 
-        Step ->
+          H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
+
+        Queued ->
+          Prelude.pure unit
+
+        Step -> Prelude.do
           for_ mbMemos \memos -> Prelude.do
-            { effectCells: { index, queue } } <- H.get
+            HookState { effectCells: { index, queue } } <- H.get
 
             let
               newQueue = unsafeSetEffectCell (EffectId index) memos queue
@@ -383,30 +437,33 @@ interpretHookFn reason hookFn = Prelude.do
                 , new: fromMemoValues memos
                 }
 
-            H.modify_ _ { effectCells = { index: nextIndex, queue: newQueue } }
+            H.modify_ (over HookState _ { effectCells = { index: nextIndex, queue: newQueue } })
 
             when (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) Prelude.do
-              void $ evalM mempty act
+              let eval = void $ evalM (interpretHookFn Queued hookFn) act
+              H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
 
         Finalize -> Prelude.do
-          { finalizerFn } <- H.get
-          for_ finalizerFn (evalM mempty)
+          HookState { finalizerFn } <- H.get
+          for_ finalizerFn \fn -> Prelude.do
+            let eval = evalM mempty fn
+            H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
 
       Prelude.pure a
 
     UseMemo memos memoFn reply -> Prelude.do
       case reason of
         Initialize -> Prelude.do
-          { memoCells: { queue } } <- H.get
+          HookState { memoCells: { queue } } <- H.get
 
           let
             newValue = memoFn unit
 
-          H.modify_ _ { memoCells { queue = Array.snoc queue (Tuple memos newValue) } }
+          H.modify_ (over HookState _ { memoCells { queue = Array.snoc queue (Tuple memos newValue) } })
           Prelude.pure $ reply newValue
 
         _ -> Prelude.do
-          { memoCells: { index, queue } } <- H.get
+          HookState { memoCells: { index, queue } } <- H.get
 
           let
             m = Prelude.do
@@ -426,8 +483,30 @@ interpretHookFn reason hookFn = Prelude.do
               newValue = memoFn unit
               newQueue = unsafeSetMemoCell (MemoId index) (Tuple memos newValue) queue
 
-            H.modify_ _ { memoCells = { index: nextIndex, queue: newQueue } }
+            H.modify_ (over HookState _ { memoCells = { index: nextIndex, queue: newQueue } })
             Prelude.pure $ reply newValue
 
           else
             Prelude.pure $ reply m.value
+
+    UseRef initial reply ->
+      case reason of
+        Initialize -> Prelude.do
+          HookState { refCells: { queue } } <- H.get
+
+          let
+            ref = unsafePerformEffect $ liftEffect $ Ref.new initial
+
+          H.modify_ (over HookState _ { refCells { queue = Array.snoc queue ref } })
+          Prelude.pure $ reply { value: initial, ref }
+
+        _ -> Prelude.do
+          HookState { refCells: { index, queue } } <- H.get
+
+          let
+            ref = unsafeGetRefCell (RefId index) queue
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            value = unsafePerformEffect $ liftEffect $ Ref.read ref
+
+          H.modify_ (over HookState _ { refCells { index = nextIndex } })
+          Prelude.pure $ reply { value, ref }

@@ -9,7 +9,7 @@ import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import Example.Hooks.UseLocalStorage (Key(..), StorageInterface, useLocalStorage)
+import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
 import Example.Hooks.UsePreviousValue (usePreviousValue)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
 import Halogen as H
@@ -45,17 +45,14 @@ previousValue = Hook.component \_ -> Hook.do
           [ HH.text $ "Increment (" <> show count <> ")" ]
       ]
 
-intStorageInterface :: StorageInterface Int
-intStorageInterface =
-  { defaultValue: 0
-  , fromJson: decodeJson
-  , toJson: encodeJson
-  , key: Key "intStorageExample"
-  }
-
 localStorage :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
 localStorage = Hook.component \_ -> Hook.do
-  value /\ valueState <- useLocalStorage intStorageInterface
+  value /\ valueState <- useLocalStorage
+    { defaultValue: 0
+    , fromJson: decodeJson
+    , toJson: encodeJson
+    , key: Key "intStorageExample"
+    }
 
   let
     clearCount =
@@ -67,14 +64,12 @@ localStorage = Hook.component \_ -> Hook.do
   Hook.pure do
     HH.div
       [ ]
-      [ HH.h4_ [ HH.text "Local Storage" ]
-      , HH.p_ [ HH.text "This example demonstrates a hook to persist state to local storage automatically." ]
-      , HH.text "Click on the button to clear from local storage"
+      [ HH.text "Click on the button to clear from local storage"
       , HH.button
           [ HE.onClick \_ -> Just clearCount ]
           [ HH.text "Clear" ]
       , HH.br_
-      , HH.text $ "You have " <> either identity show value <> " in local storage."
+      , HH.text $ "You have " <> either identity show value <> " at the intStorageExample key in local storage."
       , HH.button
           [ HE.onClick \_ -> Just increment ]
           [ HH.text "Increment" ]
