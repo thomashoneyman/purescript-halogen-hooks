@@ -341,11 +341,11 @@ componentWithQuery inputHookFn = do
     { input
     , html: HH.text ""
     , queryFn: Nothing
-    , finalizerFn: Nothing
     , stateCells: { queue: [], index: 0 }
     , effectCells: { queue: [], index: 0 }
     , memoCells: { queue: [], index: 0 }
     , refCells: { queue: [], index: 0 }
+    , finalizerQueue: []
     , evalQueue: []
     }
 
@@ -415,8 +415,10 @@ interpretHookFn reason hookFn = Prelude.do
 
           let
             eval = Prelude.do
-              finalizer <- evalM (interpretHookFn Queued hookFn) act
-              H.modify_ (over HookState _ { finalizerFn = finalizer })
+              mbFinalizer <- evalM (interpretHookFn Queued hookFn) act
+              for_ mbFinalizer \finalizer ->
+                H.modify_ \(HookState st) ->
+                  HookState $ st { finalizerQueue = Array.snoc st.finalizerQueue finalizer }
 
           H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
 
@@ -444,10 +446,9 @@ interpretHookFn reason hookFn = Prelude.do
               H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
 
         Finalize -> Prelude.do
-          HookState { finalizerFn } <- H.get
-          for_ finalizerFn \fn -> Prelude.do
-            let eval = evalM mempty fn
-            H.modify_ \(HookState st) -> HookState $ st { evalQueue = Array.snoc st.evalQueue eval }
+          HookState { finalizerQueue } <- H.get
+          let evalQueue = map (evalM mempty) finalizerQueue
+          H.modify_ \(HookState st) -> HookState $ st { evalQueue = Prelude.append st.evalQueue evalQueue }
 
       Prelude.pure a
 

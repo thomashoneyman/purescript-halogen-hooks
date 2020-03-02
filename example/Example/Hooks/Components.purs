@@ -6,9 +6,11 @@ import Data.Argonaut (decodeJson, encodeJson)
 import Data.Either (Either(..), either)
 import Data.Lens (_Right, over)
 import Data.Maybe (Maybe(..), maybe)
+import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
+import Example.Hooks.UseDebouncer (useDebouncer)
 import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
 import Example.Hooks.UsePreviousValue (usePreviousValue)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
@@ -16,6 +18,7 @@ import Halogen as H
 import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
+import Halogen.Hook (useState)
 import Halogen.Hook as Hook
 
 windowWidth :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
@@ -73,4 +76,30 @@ localStorage = Hook.component \_ -> Hook.do
       , HH.button
           [ HE.onClick \_ -> Just increment ]
           [ HH.text "Increment" ]
+      ]
+
+debouncer :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+debouncer = Hook.component \_ -> Hook.do
+  text /\ textState <- useState ""
+  dbText /\ dbTextState <- useState ""
+
+  debouncedHandleInput <- useDebouncer (Milliseconds 300.0) (EH.put dbTextState)
+
+  let
+    handleInput str = Just do
+      EH.put textState str
+      debouncedHandleInput str
+
+  Hook.pure do
+    HH.div_
+      [ HH.h4_
+          [ HH.text "Debounced Input" ]
+      , HH.p_
+          [ HH.text "This hook demonstrates debouncing an effectful function." ]
+      , HH.input
+          [ HE.onValueInput handleInput ]
+      , HH.p_
+          [ HH.text $ "You entered: " <> text ]
+      , HH.p_
+          [ HH.text $ "You entered (debounced): " <> dbText ]
       ]

@@ -18,6 +18,7 @@ import Halogen as H
 import Halogen.Data.Slot as Slot
 import Halogen.Query.ChildQuery as CQ
 import Halogen.Query.EventSource as ES
+import Halogen.Query.HalogenM (ForkId)
 import Partial.Unsafe (unsafePartial)
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
@@ -190,6 +191,9 @@ getHTMLElementRef = map (HTMLElement.fromElement =<< _) <<< getRef
 getRef :: forall slots output m. H.RefLabel -> EvalHookM slots output m (Maybe Element)
 getRef p = EvalHookM $ liftF $ GetRef p identity
 
+fork :: forall ps o m. EvalHookM ps o m Unit -> EvalHookM ps o m ForkId
+fork fn = EvalHookM $ liftF $ Fork fn identity
+
 -- Querying
 query
   :: forall output m label slots query output' slot a _1
@@ -228,11 +232,11 @@ newtype HookState q i ps o m = HookState
   { input :: i
   , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
   , queryFn :: Maybe (QueryFn q ps o m)
-  , finalizerFn :: Maybe (EvalHookM ps o m Unit)
   , stateCells :: QueueState StateValue
   , effectCells :: QueueState MemoValues
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
+  , finalizerQueue :: Array (EvalHookM ps o m Unit)
   , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit)
   }
 
