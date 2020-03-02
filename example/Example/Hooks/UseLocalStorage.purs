@@ -11,7 +11,7 @@ import Prelude
 import Data.Argonaut (Json, jsonParser, stringify)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Class (class MonadEffect, liftEffect)
@@ -57,16 +57,14 @@ useLocalStorage { key, defaultValue, toJson, fromJson } = Hook.coerce hook
     useInitializer do
       storage <- liftEffect (localStorage =<< window)
       mbItem <- liftEffect (getItem k =<< localStorage =<< window)
-      case mbItem of
-        Nothing ->
-          liftEffect $ setItem k (stringify (toJson defaultValue)) storage
-        Just item ->
-          EH.put valueState (jsonParser item >>= fromJson)
+      mbItem # maybe
+        (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
+        (\item -> EH.put valueState $ jsonParser item >>= fromJson)
 
     Hook.captures { key, value } Hook.useTickEffect do
+      value' <- EH.get valueState
       storage <- liftEffect (localStorage =<< window)
-      for_ (map toJson value) \v ->
-        liftEffect $ setItem k (stringify v) storage
+      for_ value' \v -> liftEffect $ setItem k (stringify (toJson v)) storage
       pure Nothing
 
     Hook.pure (Tuple value valueState)
