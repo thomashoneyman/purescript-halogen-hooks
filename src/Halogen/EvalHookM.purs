@@ -7,12 +7,14 @@ import Control.Monad.Free (Free, foldFree, liftF)
 import Control.Parallel (parallel, sequential)
 import Data.Array as Array
 import Data.Maybe (Maybe(..), fromJust, maybe)
-import Data.Newtype (class Newtype)
+import Data.Newtype (class Newtype, unwrap)
 import Data.Symbol (class IsSymbol, SProxy)
 import Data.Tuple.Nested (type (/\))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Ref (Ref)
+import Effect.Ref as Ref
+import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object (Object)
 import Halogen as H
 import Halogen.Data.Slot as Slot
@@ -229,18 +231,53 @@ fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> EvalHookM 
 fromQueryFn = unsafeCoerce
 
 newtype HookState q i ps o m = HookState
+  { html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
+  , stateRef :: Ref (InternalHookState q i ps o m)
+  }
+
+derive instance newtypeHookState :: Newtype (HookState q i ps o m) _
+
+type InternalHookState q i ps o m =
   { input :: i
-  , html :: H.ComponentHTML (EvalHookM ps o m Unit) ps m
   , queryFn :: Maybe (QueryFn q ps o m)
+  , finalizerQueue :: Array (EvalHookM ps o m Unit)
+  , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit)
   , stateCells :: QueueState StateValue
   , effectCells :: QueueState MemoValues
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
-  , finalizerQueue :: Array (EvalHookM ps o m Unit)
-  , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit)
   }
 
-derive instance newtypeHookState :: Newtype (HookState q i ps o m) _
+getState
+  :: forall q i ps o m
+   . H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m (InternalHookState q i ps o m)
+getState = do
+  { stateRef } <- H.gets unwrap
+  pure $ unsafePerformEffect $ liftEffect $ Ref.read stateRef
+
+modifyState
+  :: forall q i ps o m
+   . (InternalHookState q i ps o m -> InternalHookState q i ps o m)
+  -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m (InternalHookState q i ps o m)
+modifyState fn = do
+  { stateRef } <- H.gets unwrap
+  pure $ unsafePerformEffect $ liftEffect $ Ref.modify fn stateRef
+
+modifyState_
+  :: forall q i ps o m
+   . (InternalHookState q i ps o m -> InternalHookState q i ps o m)
+  -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
+modifyState_ fn = do
+  { stateRef } <- H.gets unwrap
+  pure $ unsafePerformEffect $ liftEffect $ Ref.modify_ fn stateRef
+
+putState
+  :: forall q i ps o m
+   . InternalHookState q i ps o m
+  -> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m Unit
+putState s = do
+  { stateRef } <- H.gets unwrap
+  pure $ unsafePerformEffect $ liftEffect $ Ref.write s stateRef
 
 type QueueState a =
   { queue :: Array a
@@ -263,9 +300,9 @@ evalM runHooks (EvalHookM evalHookF) = foldFree interpretEvalHook evalHookF
   interpretEvalHook :: EvalHookF ps o m ~> H.HalogenM (HookState q i ps o m) (EvalHookM ps o m Unit) ps o m
   interpretEvalHook = case _ of
     Modify (StateToken token) f reply -> do
-      HookState state <- H.get
+      state <- getState
       let v = f (unsafeGetStateCell token state.stateCells.queue)
-      H.put $ HookState $ state { stateCells { queue = unsafeSetStateCell token v state.stateCells.queue } }
+      putState $ state { stateCells { queue = unsafeSetStateCell token v state.stateCells.queue } }
       runHooks
       pure (reply v)
 
