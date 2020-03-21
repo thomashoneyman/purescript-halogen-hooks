@@ -1,7 +1,7 @@
 .*
 !.gitignore
 !.github
-!.travis.yml
+!.editorconfig
 
 # Dependencies
 bower_components
