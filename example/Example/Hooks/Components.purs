@@ -15,16 +15,14 @@ import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
 import Example.Hooks.UsePreviousValue (usePreviousValue)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
 import Halogen as H
-import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.Hook (useState)
-import Halogen.Hook as Hook
+import Halogen.Hooks as Hooks
 
 windowWidth :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-windowWidth = Hook.component \_ -> Hook.do
+windowWidth = Hooks.component \_ -> Hooks.do
   width <- useWindowWidth
-  Hook.pure do
+  Hooks.pure do
     HH.div_
       [ HH.h4_ [ HH.text "Window Width" ]
       , HH.p_ [ HH.text "This example demonstrates a hook which subscribes to resize events on the window and returns its width on change." ]
@@ -32,11 +30,11 @@ windowWidth = Hook.component \_ -> Hook.do
       ]
 
 previousValue :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-previousValue = Hook.component \_ -> Hook.do
-  count /\ countState <- Hook.useState 0
+previousValue = Hooks.component \_ -> Hooks.do
+  count /\ countState <- Hooks.useState 0
   prevCount <- usePreviousValue count
 
-  Hook.pure do
+  Hooks.pure do
     HH.div
       [ ]
       [ HH.h4_ [ HH.text "Previous Value" ]
@@ -44,12 +42,12 @@ previousValue = Hook.component \_ -> Hook.do
       , HH.text $ "The previous value of the state 'count' was: " <> show prevCount
       , HH.br_
       , HH.button
-          [ HE.onClick \_ -> Just (EH.modify_ countState (_ + 1)) ]
+          [ HE.onClick \_ -> Just (Hooks.modify_ countState (_ + 1)) ]
           [ HH.text $ "Increment (" <> show count <> ")" ]
       ]
 
 localStorage :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-localStorage = Hook.component \_ -> Hook.do
+localStorage = Hooks.component \_ -> Hooks.do
   value /\ valueState <- useLocalStorage
     { defaultValue: 0
     , fromJson: decodeJson
@@ -59,12 +57,12 @@ localStorage = Hook.component \_ -> Hook.do
 
   let
     clearCount =
-      EH.put valueState (Right 0)
+      Hooks.put valueState (Right 0)
 
     increment =
-      EH.modify_ valueState (over _Right (_ + 1))
+      Hooks.modify_ valueState (over _Right (_ + 1))
 
-  Hook.pure do
+  Hooks.pure do
     HH.div
       [ ]
       [ HH.text "Click on the button to clear from local storage"
@@ -79,18 +77,18 @@ localStorage = Hook.component \_ -> Hook.do
       ]
 
 debouncer :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-debouncer = Hook.component \_ -> Hook.do
-  text /\ textState <- useState ""
-  dbText /\ dbTextState <- useState ""
+debouncer = Hooks.component \_ -> Hooks.do
+  text /\ textState <- Hooks.useState ""
+  dbText /\ dbTextState <- Hooks.useState ""
 
-  debouncedHandleInput <- useDebouncer (Milliseconds 300.0) (EH.put dbTextState)
+  debouncedHandleInput <- useDebouncer (Milliseconds 300.0) (Hooks.put dbTextState)
 
   let
     handleInput str = Just do
-      EH.put textState str
+      Hooks.put textState str
       debouncedHandleInput str
 
-  Hook.pure do
+  Hooks.pure do
     HH.div_
       [ HH.h4_
           [ HH.text "Debounced Input" ]

@@ -8,22 +8,21 @@ import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect)
 import Example.Halogen.ComponentsInputs.Display as Display
 import Halogen as H
-import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.Hook as Hook
+import Halogen.Hooks as Hooks
 
 _display = SProxy :: SProxy "display"
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-component = Hook.component \_ -> Hook.do
-  count /\ countState <- Hook.useState 1
+component = Hooks.component \_ -> Hooks.do
+  count /\ countState <- Hooks.useState 1
 
   let
-    decrement = EH.modify_ countState (_ - 1)
-    increment = EH.modify_ countState (_ + 1)
+    decrement = Hooks.modify_ countState (_ - 1)
+    increment = Hooks.modify_ countState (_ + 1)
 
-  Hook.pure do
+  Hooks.pure do
     HH.div_
       [ HH.ul_
           [ HH.slot _display 1 Display.component count absurd

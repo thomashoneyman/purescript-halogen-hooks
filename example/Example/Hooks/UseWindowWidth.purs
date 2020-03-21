@@ -10,9 +10,8 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
-import Halogen.EvalHookM as EH
-import Halogen.Hook (Hook, UseEffect, UseState)
-import Halogen.Hook as Hook
+import Halogen.Hooks (Hook, UseEffect, UseState)
+import Halogen.Hooks as Hooks
 import Halogen.Query.EventSource as ES
 import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (EventType(..))
@@ -26,26 +25,26 @@ type UseWindowWidth' hooks = UseEffect (UseState (Maybe Int) hooks)
 foreign import data UseWindowWidth :: Type -> Type
 
 useWindowWidth :: forall ps o m. MonadAff m => Hook ps o m UseWindowWidth (Maybe Int)
-useWindowWidth = Hook.coerce hook
+useWindowWidth = Hooks.coerce hook
   where
   hook :: Hook ps o m UseWindowWidth' (Maybe Int)
-  hook = Hook.do
-    width /\ widthState <- Hook.useState Nothing
+  hook = Hooks.do
+    width /\ widthState <- Hooks.useState Nothing
 
-    Hook.useLifecycleEffect do
-      let readWidth = EH.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
+    Hooks.useLifecycleEffect do
+      let readWidth = Hooks.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
 
       window <- liftEffect HTML.window
-      subscriptionId <- EH.subscribe do
+      subscriptionId <- Hooks.subscribe do
         ES.eventListenerEventSource
           (EventType "resize")
           (Window.toEventTarget window)
           (Event.target >>> map (fromEventTarget >>> readWidth))
 
       readWidth window
-      pure (Just $ EH.unsubscribe subscriptionId)
+      pure (Just $ Hooks.unsubscribe subscriptionId)
 
-    Hook.pure width
+    Hooks.pure width
 
 -- This function is missing from the purescript-web-html repository
 fromEventTarget :: EventTarget -> HTML.Window

@@ -7,25 +7,24 @@ import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect)
 import Effect.Random (random)
 import Halogen as H
-import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.Hook as Hook
+import Halogen.Hooks as Hooks
 
 type State = Maybe Number
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-component = Hook.component \_ -> Hook.do
-  state /\ _state <- Hook.useState Nothing
+component = Hooks.component \_ -> Hooks.do
+  state /\ _state <- Hooks.useState Nothing
 
   let
     value = maybe "No number generated yet" show state
 
     handleClick = Just do
       newNumber <- H.liftEffect random
-      EH.put _state (Just newNumber)
+      Hooks.put _state (Just newNumber)
 
-  Hook.pure do
+  Hooks.pure do
     HH.div_
       [ HH.h1_
           [ HH.text "Random number" ]

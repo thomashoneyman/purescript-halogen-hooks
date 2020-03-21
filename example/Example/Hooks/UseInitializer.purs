@@ -7,16 +7,15 @@ module Example.Hooks.UseInitializer
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Halogen.EvalHookM (EvalHookM)
-import Halogen.Hook (Hook, UseEffect)
-import Halogen.Hook as Hook
+import Halogen.Hooks (HalogenHookM, Hook, UseEffect)
+import Halogen.Hooks as Hooks
 
 type UseInitializer' hooks = UseEffect hooks
 
 foreign import data UseInitializer :: Type -> Type
 
-useInitializer :: forall ps o m. EvalHookM ps o m Unit -> Hook ps o m UseInitializer Unit
-useInitializer eval = Hook.coerce hook
+useInitializer :: forall ps o m. HalogenHookM ps o m Unit -> Hook ps o m UseInitializer Unit
+useInitializer eval = Hooks.coerce hook
   where
   hook :: Hook ps o m UseInitializer' Unit
-  hook = Hook.useLifecycleEffect (eval *> pure Nothing)
+  hook = Hooks.useLifecycleEffect (eval *> pure Nothing)

@@ -7,24 +7,23 @@ import Data.Maybe (Maybe(..))
 import Effect.Class (class MonadEffect)
 import Halogen (liftEffect)
 import Halogen as H
-import Halogen.EvalHookM (EvalHookM)
-import Halogen.EvalHookM as EH
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.Hook as Hook
+import Halogen.Hooks (HalogenHookM)
+import Halogen.Hooks as Hooks
 import Web.HTML.HTMLElement (focus)
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-component = Hook.component \_ -> Hook.do
+component = Hooks.component \_ -> Hooks.do
   let
     refLabel = H.RefLabel "inputElement"
 
-    handleButtonClick :: EvalHookM _ o m Unit
+    handleButtonClick :: forall ps. HalogenHookM ps o m Unit
     handleButtonClick = do
-      EH.getHTMLElementRef refLabel >>= traverse_ (focus >>> liftEffect)
+      Hooks.getHTMLElementRef refLabel >>= traverse_ (focus >>> liftEffect)
 
-  Hook.pure do
+  Hooks.pure do
     HH.div
       [ ]
       [ HH.input

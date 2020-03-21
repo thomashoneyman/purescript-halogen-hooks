@@ -17,7 +17,7 @@ import Halogen as H
 import Halogen.Aff as HA
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
-import Halogen.Hook as Hook
+import Halogen.Hooks as Hooks
 import Halogen.Storybook (Stories, runStorybook)
 
 main :: Effect Unit
@@ -50,7 +50,7 @@ examples =
     ]
   where
   index :: forall q i o m. H.Component HH.HTML q i o m
-  index = Hook.component \_ -> Hook.pure do
+  index = Hooks.component \_ -> Hooks.pure do
     HH.div_
       [ HH.h1_
         [ HH.text "Halogen Hooks" ]

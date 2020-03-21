@@ -11,8 +11,8 @@ import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hook (Hook, UseEffect, UseRef)
-import Halogen.Hook as Hook
+import Halogen.Hooks (Hook, UseEffect, UseRef)
+import Halogen.Hooks as Hooks
 
 type UsePreviousValue' a hooks = UseEffect (UseRef (Maybe a) hooks)
 
@@ -24,14 +24,14 @@ usePreviousValue
   => Eq a
   => a
   -> Hook ps o m (UsePreviousValue a) (Maybe a)
-usePreviousValue value = Hook.coerce hook
+usePreviousValue value = Hooks.coerce hook
   where
   hook :: Hook ps o m (UsePreviousValue' a) (Maybe a)
-  hook = Hook.do
-    prev /\ ref <- Hook.useRef Nothing
+  hook = Hooks.do
+    prev /\ ref <- Hooks.useRef Nothing
 
-    Hook.captures { } Hook.useTickEffect do
+    Hooks.captures { } Hooks.useTickEffect do
       liftEffect $ Ref.write (Just value) ref
       pure Nothing
 
-    Hook.pure prev
+    Hooks.pure prev

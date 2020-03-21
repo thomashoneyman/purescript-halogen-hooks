@@ -3,17 +3,17 @@ let
     url = "https://github.com/NixOS/nixpkgs/archive/19.09.tar.gz";
   }) {};
 
-  easy-ps = import (pkgs.fetchFromGitHub {
+  # 2020-03-16 nix-prefetch-git https://github.com/justinwoo/easy-purescript-nix
+  pursPkgs = import (pkgs.fetchFromGitHub {
     owner = "justinwoo";
     repo = "easy-purescript-nix";
-    # 2019-07-06
-    rev = "a09d4ff6a8e4a8a24b26f111c2a39d9ef7fed720";
-    sha256 = "1iaid67vf8frsqfnw1vm313d50mdws9qg4bavrhfhmgjhcyqmb52";
+    rev = "aa3e608608232f4a009b5c132ae763fdabfb4aba";
+    sha256 = "0y6jikncxs9l2zgngbd1775f1zy5s1hdc5rhkyzsyaalcl5cajk8";
   }) {};
 
 in pkgs.stdenv.mkDerivation {
   name = "halogen-hooks";
-  buildInputs = with easy-ps; [
+  buildInputs = with pursPkgs; [
     purs spago purty pscid
     pkgs.yarn pkgs.nodejs-12_x
   ];

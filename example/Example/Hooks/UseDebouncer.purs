@@ -15,10 +15,8 @@ import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.EvalHookM (EvalHookM)
-import Halogen.EvalHookM as EH
-import Halogen.Hook (Hook, UseRef)
-import Halogen.Hook as Hook
+import Halogen.Hooks (HalogenHookM, Hook, UseRef)
+import Halogen.Hooks as Hooks
 
 type UseDebouncer' a hooks = UseRef (Maybe a) (UseRef (Maybe Debouncer) hooks)
 
@@ -33,14 +31,14 @@ useDebouncer
   :: forall ps o m a
    . MonadAff m
   => Milliseconds
-  -> (a -> EvalHookM ps o m Unit)
-  -> Hook ps o m (UseDebouncer a) (a -> EvalHookM ps o m Unit)
-useDebouncer ms fn = Hook.coerce hook
+  -> (a -> HalogenHookM ps o m Unit)
+  -> Hook ps o m (UseDebouncer a) (a -> HalogenHookM ps o m Unit)
+useDebouncer ms fn = Hooks.coerce hook
   where
-  hook :: Hook ps o m (UseDebouncer' a) (a -> EvalHookM ps o m Unit)
-  hook = Hook.do
-    _ /\ debounceRef <- Hook.useRef Nothing
-    _ /\ valRef <- Hook.useRef Nothing
+  hook :: Hook ps o m (UseDebouncer' a) (a -> HalogenHookM ps o m Unit)
+  hook = Hooks.do
+    _ /\ debounceRef <- Hooks.useRef Nothing
+    _ /\ valRef <- Hooks.useRef Nothing
 
     let
       debounceFn x = do
@@ -55,7 +53,7 @@ useDebouncer ms fn = Hook.coerce hook
               delay ms
               AVar.put unit var
 
-            _ <- EH.fork do
+            _ <- Hooks.fork do
               _ <- liftAff $ AVar.take var
               val <- liftEffect do
                 Ref.write Nothing debounceRef
@@ -75,4 +73,4 @@ useDebouncer ms fn = Hook.coerce hook
 
             liftEffect $ Ref.write (Just { var, fiber }) debounceRef
 
-    Hook.pure debounceFn
+    Hooks.pure debounceFn
