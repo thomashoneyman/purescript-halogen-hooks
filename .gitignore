@@ -1,19 +1,19 @@
-.cache
-.pulp-cache
-.psc-package
-.vscode
+.*
+!.gitignore
+!.github
+!.travis.yml
 
+# Dependencies
 bower_components
 node_modules
+
+# Generated files
 output
 generated-docs
 
-.psc*
-.purs*
-.psa*
-.spago
-
+# Lockfiles
+package-lock.json
 *.lock
 
-# ignore bundled example output
-example/app.js
+# Extra files
+examples/app.js

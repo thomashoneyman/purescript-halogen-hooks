@@ -12,6 +12,6 @@ in conf //
         ]
   , sources =
       conf.sources #
-        [ "example/**/*.purs"
+        [ "examples/**/*.purs"
         ]
   }
