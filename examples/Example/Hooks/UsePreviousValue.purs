@@ -19,14 +19,14 @@ type UsePreviousValue' a hooks = UseEffect (UseRef (Maybe a) hooks)
 foreign import data UsePreviousValue :: Type -> Type -> Type
 
 usePreviousValue
-  :: forall ps o m a
+  :: forall slots output m a
    . MonadAff m
   => Eq a
   => a
-  -> Hook ps o m (UsePreviousValue a) (Maybe a)
-usePreviousValue value = Hooks.coerce hook
+  -> Hook slots output m (UsePreviousValue a) (Maybe a)
+usePreviousValue value = Hooks.publish hook
   where
-  hook :: Hook ps o m (UsePreviousValue' a) (Maybe a)
+  hook :: Hook slots output m (UsePreviousValue' a) (Maybe a)
   hook = Hooks.do
     prev /\ ref <- Hooks.useRef Nothing
 

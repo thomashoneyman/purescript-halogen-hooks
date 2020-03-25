@@ -6,7 +6,7 @@
 -- |
 -- | If you need to use a function usually available in HalogenM which is not
 -- | available here, please file an issue.
-module Halogen.Hooks.HalogenHookM where
+module Halogen.Hooks.HookM where
 
 import Prelude
 
@@ -37,67 +37,67 @@ import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
 
--- | The HalogenHook API: a set of primitive building blocks that can be used as
--- | an alternate interface to HalogenM when evaluating hooks.
-data HalogenHookF ps o m a
+-- | HookF is a DSL fully compatible with HalogenM. It is used to implement
+-- | the Hook monad, HookM.
+data HookF ps o m a
   = Modify (StateToken StateValue) (StateValue -> StateValue) (StateValue -> a)
-  | Subscribe (H.SubscriptionId -> ES.EventSource m (HalogenHookM ps o m Unit)) (H.SubscriptionId -> a)
+  | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM ps o m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
   | ChildQuery (CQ.ChildQueryBox ps a)
   | Raise o a
-  | Par (HalogenHookAp ps o m a)
-  | Fork (HalogenHookM ps o m Unit) (H.ForkId -> a)
+  | Par (HookAp ps o m a)
+  | Fork (HookM ps o m Unit) (H.ForkId -> a)
   | Kill H.ForkId a
   | GetRef H.RefLabel (Maybe DOM.Element -> a)
 
-derive instance functorHalogenHookF :: Functor m => Functor (HalogenHookF ps o m)
+derive instance functorHookF :: Functor m => Functor (HookF ps o m)
 
 -- | The Hook effect monad, an interface to the HalogenM component eval effect monad.
-newtype HalogenHookM ps o m a = HalogenHookM (Free (HalogenHookF ps o m) a)
+newtype HookM ps o m a = HookM (Free (HookF ps o m) a)
 
-derive newtype instance functorHalogenHookM :: Functor (HalogenHookM ps o m)
-derive newtype instance applyHalogenHookM :: Apply (HalogenHookM ps o m)
-derive newtype instance applicativeHalogenHookM :: Applicative (HalogenHookM ps o m)
-derive newtype instance bindHalogenHookM :: Bind (HalogenHookM ps o m)
-derive newtype instance monadHalogenHookM :: Monad (HalogenHookM ps o m)
-derive newtype instance semigroupHalogenHookM :: Semigroup a => Semigroup (HalogenHookM ps o m a)
-derive newtype instance monoidHalogenHookM :: Monoid a => Monoid (HalogenHookM ps o m a)
+derive newtype instance functorHookM :: Functor (HookM ps o m)
+derive newtype instance applyHookM :: Apply (HookM ps o m)
+derive newtype instance applicativeHookM :: Applicative (HookM ps o m)
+derive newtype instance bindHookM :: Bind (HookM ps o m)
+derive newtype instance monadHookM :: Monad (HookM ps o m)
+derive newtype instance semigroupHookM :: Semigroup a => Semigroup (HookM ps o m a)
+derive newtype instance monoidHookM :: Monoid a => Monoid (HookM ps o m a)
 
-instance monadEffectHalogenHookM :: MonadEffect m => MonadEffect (HalogenHookM ps o m) where
-  liftEffect = HalogenHookM <<< liftF <<< Lift <<< liftEffect
+instance monadEffectHookM :: MonadEffect m => MonadEffect (HookM ps o m) where
+  liftEffect = HookM <<< liftF <<< Lift <<< liftEffect
 
-instance monadAffHalogenHookM :: MonadAff m => MonadAff (HalogenHookM ps o m) where
-  liftAff = HalogenHookM <<< liftF <<< Lift <<< liftAff
+instance monadAffHookM :: MonadAff m => MonadAff (HookM ps o m) where
+  liftAff = HookM <<< liftF <<< Lift <<< liftAff
 
-instance monadTransHalogenHookM :: MonadTrans (HalogenHookM ps o) where
-  lift = HalogenHookM <<< liftF <<< Lift
+instance monadTransHookM :: MonadTrans (HookM ps o) where
+  lift = HookM <<< liftF <<< Lift
 
-instance monadRecHalogenHookM :: MonadRec (HalogenHookM ps o m) where
+instance monadRecHookM :: MonadRec (HookM ps o m) where
   tailRecM k a = k a >>= case _ of
     Loop x -> tailRecM k x
     Done y -> pure y
 
-instance monadAskHalogenHookM :: MonadAsk r m => MonadAsk r (HalogenHookM ps o m) where
-  ask = HalogenHookM $ liftF $ Lift ask
+instance monadAskHookM :: MonadAsk r m => MonadAsk r (HookM ps o m) where
+  ask = HookM $ liftF $ Lift ask
 
-instance monadTellHalogenHookM :: MonadTell w m => MonadTell w (HalogenHookM ps o m) where
-  tell = HalogenHookM <<< liftF <<< Lift <<< tell
+instance monadTellHookM :: MonadTell w m => MonadTell w (HookM ps o m) where
+  tell = HookM <<< liftF <<< Lift <<< tell
 
-instance monadThrowHalogenHookM :: MonadThrow e m => MonadThrow e (HalogenHookM ps o m) where
-  throwError = HalogenHookM <<< liftF <<< Lift <<< throwError
+instance monadThrowHookM :: MonadThrow e m => MonadThrow e (HookM ps o m) where
+  throwError = HookM <<< liftF <<< Lift <<< throwError
 
--- | An applicative-only version of `HalogenHookM` to allow for parallel evaluation.
-newtype HalogenHookAp ps o m a = HalogenHookAp (FreeAp (HalogenHookM ps o m) a)
+-- | An applicative-only version of `HookM` to allow for parallel evaluation.
+newtype HookAp ps o m a = HookAp (FreeAp (HookM ps o m) a)
 
-derive instance newtypeHalogenHookAp :: Newtype (HalogenHookAp ps o m a) _
-derive newtype instance functorHalogenHookAp :: Functor (HalogenHookAp ps o m)
-derive newtype instance applyHalogenHookAp :: Apply (HalogenHookAp ps o m)
-derive newtype instance applicativeHalogenHookAp :: Applicative (HalogenHookAp ps o m)
+derive instance newtypeHookAp :: Newtype (HookAp ps o m a) _
+derive newtype instance functorHookAp :: Functor (HookAp ps o m)
+derive newtype instance applyHookAp :: Apply (HookAp ps o m)
+derive newtype instance applicativeHookAp :: Applicative (HookAp ps o m)
 
-instance parallelHalogenHookM :: Parallel (HalogenHookAp ps o m) (HalogenHookM ps o m) where
-  parallel = HalogenHookAp <<< liftFreeAp
-  sequential = HalogenHookM <<< liftF <<< Par
+instance parallelHookM :: Parallel (HookAp ps o m) (HookM ps o m) where
+  parallel = HookAp <<< liftFreeAp
+  sequential = HookM <<< liftF <<< Par
 
 newtype StateToken state = StateToken Int
 
@@ -111,7 +111,7 @@ newtype StateToken state = StateToken Int
 -- |     count :: Int <- get countState
 -- |     ...
 -- | ```
-get :: forall state ps o m. StateToken state -> HalogenHookM ps o m state
+get :: forall state ps o m. StateToken state -> HookM ps o m state
 get token = modify token identity
 
 -- | Overwrite a piece of state using a token received from the `useState` hook.
@@ -123,7 +123,7 @@ get token = modify token identity
 -- |   onClick = do
 -- |     put countState 10
 -- | ```
-put :: forall state ps o m. StateToken state -> state -> HalogenHookM ps o m Unit
+put :: forall state ps o m. StateToken state -> state -> HookM ps o m Unit
 put token state = modify_ token (const state)
 
 -- | Modify a piece of state using a token received from the `useState` hook.
@@ -135,7 +135,7 @@ put token state = modify_ token (const state)
 -- |   onClick = do
 -- |     modify_ countState (_ + 10)
 -- | ```
-modify_ :: forall state ps o m. StateToken state -> (state -> state) -> HalogenHookM ps o m Unit
+modify_ :: forall state ps o m. StateToken state -> (state -> state) -> HookM ps o m Unit
 modify_ token = map (const unit) <<< modify token
 
 -- | Modify a piece of state using a token received from the `useState` hook,
@@ -149,8 +149,8 @@ modify_ token = map (const unit) <<< modify token
 -- |     count :: Int <- modify countState (_ + 10)
 -- |     ...
 -- | ```
-modify :: forall state ps o m. StateToken state -> (state -> state) -> HalogenHookM ps o m state
-modify token f = HalogenHookM $ liftF $ Modify token' f' state
+modify :: forall state ps o m. StateToken state -> (state -> state) -> HookM ps o m state
+modify token f = HookM $ liftF $ Modify token' f' state
   where
   token' :: StateToken StateValue
   token' = unsafeCoerce token
@@ -162,8 +162,8 @@ modify token f = HalogenHookM $ liftF $ Modify token' f' state
   state = fromStateValue
 
 -- | Raise an output message for the component.
-raise :: forall ps o m. o -> HalogenHookM ps o m Unit
-raise o = HalogenHookM $ liftF $ Raise o unit
+raise :: forall ps o m. o -> HookM ps o m Unit
+raise o = HookM $ liftF $ Raise o unit
 
 -- | Send a query to a child of a component at the specified slot
 query
@@ -174,9 +174,9 @@ query
   => SProxy label
   -> slot
   -> query a
-  -> HalogenHookM ps o m (Maybe a)
+  -> HookM ps o m (Maybe a)
 query label p q =
-  HalogenHookM $ liftF $ ChildQuery $ CQ.mkChildQueryBox do
+  HookM $ liftF $ ChildQuery $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> maybe (pure Nothing) k <<< Slot.lookup label p) q identity
 
 -- | Sends a query to all children of a component at a given slot label.
@@ -187,9 +187,9 @@ queryAll
   => Ord slot
   => SProxy label
   -> query a
-  -> HalogenHookM ps o m (Map slot a)
+  -> HookM ps o m (Map slot a)
 queryAll label q =
-  HalogenHookM $ liftF $ ChildQuery $ CQ.mkChildQueryBox $
+  HookM $ liftF $ ChildQuery $ CQ.mkChildQueryBox $
     CQ.ChildQuery (\k -> map catMapMaybes <<< traverse k <<< Slot.slots label) q identity
   where
   catMapMaybes :: forall k v. Ord k => Map k (Maybe v) -> Map k v
@@ -198,8 +198,8 @@ queryAll label q =
 -- | Subscribes a component to an `EventSource`. When a component is disposed of
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
-subscribe :: forall ps o m. ES.EventSource m (HalogenHookM ps o m Unit) -> HalogenHookM ps o m H.SubscriptionId
-subscribe es = HalogenHookM $ liftF $ Subscribe (\_ -> es) identity
+subscribe :: forall ps o m. ES.EventSource m (HookM ps o m Unit) -> HookM ps o m H.SubscriptionId
+subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
 -- | themselves. Instead of returning the `SubscriptionId` from `subscribe'`, it
@@ -210,13 +210,13 @@ subscribe es = HalogenHookM $ liftF $ Subscribe (\_ -> es) identity
 -- | When a component is disposed of any active subscriptions will automatically
 -- | be stopped and no further subscriptions will be possible during
 -- | finalization.
-subscribe' :: forall ps o m. (H.SubscriptionId -> ES.EventSource m (HalogenHookM ps o m Unit)) -> HalogenHookM ps o m Unit
-subscribe' esc = HalogenHookM $ liftF $ Subscribe esc (const unit)
+subscribe' :: forall ps o m. (H.SubscriptionId -> ES.EventSource m (HookM ps o m Unit)) -> HookM ps o m Unit
+subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
 
 -- | Unsubscribes a component from an `EventSource`. If the subscription
 -- | associated with the ID has already ended this will have no effect.
-unsubscribe :: forall ps o m. H.SubscriptionId -> HalogenHookM ps o m Unit
-unsubscribe sid = HalogenHookM $ liftF $ Unsubscribe sid unit
+unsubscribe :: forall ps o m. H.SubscriptionId -> HookM ps o m Unit
+unsubscribe sid = HookM $ liftF $ Unsubscribe sid unit
 
 -- | Starts a `HalogenM` process running independent from the current `eval`
 -- | "thread".
@@ -234,31 +234,22 @@ unsubscribe sid = HalogenHookM $ liftF $ Unsubscribe sid unit
 -- | When a component is disposed of any active forks will automatically
 -- | be killed. New forks can be started during finalization but there will be
 -- | no means of killing them.
-fork
-  :: forall ps o m
-   . HalogenHookM ps o m Unit
-  -> HalogenHookM ps o m H.ForkId
-fork fn = HalogenHookM $ liftF $ Fork fn identity
+fork :: forall ps o m. HookM ps o m Unit -> HookM ps o m H.ForkId
+fork fn = HookM $ liftF $ Fork fn identity
 
 -- | Kills a forked process if it is still running. Attempting to kill a forked
 -- | process that has already ended will have no effect.
-kill
-  :: forall ps o m
-   . H.ForkId
-  -> HalogenHookM ps o m Unit
-kill fid = HalogenHookM $ liftF $ Kill fid unit
+kill :: forall ps o m. H.ForkId -> HookM ps o m Unit
+kill fid = HookM $ liftF $ Kill fid unit
 
 -- | Retrieves an `Element` value that is associated with a `Ref` in the
 -- | rendered o of a component. If there is no currently rendered value for
 -- | the requested ref this will return `Nothing`.
-getRef :: forall ps o m. H.RefLabel -> HalogenHookM ps o m (Maybe DOM.Element)
-getRef p = HalogenHookM $ liftF $ GetRef p identity
+getRef :: forall ps o m. H.RefLabel -> HookM ps o m (Maybe DOM.Element)
+getRef p = HookM $ liftF $ GetRef p identity
 
 -- | Retrieves a `HTMLElement` value that is associated with a `Ref` in the
 -- | rendered o of a component. If there is no currently rendered value (or
 -- | it is not an `HTMLElement`) for the request will return `Nothing`.
-getHTMLElementRef
-  :: forall ps o m
-   . H.RefLabel
-  -> HalogenHookM ps o m (Maybe HTML.HTMLElement)
+getHTMLElementRef :: forall ps o m. H.RefLabel -> HookM ps o m (Maybe HTML.HTMLElement)
 getHTMLElementRef = map (HTMLElement.fromElement =<< _) <<< getRef

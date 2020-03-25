@@ -1,7 +1,7 @@
-module Halogen.Hooks.HookF
+module Halogen.Hooks.UseHookF
   ( Hook
   , Hooked(..)
-  , HookF(..)
+  , UseHookF(..)
   ) where
 
 import Control.Applicative.Indexed (class IxApplicative)
@@ -13,22 +13,22 @@ import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed)
 import Data.Maybe (Maybe)
 import Effect.Ref (Ref)
-import Halogen.Hooks.HalogenHookM (HalogenHookM, StateToken)
+import Halogen.Hooks.HookM (HookM, StateToken)
 import Halogen.Hooks.Internal.Types (MemoValue, MemoValues, QueryToken, QueryValue, RefValue, StateValue)
 import Prelude (class Functor, Unit)
 
 -- | The Hook API: a set of primitive building blocks that can be used on their
 -- | own to share stateful logic or used to create new hooks.
-data HookF ps o m a
+data UseHookF ps o m a
   = UseState StateValue ({ token :: StateToken StateValue, value :: StateValue } -> a)
-  | UseEffect (Maybe MemoValues) (HalogenHookM ps o m (Maybe (HalogenHookM ps o m Unit))) a
-  | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> HalogenHookM ps o m (Maybe b)) a
+  | UseEffect (Maybe MemoValues) (HookM ps o m (Maybe (HookM ps o m Unit))) a
+  | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> HookM ps o m (Maybe b)) a
   | UseMemo MemoValues (Unit -> MemoValue) (MemoValue -> a)
   | UseRef RefValue ({ ref :: Ref RefValue, value :: RefValue } -> a)
 
-derive instance functorHookF :: Functor (HookF ps o m)
+derive instance functorUseHookF :: Functor (UseHookF ps o m)
 
-newtype Hooked ps o m pre post a = Hooked (Indexed (Free (HookF ps o m)) pre post a)
+newtype Hooked ps o m pre post a = Hooked (Indexed (Free (UseHookF ps o m)) pre post a)
 
 derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked ps o m)
 derive newtype instance ixApplyIndexed :: IxApply (Hooked ps o m)

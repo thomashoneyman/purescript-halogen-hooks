@@ -15,7 +15,7 @@ import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hooks (HalogenHookM, Hook, UseRef)
+import Halogen.Hooks (HookM, Hook, UseRef)
 import Halogen.Hooks as Hooks
 
 type UseDebouncer' a hooks = UseRef (Maybe a) (UseRef (Maybe Debouncer) hooks)
@@ -28,14 +28,14 @@ type Debouncer =
   }
 
 useDebouncer
-  :: forall ps o m a
+  :: forall slots output m a
    . MonadAff m
   => Milliseconds
-  -> (a -> HalogenHookM ps o m Unit)
-  -> Hook ps o m (UseDebouncer a) (a -> HalogenHookM ps o m Unit)
-useDebouncer ms fn = Hooks.coerce hook
+  -> (a -> HookM slots output m Unit)
+  -> Hook slots output m (UseDebouncer a) (a -> HookM slots output m Unit)
+useDebouncer ms fn = Hooks.publish hook
   where
-  hook :: Hook ps o m (UseDebouncer' a) (a -> HalogenHookM ps o m Unit)
+  hook :: Hook slots output m (UseDebouncer' a) (a -> HookM slots output m Unit)
   hook = Hooks.do
     _ /\ debounceRef <- Hooks.useRef Nothing
     _ /\ valRef <- Hooks.useRef Nothing

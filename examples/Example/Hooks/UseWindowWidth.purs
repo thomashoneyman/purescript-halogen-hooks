@@ -24,10 +24,10 @@ type UseWindowWidth' hooks = UseEffect (UseState (Maybe Int) hooks)
 
 foreign import data UseWindowWidth :: Type -> Type
 
-useWindowWidth :: forall ps o m. MonadAff m => Hook ps o m UseWindowWidth (Maybe Int)
-useWindowWidth = Hooks.coerce hook
+useWindowWidth :: forall slots output m. MonadAff m => Hook slots output m UseWindowWidth (Maybe Int)
+useWindowWidth = Hooks.publish hook
   where
-  hook :: Hook ps o m UseWindowWidth' (Maybe Int)
+  hook :: Hook slots output m UseWindowWidth' (Maybe Int)
   hook = Hooks.do
     width /\ widthState <- Hooks.useState Nothing
 

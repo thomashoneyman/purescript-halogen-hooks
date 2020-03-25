@@ -10,7 +10,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.Hooks (HalogenHookM)
+import Halogen.Hooks (HookM)
 import Halogen.Hooks as Hooks
 import Web.HTML.HTMLElement (focus)
 
@@ -19,7 +19,7 @@ component = Hooks.component \_ -> Hooks.do
   let
     refLabel = H.RefLabel "inputElement"
 
-    handleButtonClick :: forall ps. HalogenHookM ps o m Unit
+    handleButtonClick :: forall slots. HookM slots o m Unit
     handleButtonClick = do
       Hooks.getHTMLElementRef refLabel >>= traverse_ (focus >>> liftEffect)
 

@@ -39,14 +39,14 @@ newtype Key = Key String
 derive newtype instance eqKey :: Eq Key
 
 useLocalStorage
-  :: forall ps o m a
+  :: forall slots output m a
    . MonadEffect m
   => Eq a
   => StorageInterface a
-  -> Hook ps o m (UseLocalStorage a) (Either String a /\ StateToken (Either String a))
-useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.coerce hook
+  -> Hook slots output m (UseLocalStorage a) (Either String a /\ StateToken (Either String a))
+useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.publish hook
   where
-  hook :: Hook ps o m (UseLocalStorage' a) (Either String a /\ StateToken (Either String a))
+  hook :: Hook slots output m (UseLocalStorage' a) (Either String a /\ StateToken (Either String a))
   hook = Hooks.do
     value /\ valueState <- Hooks.useState (Right defaultValue)
 

@@ -16,17 +16,17 @@ module Halogen.Hooks
   , UseRef
 
   -- Hook types and helpers
-  , module Halogen.Hooks.HookF
   , module Halogen.Hooks.Component
   , module Halogen.Hooks.Internal.Types
+  , module Halogen.Hooks.UseHookF
 
   -- Helpers
   , captures
   , capturesWith
-  , coerce
+  , publish
 
-  -- HalogenHookM, which supports the same functions as HalogenM
-  , module Halogen.Hooks.HalogenHookM
+  -- HookM, which supports the same functions as HalogenM
+  , module Halogen.Hooks.HookM
 
   -- Qualified do
   , bind
@@ -35,7 +35,7 @@ module Halogen.Hooks
   )
 where
 
-import Halogen.Hooks.HalogenHookM
+import Halogen.Hooks.HookM
 
 import Control.Applicative.Indexed (class IxApplicative, ipure)
 import Control.Bind.Indexed (class IxBind, ibind)
@@ -47,20 +47,25 @@ import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
 import Halogen.Hooks.Internal.Types (MemoValues, QueryToken) -- Ensure only these 2 are exported
 import Halogen.Hooks.Internal.Types as IT
-import Halogen.Hooks.HookF (Hook, HookF(..), Hooked(..))
+import Halogen.Hooks.UseHookF (Hook, UseHookF(..), Hooked(..))
 import Halogen.Hooks.Component (component, componentWithQuery)
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data UseState :: Type -> Type -> Type
 
-useState :: forall state ps o m. state -> Hook ps o m (UseState state) (state /\ StateToken state)
+useState
+  :: forall state slots output m
+   . state
+  -> Hook slots output m (UseState state) (state /\ StateToken state)
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
   initialState' = IT.toStateValue initialState
 
-  interface :: { token :: StateToken IT.StateValue, value :: IT.StateValue } -> state /\ StateToken state
+  interface
+    :: { value :: IT.StateValue, token :: StateToken IT.StateValue }
+    -> state /\ StateToken state
   interface { value, token } = IT.fromStateValue value /\ unsafeCoerce token
 
 foreign import data UseQuery :: Type -> Type
@@ -74,16 +79,16 @@ foreign import data UseQuery :: Type -> Type
 -- | This should be used at most once per component. If used multiple times, only
 -- | the last hook will run.
 useQuery
-  :: forall q ps o m
-   . QueryToken q
-  -> (forall a. q a -> HalogenHookM ps o m (Maybe a))
-  -> Hook ps o m UseQuery Unit
+  :: forall query slots output m
+   . QueryToken query
+  -> (forall a. query a -> HookM slots output m (Maybe a))
+  -> Hook slots output m UseQuery Unit
 useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token' handler' unit
   where
   token' :: QueryToken IT.QueryValue
   token' = unsafeCoerce token
 
-  handler' :: forall a. IT.QueryValue a -> HalogenHookM ps o m (Maybe a)
+  handler' :: forall a. IT.QueryValue a -> HookM slots output m (Maybe a)
   handler' = handler <<< IT.fromQueryValue
 
 foreign import data UseEffect :: Type -> Type
@@ -92,9 +97,9 @@ foreign import data UseEffect :: Type -> Type
 -- | return an effect to run on component Finalize. If you would like to run
 -- | your effect after every render, see `useTickEffect`.
 useLifecycleEffect
-  :: forall ps o m
-   . HalogenHookM ps o m (Maybe (HalogenHookM ps o m Unit))
-  -> Hook ps o m UseEffect Unit
+  :: forall slots output m
+   . HookM slots output m (Maybe (HookM slots output m Unit))
+  -> Hook slots output m UseEffect Unit
 useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
 -- | Produces a hook for running post-render effects like subscriptions, timers,
@@ -124,10 +129,10 @@ useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 -- |   ...
 -- | ```
 useTickEffect
-  :: forall ps o m
+  :: forall slots output m
    . MemoValues
-  -> HalogenHookM ps o m (Maybe (HalogenHookM ps o m Unit))
-  -> Hook ps o m UseEffect Unit
+  -> HookM slots output m (Maybe (HookM slots output m Unit))
+  -> Hook slots output m UseEffect Unit
 useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
 foreign import data UseMemo :: Type -> Type -> Type
@@ -143,7 +148,11 @@ foreign import data UseMemo :: Type -> Type -> Type
 -- |
 -- | If you provide an empty set of memo values then this function will have no
 -- | effect and no memoization will take place.
-useMemo :: forall ps o m a. MemoValues -> (Unit -> a) -> Hook ps o m (UseMemo a) a
+useMemo
+  :: forall slots output m a
+   . MemoValues
+  -> (Unit -> a)
+  -> Hook slots output m (UseMemo a) a
 useMemo memos fn = Hooked $ Indexed $ liftF $ UseMemo memos to from
   where
   to :: Unit -> IT.MemoValue
@@ -154,7 +163,7 @@ useMemo memos fn = Hooked $ Indexed $ liftF $ UseMemo memos to from
 
 foreign import data UseRef :: Type -> Type -> Type
 
-useRef :: forall ps o m a. a -> Hook ps o m (UseRef a) (a /\ Ref a)
+useRef :: forall slots output m a. a -> Hook slots output m (UseRef a) (a /\ Ref a)
 useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
   where
   initialValue' :: IT.RefValue
@@ -164,8 +173,11 @@ useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
   interface { ref, value } = IT.fromRefValue value /\ (unsafeCoerce :: Ref IT.RefValue -> Ref a) ref
 
 -- | Use when you want to turn a stack of hooks into a new custom hook type.
-coerce :: forall hooks h' h ps o m a. Hooked ps o m hooks h' a -> Hooked ps o m hooks h a
-coerce = unsafeCoerce
+publish
+  :: forall hooks h' h slots output m a
+   . Hooked slots output m hooks h' a
+  -> Hooked slots output m hooks h a
+publish = unsafeCoerce
 
 -- | Used to improve performance for hooks which may be expensive to run on
 -- | many renders (like `useTickEffect` and `useMemo`). Uses a value equality
@@ -204,7 +216,8 @@ capturesWith
   -> Record memos
   -> (MemoValues -> a)
   -> a
-capturesWith memosEq memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
+capturesWith memosEq memos fn =
+  fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
 
 -- | Exported for use with qualified-do syntax
 bind :: forall a b x y z m. IxBind m => m x y a -> (a -> m y z b) -> m x z b
