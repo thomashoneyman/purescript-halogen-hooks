@@ -23,7 +23,7 @@ module Halogen.Hooks
   -- Helpers
   , captures
   , capturesWith
-  , publish
+  , wrap
 
   -- HookM, which supports the same functions as HalogenM
   , module Halogen.Hooks.HookM
@@ -37,18 +37,20 @@ where
 
 import Halogen.Hooks.HookM
 
+import Control.Applicative as Applicative
 import Control.Applicative.Indexed (class IxApplicative, ipure)
 import Control.Bind.Indexed (class IxBind, ibind)
 import Control.Monad.Free (liftF)
 import Data.Eq (class Eq)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
-import Halogen.Hooks.Internal.Types (MemoValues, QueryToken) -- Ensure only these 2 are exported
+import Halogen.Hooks.Component (component, componentWithQuery)
+import Halogen.Hooks.Internal.Types (MemoValues, QueryToken)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.UseHookF (Hook, UseHookF(..), Hooked(..))
-import Halogen.Hooks.Component (component, componentWithQuery)
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -172,12 +174,27 @@ useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
   interface :: { ref :: Ref IT.RefValue, value :: IT.RefValue } -> a /\ Ref a
   interface { ref, value } = IT.fromRefValue value /\ (unsafeCoerce :: Ref IT.RefValue -> Ref a) ref
 
--- | Use when you want to turn a stack of hooks into a new custom hook type.
-publish
-  :: forall hooks h' h slots output m a
-   . Hooked slots output m hooks h' a
-  -> Hooked slots output m hooks h a
-publish = unsafeCoerce
+-- | Hide a stack of hooks behind a newtype to improve error messages and ensure
+-- | internal types like state are not leaked outside the module where the Hook
+-- | is defined.
+-- |
+-- | We recommend using this for any custom hooks you define.
+-- |
+-- | ```purs
+-- | newtype MyHook hooks = MyHook (UseState Int hooks)
+-- |
+-- | derive instance newtypeMyHook :: Newtype (MyHook hooks) _
+-- |
+-- | useMyHook :: forall slots output m. Hook slots output m MyHook Int
+-- | useMyHook = Hooks.wrap Hooks.do
+-- |   ... -- hook definition goes here
+-- | ```
+wrap
+  :: forall hooks internalHooks wrappedHooks slots output m a
+   . Newtype wrappedHooks internalHooks
+  => Hooked slots output m hooks internalHooks a
+  -> Hooked slots output m hooks wrappedHooks a
+wrap hook = hook `ibind` (Hooked <<< Indexed <<< Applicative.pure)
 
 -- | Used to improve performance for hooks which may be expensive to run on
 -- | many renders (like `useTickEffect` and `useMemo`). Uses a value equality

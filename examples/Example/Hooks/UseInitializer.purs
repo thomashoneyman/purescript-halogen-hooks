@@ -7,18 +7,17 @@ module Example.Hooks.UseInitializer
 import Prelude
 
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
 import Halogen.Hooks (HookM, Hook, UseEffect)
 import Halogen.Hooks as Hooks
 
-type UseInitializer' hooks = UseEffect hooks
+newtype UseInitializer hooks = UseInitializer (UseEffect hooks)
 
-foreign import data UseInitializer :: Type -> Type
+derive instance newtypeUseInitializer :: Newtype (UseInitializer hooks) _
 
 useInitializer
   :: forall slots output m
    . HookM slots output m Unit
   -> Hook slots output m UseInitializer Unit
-useInitializer initializer = Hooks.publish hook
-  where
-  hook :: Hook slots output m UseInitializer' Unit
-  hook = Hooks.useLifecycleEffect (initializer *> pure Nothing)
+useInitializer initializer = Hooks.wrap do
+  Hooks.useLifecycleEffect (initializer *> pure Nothing)
