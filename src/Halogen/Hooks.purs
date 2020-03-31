@@ -56,105 +56,124 @@ import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data UseState :: Type -> Type -> Type
 
-useState
-  :: forall state slots output m
-   . state
-  -> Hook slots output m (UseState state) (state /\ StateToken state)
+-- | A Hook providing an independent state and a token usable to modify that state.
+-- |
+-- | ```purs
+-- | Hooks.do
+-- |   -- Create a new state with `useState`
+-- |   stateA /\ stateToken <- Hooks.useState initialState
+-- |   intState /\ intStateToken <- Hooks.useState 0
+-- |
+-- |   -- Perform state updates in `HookM` using the state token
+-- |   let
+-- |     update newState = do
+-- |       Hooks.put stateTokenA stateA
+-- |       Hooks.modify_ stateTokenB (_ + 10)
+-- | ```
+useState :: forall state ps o m. state -> Hook ps o m (UseState state) (state /\ StateToken state)
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
   initialState' = IT.toStateValue initialState
 
-  interface
-    :: { value :: IT.StateValue, token :: StateToken IT.StateValue }
-    -> state /\ StateToken state
-  interface { value, token } = IT.fromStateValue value /\ unsafeCoerce token
-
-foreign import data UseQuery :: Type -> Type
-
--- | Produces a hook for receiving and evaluating queries from a parent component.
--- |
--- | Only usable with the `componentWithQuery` function which produces the required
--- | query token; due to the request/response nature of queries they only make
--- | sense in the context of a component, not an independent hook.
--- |
--- | This should be used at most once per component. If used multiple times, only
--- | the last hook will run.
-useQuery
-  :: forall query slots output m
-   . QueryToken query
-  -> (forall a. query a -> HookM slots output m (Maybe a))
-  -> Hook slots output m UseQuery Unit
-useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token' handler' unit
-  where
-  token' :: QueryToken IT.QueryValue
-  token' = unsafeCoerce token
-
-  handler' :: forall a. IT.QueryValue a -> HookM slots output m (Maybe a)
-  handler' = handler <<< IT.fromQueryValue
+  interface :: IT.StateValue /\ StateToken IT.StateValue -> state /\ StateToken state
+  interface (value /\ token) = IT.fromStateValue value /\ unsafeCoerce token
 
 foreign import data UseEffect :: Type -> Type
 
--- | Produces a hook for running an effect on component Initialize, which can
--- | return an effect to run on component Finalize. If you would like to run
--- | your effect after every render, see `useTickEffect`.
+-- | A Hook providing the ability to run an effect the first time the hook is run,
+-- | which can return another effect to run the last time the hook is run. This
+-- | is equivalent to component initializers and finalizers.
+-- |
+-- | If you would like to run your effect after every render, see `useTickEffect`.
 useLifecycleEffect
-  :: forall slots output m
-   . HookM slots output m (Maybe (HookM slots output m Unit))
-  -> Hook slots output m UseEffect Unit
+  :: forall ps o m
+   . HookM ps o m (Maybe (HookM ps o m Unit))
+  -> Hook ps o m UseEffect Unit
 useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
--- | Produces a hook for running post-render effects like subscriptions, timers,
--- | logging, and more. This replaces the usual Halogen `Initialize` and
--- | `Finalize` actions and extends them with the ability to run the same effect
--- | on each render so you don't have to manually call the effect after modifying
--- | state.
+-- | A Hook providing the ability to run an effect after every render, which
+-- | includes the first time the hook is run.
 -- |
--- | The provided effect can return another effect to run as the finalizer.
+-- | This Hook can be given an array of memo values as a performance optimization.
+-- | If the provided array is empty, the effect will run on every render. If the
+-- | array contains values, then the effect will only run on renders in which one
+-- | or more of the memo values have changed.
 -- |
--- | If the provided array of memo values is empty then the effect will run once
--- | at component mount and, if there is a provided finalizer, once at component
--- | unmount. If memo values are provided then the effect will also run on any
--- | render in which one of the memo values has changed.
--- |
--- | To run on every render:
+-- | To run an effect on every render:
 -- |
 -- | ```purs
 -- | Hooks.captures {} Hooks.useTickEffect do
 -- |   ...
 -- | ```
 -- |
--- | To run on initialize, finalize, and when a particular memo value has changed:
+-- | To run an effect on the first render and when a particular value has changed:
 -- |
 -- | ```purs
--- | Hooks.captures { memoA, memoB } Hooks.useEffect do
+-- | Hooks.captures { memoA, memoB } Hooks.useTickEffect do
 -- |   ...
 -- | ```
 useTickEffect
-  :: forall slots output m
+  :: forall ps o m
    . MemoValues
-  -> HookM slots output m (Maybe (HookM slots output m Unit))
-  -> Hook slots output m UseEffect Unit
+  -> HookM ps o m (Maybe (HookM ps o m Unit))
+  -> Hook ps o m UseEffect Unit
 useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
+
+foreign import data UseQuery :: Type -> Type
+
+-- | A Hook providing the ability to receive and evaluate queries from a parent
+-- | component. Only usable in components constructed with `componentWithQuery`,
+-- | not in arbitrary hooks; the request/response nature of queries means they
+-- | only make sense in the context of a component.
+-- |
+-- | If this Hook is used multiple times in a single component definition, only
+-- | the last use will take effect.
+useQuery
+  :: forall query ps o m
+   . QueryToken query
+  -> (forall a. query a -> HookM ps o m (Maybe a))
+  -> Hook ps o m UseQuery Unit
+useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token' handler' unit
+  where
+  token' :: QueryToken IT.QueryValue
+  token' = unsafeCoerce token
+
+  handler' :: forall a. IT.QueryValue a -> HookM ps o m (Maybe a)
+  handler' = handler <<< IT.fromQueryValue
 
 foreign import data UseMemo :: Type -> Type -> Type
 
--- | When using values in let bindings within the body of a hook they will be
--- | recomputed each time the hooks body is evaluated (on render). You can use
--- | `useMemo` to prevent values from being recomputed unless a dependency has
--- | changed (as provided via `captures`).
+-- | A Hook providing the ability to memoize a particular value.
 -- |
--- | Be careful to include any arguments to the function or other dependencies
--- | which should cause the function to be re-run; if omitted you will end up
--- | with stale state.
+-- | When values are used in let bindings within the body of a Hook they are
+-- | recomputed each time the Hook's body is evaluated (on every render). For
+-- | values which are expensive to compute, you can either cache them in state
+-- | (as you would with an ordinary Halogen component) or you can use `useMemo`.
 -- |
--- | If you provide an empty set of memo values then this function will have no
--- | effect and no memoization will take place.
-useMemo
-  :: forall slots output m a
-   . MemoValues
-  -> (Unit -> a)
-  -> Hook slots output m (UseMemo a) a
+-- | All dependencies used to compute the memoized value should be provided to
+-- | the `captures` or `capturesWith` function. Consider defining your `useMemo`
+-- | Hook in a `where` clause to ensure you don't omit something by accident,
+-- | which will lead to stale values.
+-- |
+-- | ```purs
+-- | -- before, computed on every render:
+-- | Hooks.do
+-- |   x /\ _ <- Hooks.useState 0
+-- |   y /\ _ <- Hooks.useState ""
+-- |   let expensiveValue = expensiveFunction x y
+-- |
+-- | -- after, computed only if `x` or `y` have changed:
+-- | Hooks.do
+-- |   x /\ _ <- useState 0
+-- |   y /\ _ <- useState ""
+-- |   expensiveValue <- useExpensive x y
+-- |   ...
+-- |   where
+-- |   useExpensive deps@{ x, y } = Hooks.captures deps $ flip Hooks.useMemo \_ ->
+-- |     expensiveFunction x y
+-- | ```
+useMemo :: forall ps o m a. MemoValues -> (Unit -> a) -> Hook ps o m (UseMemo a) a
 useMemo memos fn = Hooked $ Indexed $ liftF $ UseMemo memos to from
   where
   to :: Unit -> IT.MemoValue
@@ -165,14 +184,33 @@ useMemo memos fn = Hooked $ Indexed $ liftF $ UseMemo memos to from
 
 foreign import data UseRef :: Type -> Type -> Type
 
-useRef :: forall slots output m a. a -> Hook slots output m (UseRef a) (a /\ Ref a)
+-- | A Hook providing the ability to use a mutable reference.
+-- |
+-- | This Hook returns the value of the mutable reference at the time the Hook
+-- | was run, and the reference itself which can be read at any time. The value
+-- | of the reference can be used for rendering, but any effectful computations
+-- | in `HookM` should read the value of the reference to guarantee an up-to-date
+-- | value.
+-- |
+-- | ```purs
+-- | value /\ ref <- Hooks.useRef initialValue
+-- |
+-- | -- Read and write the ref in effectful code
+-- | Hooks.captures {} Hooks.useTickEffect do
+-- |   current <- liftEffect $ Ref.read ref
+-- |   -- ... use the current value
+-- |
+-- | -- Use the last-read value directly in render code
+-- | Hooks.pure $ HH.text (show value)
+-- | ```
+useRef :: forall ps o m a. a -> Hook ps o m (UseRef a) (a /\ Ref a)
 useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
   where
   initialValue' :: IT.RefValue
   initialValue' = IT.toRefValue initialValue
 
-  interface :: { ref :: Ref IT.RefValue, value :: IT.RefValue } -> a /\ Ref a
-  interface { ref, value } = IT.fromRefValue value /\ (unsafeCoerce :: Ref IT.RefValue -> Ref a) ref
+  interface :: IT.RefValue /\ Ref IT.RefValue -> a /\ Ref a
+  interface (value /\ ref) = IT.fromRefValue value /\ (unsafeCoerce :: Ref IT.RefValue -> Ref a) ref
 
 -- | Hide a stack of hooks behind a newtype to improve error messages and ensure
 -- | internal types like state are not leaked outside the module where the Hook
@@ -185,16 +223,16 @@ useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
 -- |
 -- | derive instance newtypeMyHook :: Newtype (MyHook hooks) _
 -- |
--- | useMyHook :: forall slots output m. Hook slots output m MyHook Int
+-- | useMyHook :: forall ps o m. Hook ps o m MyHook Int
 -- | useMyHook = Hooks.wrap Hooks.do
 -- |   ... -- hook definition goes here
 -- | ```
 wrap
-  :: forall hooks internalHooks wrappedHooks slots output m a
+  :: forall hooks internalHooks wrappedHooks ps o m a
    . Newtype wrappedHooks internalHooks
-  => Hooked slots output m hooks internalHooks a
-  -> Hooked slots output m hooks wrappedHooks a
-wrap hook = hook `ibind` (Hooked <<< Indexed <<< Applicative.pure)
+  => Hooked ps o m hooks internalHooks a
+  -> Hooked ps o m hooks wrappedHooks a
+wrap hook = ibind hook (Hooked <<< Indexed <<< Applicative.pure)
 
 -- | Used to improve performance for hooks which may be expensive to run on
 -- | many renders (like `useTickEffect` and `useMemo`). Uses a value equality

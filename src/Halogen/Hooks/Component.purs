@@ -15,6 +15,7 @@ import Data.Foldable (for_, sequence_)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..), fromJust, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
+import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
@@ -29,12 +30,33 @@ import Halogen.Hooks.UseHookF (Hooked(..), UseHookF(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
 
+-- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
+-- |
+-- | Components that ought to receive continuous input from a parent component
+-- | should be defined as a `Hook` with one argument, the `input` type. The
+-- | resulting component will re-render every time new input is received.
+-- |
+-- | ```purs
+-- | myComponent :: forall q i o m. H.Component q i o m
+-- | myComponent = Hooks.component \input -> Hooks.do
+-- |   ... hook implementation
+-- | ```
 component
   :: forall hooks i ps o m
    . (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
   -> (forall q. H.Component HH.HTML q i o m)
 component hookFn = componentWithQuery (\_ i -> hookFn i)
 
+-- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`,
+-- | enabling the resulting component to use queries.
+-- |
+-- | ```purs
+-- | myComponent :: forall q i o m. H.Component q i o m
+-- | myComponent = Hooks.component \input queryToken -> Hooks.do
+-- |   -- the query token can be used with the `useQuery hook`
+-- |   Hooks.useQuery queryToken handleQuery
+-- |   ... hook implementation
+-- | ```
 componentWithQuery
   :: forall hooks q i ps o m
    . (QueryToken q -> i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
@@ -133,7 +155,7 @@ interpretUseHookFn reason hookFn = do
             token = StateToken (Array.length newQueue - 1)
 
           modifyState_ _ { stateCells { queue = newQueue } }
-          pure $ reply { value: initial, token }
+          pure $ reply $ Tuple initial token
 
         _ -> do
           { stateCells: { index, queue } } <- getState
@@ -144,7 +166,7 @@ interpretUseHookFn reason hookFn = do
             token = StateToken index
 
           modifyState_ _ { stateCells { index = nextIndex } }
-          pure $ reply { value, token }
+          pure $ reply $ Tuple value token
 
     UseQuery _ handler a ->
       case reason of
@@ -252,7 +274,7 @@ interpretUseHookFn reason hookFn = do
             ref = unsafePerformEffect $ liftEffect $ Ref.new initial
 
           modifyState_ _ { refCells { queue = Array.snoc queue ref } }
-          pure $ reply { value: initial, ref }
+          pure $ reply $ Tuple initial ref
 
         _ -> do
           { refCells: { index, queue } } <- getState
@@ -263,7 +285,7 @@ interpretUseHookFn reason hookFn = do
             value = unsafePerformEffect $ liftEffect $ Ref.read ref
 
           modifyState_ _ { refCells { index = nextIndex } }
-          pure $ reply { value, ref }
+          pure $ reply $ Tuple value ref
 
 -- Interpreter
 

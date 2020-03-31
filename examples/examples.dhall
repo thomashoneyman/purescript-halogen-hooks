@@ -1,4 +1,4 @@
-let conf = ./spago.dhall
+let conf = ../spago.dhall
 in conf //
   { dependencies =
       conf.dependencies #

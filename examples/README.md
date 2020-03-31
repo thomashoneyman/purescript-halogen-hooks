@@ -4,10 +4,24 @@ The examples in this directory demonstrate how to use hooks to build ordinary Ha
 
 ## View live examples
 
-You can view and test the examples by bundling the project:
+You can view and test the examples by bundling the project. Run these commands from
+the root of the repository:
 
 ```sh
+# Ensure you have installed dependencies
+yarn install
+
+# Bundle the examples to ./example/app.js
 yarn bundle
 ```
 
-Then, open the `./example/index.html` file in the browser to view all examples.
+Open `./example/index.html` to view the live examples.
+
+## Contributing
+
+I'd love to expand these examples in two ways:
+
+- Direct comparisons between Hooks-based and ordinary Halogen components
+- New custom hooks which showcase Hooks functionality
+
+Please focus on comparisons and Hooks features that aren't already covered by the existing examples to help prevent these examples from becoming a maintenance burden.

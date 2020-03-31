@@ -15,19 +15,6 @@ let additions =
       , version =
           "v1.0.0-rc.1"
       }
-  , typelevel-eval =
-      { dependencies =
-          [ "prelude"
-          , "typelevel-prelude"
-          , "tuples"
-          , "unsafe-coerce"
-          , "leibniz"
-          ]
-      , repo =
-          "https://github.com/natefaubion/purescript-typelevel-eval.git"
-      , version =
-          "v0.4.0"
-      }
   }
 
 in  upstream // overrides // additions

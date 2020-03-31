@@ -43,6 +43,7 @@ examples =
     , "Halogen|Components" /\ Halogen.Components.Container.component
     , "Halogen|Components: Inputs" /\ Halogen.ComponentsInputs.Container.component
     , "Halogen|Effects: Random" /\ Halogen.Effects.Random.component
+
     -- Not quite the Ace component, but the code for Ace is very old and I had
     -- trouble getting it to run properly. Still, the point is to demonstrate refs
     -- , subscriptions, and queries, and the latter two are covered elsewhere.

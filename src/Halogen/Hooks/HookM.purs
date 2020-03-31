@@ -37,8 +37,8 @@ import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
 
--- | HookF is a DSL fully compatible with HalogenM. It is used to implement
--- | the Hook monad, HookM.
+-- | A DSL fully compatible with HalogenM which is used to write effectful code
+-- | for Hooks.
 data HookF ps o m a
   = Modify (StateToken StateValue) (StateValue -> StateValue) (StateValue -> a)
   | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM ps o m Unit)) (H.SubscriptionId -> a)
@@ -53,7 +53,9 @@ data HookF ps o m a
 
 derive instance functorHookF :: Functor m => Functor (HookF ps o m)
 
--- | The Hook effect monad, an interface to the HalogenM component eval effect monad.
+-- | The Hook effect monad, used to write effectful code in Hooks functions. This
+-- | monad is fully compatible with `HalogenM`, meaning all functions available for
+-- | `HalogenM` are available in `HookM`.
 newtype HookM ps o m a = HookM (Free (HookF ps o m) a)
 
 derive newtype instance functorHookM :: Functor (HookM ps o m)
