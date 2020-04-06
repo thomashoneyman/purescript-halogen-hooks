@@ -120,6 +120,12 @@ useTickEffect
   -> Hook ps o m UseEffect Unit
 useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
+-- | The type signature for `Hooks.useTickEffect`. This type alias exists
+-- | to make custom hooks' type signatures more readable when used.
+type TS_UseTickEffect slots output m =
+  HookM slots output m (Maybe (HookM slots output m Unit))
+  -> (forall hooks. Hooked slots output m hooks (UseEffect hooks) Unit)
+
 foreign import data UseQuery :: Type -> Type
 
 -- | A Hook providing the ability to receive and evaluate queries from a parent
@@ -273,6 +279,22 @@ capturesWith
   -> a
 capturesWith memosEq memos fn =
   fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
+
+-- | Type signature for the `eqFn` value in
+-- | ```
+-- | Hooks.capturesWith eqFn { state } Hooks.useTickEffect do
+-- |   someHookMAction
+-- | ```
+-- | This type alias exists to make custom hooks' type signatures
+-- | more readable when used.
+type TS_CapturesWithEqFn rows = { | rows } -> { | rows } -> Boolean
+
+-- | Type signature for `Hooks.capturesWith`. This type alias exists
+-- | to make custom hooks' type signatures more readable when used.
+type TS_CapturesWith slots output m rows =
+  TS_CapturesWithEqFn rows
+    -> (MemoValues -> TS_UseTickEffect slots output m)
+    -> TS_UseTickEffect slots output m
 
 -- | Exported for use with qualified-do syntax
 bind :: forall a b x y z m. IxBind m => m x y a -> (a -> m y z b) -> m x z b
