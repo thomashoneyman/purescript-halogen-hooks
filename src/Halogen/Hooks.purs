@@ -240,7 +240,16 @@ wrap hook = ibind hook (Hooked <<< Indexed <<< Applicative.pure)
 -- |
 -- | Some values may be expensive to check for value equality. You can optimize
 -- | this by only checking a sub-part of your captured values using `capturesWith`
-captures :: forall memos a. Eq (Record memos) => Record memos -> (MemoValues -> a) -> a
+captures
+  :: forall memos slots output m
+   . Eq (Record memos)
+  => Record memos
+  -> ( MemoValues
+    -> HookM slots output m (Maybe (HookM slots output m Unit))
+    -> Hook slots output m UseEffect Unit
+     )
+  -> HookM slots output m (Maybe (HookM slots output m Unit))
+  -> Hook slots output m UseEffect Unit
 captures memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: (==), memos }
 
 -- | Like `captures`, but without an `Eq` constraint. Use when you only want to
@@ -266,11 +275,15 @@ captures memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: (==), memos
 -- | Hooks.capturesWith customEq { user, data }
 -- | ```
 capturesWith
-  :: forall memos a
+  :: forall memos slots output m
    . (Record memos -> Record memos -> Boolean)
   -> Record memos
-  -> (MemoValues -> a)
-  -> a
+  -> ( MemoValues
+    -> HookM slots output m (Maybe (HookM slots output m Unit))
+    -> Hook slots output m UseEffect Unit
+     )
+  -> HookM slots output m (Maybe (HookM slots output m Unit))
+  -> Hook slots output m UseEffect Unit
 capturesWith memosEq memos fn =
   fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
 
