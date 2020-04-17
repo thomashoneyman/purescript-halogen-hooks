@@ -17,33 +17,45 @@ This chapter is still a work in progress, but it contains enough information on 
 
 The `useState` Hook allows you to create an independent state. It requires the initial state as an argument, and it returns the current value of that state and a token usable with the state functions in `HookM` to update that state.
 
- ```purs
+```purs
 Hooks.do
   -- Create one or more states with `useState`
   state /\ stateToken <- Hooks.useState initialState
   intState /\ intStateToken <- Hooks.useState 0
 
-  -- Perform state updates in `HookM` using the state token
   let
     update :: HookM _ _ _ Unit
     update = do
-      -- Get the current value of the first state
-      currentState <- Hooks.get stateToken
+      -- Use `modify`, `modify_`, or `put` to modify the state, causing the
+      -- hooks to all re-run.
+      Hooks.modify_ intStateToken (_ + 10)
       -- ...
 
   Hooks.useLifecycleEffect do
-    -- Modify the second state, causing the Hooks to re-run
     Hooks.modify_ intStateToken (_ + 10)
-    pure Nothing
+    pure $ Just $ do
+      -- You should only use the state value returned by `useState` in code that
+      -- is re-defined every time Hooks are evaluated (like `update` above). Here,
+      -- though, we're writing an effect which will run when the component unmounts.
+      --
+      -- For that reason we should use `Hooks.get` to retrieve the value in state
+      -- when this effect executes -- not necessarily the value that existed
+      -- when this effect is defined.
+      currentState <- Hooks.get stateToken
+      -- ...
 
   Hooks.pure $ HH.div
     [ HE.onClick \_ -> Just update ]
-    [ HH.text $ show intState ] -- Use state values in your render code
+    [ HH.text $ show intState ] -- Use state values directly in your render code
 ```
 
 In a regular Halogen component, any time your state updates your component will re-render. Hooks operate in a similar fashion: any time one of your state cells updates, your Hooks will re-run.
 
-**Note: the value returned by `useState` should only be used for rendering. Effectful code should `get` the current state or use `modify` to operate on the current state.** You don't want to use the value in state that existed when your effect was defined; you want to use the value which exists in state at the time the effect runs. To ensure you don't do this inadvertently and use stale state, you may wish to define effectful code in `where` clauses.
+**Note: the value returned by `useState` should only be used in code that is re-defined every time the Hook re-evaluates.** For example:
+
+- Rendering code is the return value of the Hook and is therefore re-evaluated each time the Hook runs. You can use the state value directly.
+- Effects defined in a `let` block, like `update` in the example above, will be re-defined each time the Hook runs. You can use the state value directly.
+- Effects defined using `useEffect` or `useLifecycleEffect` may not be re-defined each time Hooks evaluate. You should use `Hooks.get` to retrieve the current state, and you shouldn't use the value returned by `useState` (it could be stale).
 
 ## useLifecycleEffect
 
@@ -78,7 +90,7 @@ Hooks.do
   Hooks.pure width
 ```
 
-Remember that if you access any values in state within effectful code you should always `get` the current state, and not refer to the value returned by `useState`. That value is only meant to be used for rendering UI or as a return value.
+Remember that if you access state values within `useLifecycleEffect` or `useTickEffect` you should use `Hooks.get` to get the current state instead of using the value returned by `useState`. Otherwise, the effect you define will always refer to the value that existed in state when the effect was defined, which may have changed by the time your effect is executing.
 
 ## useTickEffect
 
@@ -130,12 +142,16 @@ component :: forall i o m. H.Component HH.HTML Query i o m
 component = Hooks.componentWithQuery \queryToken _ -> Hooks.do
   enabled /\ enabledState <- Hooks.useState false
 
-  -- you can only use the useQuery Hook with a token, which must come from the
+  -- You can only use the useQuery Hook with a token, which must come from the
   -- `componentWithQuery` function
   Hooks.useQuery queryToken case _ of
-    -- you can write a handler the same way you would write `handleQuery` in a
+    -- You can write a handler the same way you would write `handleQuery` in a
     -- Halogen component
     IsOn reply -> do
+      -- This query handler won't run during the same evaluation it is defined
+      -- in; it will run in response to query events. For that reason, you should
+      -- always use `Hooks.get` to retrieve the state in a query handler, and
+      -- not use the value returned by `useState`.
       isEnabled <- Hooks.get enabledState
       pure (Just (reply isEnabled))
 
@@ -179,7 +195,7 @@ The `useRef` Hook lets you use a mutable reference in the body of a Hook. The Ho
 
 As with all state, you should only use the returned value in rendering code or as a return value from your Hook. If you are using the value in effectful code, then you should always use `Ref.read` on the reference to get the current value at the time your effect is run. Otherwise you run the risk of stale state.
 
-Mutable references should be used sparingly, but they are necessary to manage values which change often but do not relate directly to rendering (for example, storing scroll position, or running a debouncer).
+Mutable references should be used sparingly, but they are necessary to manage values which change often but do not relate directly to rendering (for example, running a debouncer).
 
 ```purs
 import Effect.Ref as Ref
