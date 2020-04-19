@@ -95,14 +95,14 @@ main = runHalogenAff do
         [ HH.h2_ [ HH.text "useQuery" ]
         , HH.button
           [ HE.onClick \_ -> Just QueryComponentViaTell ]
-          [ HH.text $ "Click me to use a query on the component to cause it \
+          [ HH.text $ "Send a query to the component to cause it \
                       \to print a messaage to the console."
           ]
         , HH.br_
         , HH.button
           [ HE.onClick \_ -> Just QueryComponentViaRequest ]
-          [ HH.text $ "Click me to use a query on the component to cause it \
-                      \to return to the parent a random integer."
+          [ HH.text $ "Send a query to the component to cause it \
+                      \to return a random integer to the parent."
           ]
         , HH.slot UseQuery.sproxy unit UseQuery.component unit (const Nothing)
         ]
