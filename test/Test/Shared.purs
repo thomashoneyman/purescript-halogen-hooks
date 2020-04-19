@@ -3,6 +3,7 @@ module Test.Shared where
 import Prelude
 
 import Data.Foldable (foldl, for_)
+import Data.Functor.Indexed (ivoid)
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
 import Effect (Effect)
@@ -90,11 +91,11 @@ main = runHalogenAff do
     allHooks :: H.Component HH.HTML UseQuery.Query Unit _ _
     allHooks = Hooks.componentWithQuery \tQuery _ -> Hooks.do
       stateHtml <- UseState.hook
-      _ <- UseLifecycleEffect.hook
-      _ <- UseTickEffect.hook
+      ivoid $ UseLifecycleEffect.hook
+      ivoid $ UseTickEffect.hook
       refHtml <- UseRef.hook
       memoHtml <- UseMemo.hook
-      _ <- UseQuery.hook tQuery
+      ivoid $ UseQuery.hook tQuery
 
       Hooks.pure $
         HH.div_ $ intercalateWithBr_
