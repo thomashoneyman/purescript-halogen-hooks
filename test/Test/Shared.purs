@@ -92,7 +92,7 @@ main = runHalogenAff do
     allHooks = Hooks.componentWithQuery \tQuery _ -> Hooks.do
       stateHtml <- UseState.hook
       ivoid $ UseLifecycleEffect.hook
-      ivoid $ UseTickEffect.hook
+      tickHtml <- UseTickEffect.hook
       refHtml <- UseRef.hook
       memoHtml <- UseMemo.hook
       ivoid $ UseQuery.hook tQuery
@@ -102,6 +102,11 @@ main = runHalogenAff do
           [ HH.div_
             [ HH.h2_ [ HH.text "useState" ]
             , stateHtml
+            ]
+
+          , HH.div_
+            [ HH.h2_ [ HH.text "useTickEffect" ]
+            , tickHtml
             ]
 
           , HH.div_
