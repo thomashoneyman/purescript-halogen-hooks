@@ -32,20 +32,15 @@ stateHook = describe "useState" do
   it "updates state" do
     ref <- initDriver
 
-    Tuple increment _ <- evalTestM ref $ runWriterT do
+    Tuple count events <- evalTestM ref $ runWriterT do
       { increment } <- evalTestHook Initialize useStateCount
-      pure increment
 
-    Tuple _ incrementEvents <- evalTestM ref $ runWriterT do
-      evalTestHookM increment <* evalTestHookM increment
+      -- increment twice
+      evalTestHookM increment *> evalTestHookM increment
 
-    -- Modifying the state twice should cause at most two state modifications
-    incrementEvents `shouldEqual` [ ModifyState, ModifyState ]
-
-    Tuple count _ <- evalTestM ref $ runWriterT do
       { count } <- evalTestHook Finalize useStateCount
       pure count
 
     -- The final state of the Hook should reflect the number of times it has
     -- been incremented.
-    count `shouldEqual` 2
+    count `shouldEqual` 2 *> events `shouldEqual` [ ModifyState, ModifyState ]
