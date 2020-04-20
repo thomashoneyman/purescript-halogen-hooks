@@ -1,7 +1,4 @@
-module Halogen.Hooks.Component
-  ( component
-  , componentWithQuery
-  ) where
+module Halogen.Hooks.Component where
 
 import Prelude
 
@@ -98,22 +95,22 @@ componentWithQuery inputUseHookFn = do
           runUseHookFn Finalize hookFn
           pure a
     }
-  where
-  initialState :: i -> HookState q i ps o m
-  initialState input =
-    HookState
-      { html: HH.text ""
-      , stateRef: unsafePerformEffect $ Ref.new
-          { input
-          , queryFn: Nothing
-          , stateCells: { queue: [], index: 0 }
-          , effectCells: { queue: [], index: 0 }
-          , memoCells: { queue: [], index: 0 }
-          , refCells: { queue: [], index: 0 }
-          , finalizerQueue: []
-          , evalQueue: []
-          }
-      }
+
+initialState :: forall q i ps o m. i -> HookState q i ps o m
+initialState input =
+  HookState
+    { html: HH.text ""
+    , stateRef: unsafePerformEffect $ Ref.new
+        { input
+        , queryFn: Nothing
+        , stateCells: { queue: [], index: 0 }
+        , effectCells: { queue: [], index: 0 }
+        , memoCells: { queue: [], index: 0 }
+        , refCells: { queue: [], index: 0 }
+        , finalizerQueue: []
+        , evalQueue: []
+        }
+    }
 
 data InterpretHookReason
   = Initialize
