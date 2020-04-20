@@ -137,152 +137,157 @@ interpretUseHookFn
 interpretUseHookFn reason hookFn = do
   { input } <- getState
   let Hooked (Indexed hookF) = hookFn input
-  html <- foldFree interpretHook hookF
+  html <- foldFree (interpretHook reason hookFn) hookF
   H.modify_ (over HookState _ { html = html })
-  where
-  interpretHook :: UseHookF ps o m ~> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m
-  interpretHook = case _ of
-    UseState initial reply ->
-      case reason of
-        Initialize -> do
-          { stateCells: { queue } } <- getState
+
+interpretHook
+  :: forall hooks q i ps o m
+   . InterpretHookReason
+  -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
+  -> UseHookF ps o m
+  ~> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m
+interpretHook reason hookFn = case _ of
+  UseState initial reply ->
+    case reason of
+      Initialize -> do
+        { stateCells: { queue } } <- getState
+
+        let
+          newQueue = Array.snoc queue initial
+          token = StateToken (Array.length newQueue - 1)
+
+        modifyState_ _ { stateCells { queue = newQueue } }
+        pure $ reply $ Tuple initial token
+
+      _ -> do
+        { stateCells: { index, queue } } <- getState
+
+        let
+          value = unsafeGetCell index queue
+          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+          token = StateToken index
+
+        modifyState_ _ { stateCells { index = nextIndex } }
+        pure $ reply $ Tuple value token
+
+  UseQuery _ handler a ->
+    case reason of
+      Initialize -> do
+        let
+          handler' :: forall a. q a -> HookM ps o m (Maybe a)
+          handler' = handler <<< toQueryValue
+
+        modifyState_ _ { queryFn = Just (toQueryFn handler') }
+        pure a
+
+      _ ->
+        pure a
+
+  UseEffect mbMemos act a -> do
+    case reason of
+      Initialize -> do
+        for_ mbMemos \memos -> do
+          modifyState_ \st ->
+            st { effectCells { queue = Array.snoc st.effectCells.queue memos } }
+
+        let
+          eval = do
+            mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
+            for_ mbFinalizer \finalizer ->
+              modifyState_ \st ->
+                st { finalizerQueue = Array.snoc st.finalizerQueue finalizer }
+
+        modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
+
+      Queued ->
+        pure unit
+
+      Step -> do
+        for_ mbMemos \memos -> do
+          { effectCells: { index, queue } } <- getState
 
           let
-            newQueue = Array.snoc queue initial
-            token = StateToken (Array.length newQueue - 1)
-
-          modifyState_ _ { stateCells { queue = newQueue } }
-          pure $ reply $ Tuple initial token
-
-        _ -> do
-          { stateCells: { index, queue } } <- getState
-
-          let
-            value = unsafeGetCell index queue
+            newQueue = unsafeSetCell index memos queue
             nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            token = StateToken index
 
-          modifyState_ _ { stateCells { index = nextIndex } }
-          pure $ reply $ Tuple value token
-
-    UseQuery _ handler a ->
-      case reason of
-        Initialize -> do
-          let
-            handler' :: forall a. q a -> HookM ps o m (Maybe a)
-            handler' = handler <<< toQueryValue
-
-          modifyState_ _ { queryFn = Just (toQueryFn handler') }
-          pure a
-
-        _ ->
-          pure a
-
-    UseEffect mbMemos act a -> do
-      case reason of
-        Initialize -> do
-          for_ mbMemos \memos -> do
-            modifyState_ \st ->
-              st { effectCells { queue = Array.snoc st.effectCells.queue memos } }
-
-          let
-            eval = do
-              mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
-              for_ mbFinalizer \finalizer ->
-                modifyState_ \st ->
-                  st { finalizerQueue = Array.snoc st.finalizerQueue finalizer }
-
-          modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
-
-        Queued ->
-          pure unit
-
-        Step -> do
-          for_ mbMemos \memos -> do
-            { effectCells: { index, queue } } <- getState
-
-            let
-              newQueue = unsafeSetCell index memos queue
-              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-
-              memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-              memos' =
-                { old: fromMemoValues (unsafeGetCell index queue)
-                , new: fromMemoValues memos
-                }
-
-            modifyState_ _ { effectCells = { index: nextIndex, queue: newQueue } }
-
-            when (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) do
-              let eval = void $ evalHookM (interpretUseHookFn Queued hookFn) act
-              modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
-
-        Finalize -> do
-          { finalizerQueue } <- getState
-          let evalQueue = map (evalHookM mempty) finalizerQueue
-          modifyState_ \st -> st { evalQueue = append st.evalQueue evalQueue }
-
-      pure a
-
-    UseMemo memos memoFn reply -> do
-      case reason of
-        Initialize -> do
-          { memoCells: { queue } } <- getState
-
-          let
-            newValue = memoFn unit
-
-          modifyState_ _ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }
-          pure $ reply newValue
-
-        _ -> do
-          { memoCells: { index, queue } } <- getState
-
-          let
-            m = do
-              let
-                oldMemos /\ oldValue = bimap fromMemoValues fromMemoValue (unsafeGetCell index queue)
-                newMemos = fromMemoValues memos
-
-              { eq: newMemos.eq
-              , old: oldMemos.memos
-              , new: newMemos.memos
-              , value: oldValue
+            memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
+            memos' =
+              { old: fromMemoValues (unsafeGetCell index queue)
+              , new: fromMemoValues memos
               }
 
-          if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then do
+          modifyState_ _ { effectCells = { index: nextIndex, queue: newQueue } }
+
+          when (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) do
+            let eval = void $ evalHookM (interpretUseHookFn Queued hookFn) act
+            modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
+
+      Finalize -> do
+        { finalizerQueue } <- getState
+        let evalQueue = map (evalHookM mempty) finalizerQueue
+        modifyState_ \st -> st { evalQueue = append st.evalQueue evalQueue }
+
+    pure a
+
+  UseMemo memos memoFn reply -> do
+    case reason of
+      Initialize -> do
+        { memoCells: { queue } } <- getState
+
+        let
+          newValue = memoFn unit
+
+        modifyState_ _ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }
+        pure $ reply newValue
+
+      _ -> do
+        { memoCells: { index, queue } } <- getState
+
+        let
+          m = do
             let
-              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-              newValue = memoFn unit
-              newQueue = unsafeSetCell index (memos /\ newValue) queue
+              oldMemos /\ oldValue = bimap fromMemoValues fromMemoValue (unsafeGetCell index queue)
+              newMemos = fromMemoValues memos
 
-            modifyState_ _ { memoCells = { index: nextIndex, queue: newQueue } }
-            pure $ reply newValue
+            { eq: newMemos.eq
+            , old: oldMemos.memos
+            , new: newMemos.memos
+            , value: oldValue
+            }
 
-          else
-            pure $ reply m.value
-
-    UseRef initial reply ->
-      case reason of
-        Initialize -> do
-          { refCells: { queue } } <- getState
-
+        if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then do
           let
-            ref = unsafePerformEffect $ liftEffect $ Ref.new initial
-
-          modifyState_ _ { refCells { queue = Array.snoc queue ref } }
-          pure $ reply $ Tuple initial ref
-
-        _ -> do
-          { refCells: { index, queue } } <- getState
-
-          let
-            ref = unsafeGetCell index queue
             nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            value = unsafePerformEffect $ liftEffect $ Ref.read ref
+            newValue = memoFn unit
+            newQueue = unsafeSetCell index (memos /\ newValue) queue
 
-          modifyState_ _ { refCells { index = nextIndex } }
-          pure $ reply $ Tuple value ref
+          modifyState_ _ { memoCells = { index: nextIndex, queue: newQueue } }
+          pure $ reply newValue
+
+        else
+          pure $ reply m.value
+
+  UseRef initial reply ->
+    case reason of
+      Initialize -> do
+        { refCells: { queue } } <- getState
+
+        let
+          ref = unsafePerformEffect $ liftEffect $ Ref.new initial
+
+        modifyState_ _ { refCells { queue = Array.snoc queue ref } }
+        pure $ reply $ Tuple initial ref
+
+      _ -> do
+        { refCells: { index, queue } } <- getState
+
+        let
+          ref = unsafeGetCell index queue
+          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+          value = unsafePerformEffect $ liftEffect $ Ref.read ref
+
+        modifyState_ _ { refCells { index = nextIndex } }
+        pure $ reply $ Tuple value ref
 
 -- Interpreter
 

@@ -18,8 +18,9 @@ newtype HookState' = HookState' (HookState (Const Void) Unit () Void Aff)
 
 derive instance newtypeHookState' :: Newtype HookState' _
 
--- | TestF is a reinterpretation of the HalogenF component algebra as an alternate
--- | target for Hooks tests
+-- TestF is a reinterpretation of the HalogenF component algebra as an alternate
+-- target for Hooks tests. It can be expanded over time to include more of
+-- HalogenF's types if needed, but the smaller the better.
 data TestF a
   = State (HookState' -> Tuple a HookState')
 
@@ -27,6 +28,9 @@ instance functorTestF :: Functor TestF where
   map f = case _ of
     State k -> State (lmap f <<< k)
 
+-- TestM is a reinterpretation of the HalogenM component effect monad,
+-- restricted only to functionality relevant to testing Hook implementations
+-- (namely, state).
 newtype TestM a = TestM (Free TestF a)
 
 derive newtype instance functorTestM :: Functor TestM
@@ -37,6 +41,7 @@ derive newtype instance monadTestM :: Monad TestM
 derive newtype instance semigroupTestM :: Semigroup a => Semigroup (TestM a)
 derive newtype instance monoidTestM :: Monoid a => Monoid (TestM a)
 
+-- Necessary for `foldFree`
 instance monadRecTestM :: MonadRec TestM where
   tailRecM k a = k a >>= case _ of
     Loop x -> tailRecM k x
