@@ -21,7 +21,6 @@ import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
-import Halogen (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..), StateToken(..))
@@ -273,7 +272,7 @@ interpretUseHookFn reason hookFn = do
           { refCells: { queue } } <- getState
 
           let
-            ref = unsafePerformEffect $ liftEffect $ Ref.new initial
+            ref = unsafePerformEffect $ Ref.new initial
 
           modifyState_ _ { refCells { queue = Array.snoc queue ref } }
           pure $ reply $ Tuple initial ref
@@ -284,7 +283,7 @@ interpretUseHookFn reason hookFn = do
           let
             ref = unsafeGetCell index queue
             nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            value = unsafePerformEffect $ liftEffect $ Ref.read ref
+            value = unsafePerformEffect $ Ref.read ref
 
           modifyState_ _ { refCells { index = nextIndex } }
           pure $ reply $ Tuple value ref
@@ -322,7 +321,7 @@ getState
    . H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m)
 getState = do
   { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ liftEffect $ Ref.read stateRef
+  pure $ unsafePerformEffect $ Ref.read stateRef
 
 modifyState
   :: forall q i ps o m
@@ -330,7 +329,7 @@ modifyState
   -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m)
 modifyState fn = do
   { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ liftEffect $ Ref.modify fn stateRef
+  pure $ unsafePerformEffect $ Ref.modify fn stateRef
 
 modifyState_
   :: forall q i ps o m
@@ -338,7 +337,7 @@ modifyState_
   -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
 modifyState_ fn = do
   { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ liftEffect $ Ref.modify_ fn stateRef
+  pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
 
 putState
   :: forall q i ps o m
@@ -346,7 +345,7 @@ putState
   -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
 putState s = do
   { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ liftEffect $ Ref.write s stateRef
+  pure $ unsafePerformEffect $ Ref.write s stateRef
 
 type QueueState a =
   { queue :: Array a
