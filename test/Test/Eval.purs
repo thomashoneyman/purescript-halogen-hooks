@@ -24,15 +24,15 @@ import Partial.Unsafe (unsafeCrashWith)
 import Test.TestM (TestF(..), TestM(..))
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
-import Test.Types (DriverState', Hook', HookF', HookM', InternalHookState', TestEvent(..), TestF', TestM', TestWriterM, UseHookF')
+import Test.Types (DriverState', Hook', HookF', HookM', InternalHookState', TestEvent(..), TestWriterM, UseHookF')
 
 -- Interpret `TestM` to `Aff`, given a current state. Implementation is nearly
 -- identical to `evalM`, which interprets `HalogenM` to `Aff`, but with fewer
 -- constructors.
-evalTestM :: forall r. Ref (DriverState' r) -> TestM' ~> Aff
+evalTestM :: forall r. Ref (DriverState' r) -> TestM ~> Aff
 evalTestM initRef (TestM testM) = foldFree (go initRef) testM
   where
-  go :: Ref (DriverState' r) -> TestF' ~> Aff
+  go :: Ref (DriverState' r) -> TestF ~> Aff
   go ref = case _ of
     State f -> do
       DriverState (st@{ state }) <- liftEffect (Ref.read ref)
@@ -46,8 +46,6 @@ evalTestM initRef (TestM testM) = foldFree (go initRef) testM
 
               -- handleLifecycle lifecycleHandlers (render lifecycleHandlers ref)
               pure a
-
-    Lift aff -> aff
 
 -- Interpret `HooM` to `TestM`. Implementation should match
 evalTestHookM :: HookM' ~> TestWriterM
@@ -71,7 +69,7 @@ evalTestHookM (HookM hm) = foldFree go hm
 evalTestHook :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
 evalTestHook reason (Hooked (Indexed hookF)) = foldFree (go reason) hookF
   where
-  go :: InterpretHookReason -> UseHookF' ~> WriterT (Array TestEvent) TestM'
+  go :: InterpretHookReason -> UseHookF' ~> WriterT (Array TestEvent) TestM
   go _ = case _ of
     UseState initial reply ->
       case reason of
@@ -125,12 +123,12 @@ initDriver = do
 
 getState :: TestWriterM InternalHookState'
 getState = do
-  { stateRef } <- gets unwrap
+  { stateRef } <- gets (unwrap <<< unwrap)
   let state = unsafePerformEffect $ Ref.read stateRef
   pure state
 
 modifyState_ :: (InternalHookState' -> InternalHookState') -> TestWriterM Unit
 modifyState_ fn = do
-  { stateRef } <- gets unwrap
+  { stateRef } <- gets (unwrap <<< unwrap)
   let state = unsafePerformEffect $ Ref.modify_ fn stateRef
   pure state

@@ -2,61 +2,45 @@ module Test.TestM where
 
 import Prelude
 
-import Control.Monad.Error.Class (class MonadThrow, throwError)
 import Control.Monad.Free (Free, liftF)
-import Control.Monad.Reader (class MonadAsk, ask)
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
 import Control.Monad.State (class MonadState)
-import Control.Monad.Trans.Class (class MonadTrans)
-import Control.Monad.Writer (class MonadTell, tell)
 import Data.Bifunctor (lmap)
+import Data.Const (Const)
+import Data.Newtype (class Newtype)
 import Data.Tuple (Tuple)
-import Effect.Aff.Class (class MonadAff, liftAff)
-import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Aff (Aff)
+import Halogen.Hooks.Component (HookState)
+
+-- While a little tedious, this newtype is necessary in order to provide a
+-- type-variable-free `MonadState` instance for `TestM`.
+newtype HookState' = HookState' (HookState (Const Void) Unit () Void Aff)
+
+derive instance newtypeHookState' :: Newtype HookState' _
 
 -- | TestF is a reinterpretation of the HalogenF component algebra as an alternate
 -- | target for Hooks tests
-data TestF state m a
-  = State (state -> Tuple a state)
-  | Lift (m a)
+data TestF a
+  = State (HookState' -> Tuple a HookState')
 
-instance functorTestF :: Functor m => Functor (TestF state m) where
+instance functorTestF :: Functor TestF where
   map f = case _ of
     State k -> State (lmap f <<< k)
-    Lift q -> Lift (map f q)
 
-newtype TestM state m a = TestM (Free (TestF state m) a)
+newtype TestM a = TestM (Free TestF a)
 
-derive newtype instance functorTestM :: Functor (TestM state m)
-derive newtype instance applyTestM :: Apply (TestM state m)
-derive newtype instance applicativeTestM :: Applicative (TestM state m)
-derive newtype instance bindTestM :: Bind (TestM state m)
-derive newtype instance monadTestM :: Monad (TestM state m)
-derive newtype instance semigroupTestM :: Semigroup a => Semigroup (TestM state m a)
-derive newtype instance monoidTestM :: Monoid a => Monoid (TestM state m a)
+derive newtype instance functorTestM :: Functor TestM
+derive newtype instance applyTestM :: Apply TestM
+derive newtype instance applicativeTestM :: Applicative TestM
+derive newtype instance bindTestM :: Bind TestM
+derive newtype instance monadTestM :: Monad TestM
+derive newtype instance semigroupTestM :: Semigroup a => Semigroup (TestM a)
+derive newtype instance monoidTestM :: Monoid a => Monoid (TestM a)
 
-instance monadEffectTestM :: MonadEffect m => MonadEffect (TestM state m) where
-  liftEffect = TestM <<< liftF <<< Lift <<< liftEffect
-
-instance monadAffTestM :: MonadAff m => MonadAff (TestM state m) where
-  liftAff = TestM <<< liftF <<< Lift <<< liftAff
-
-instance monadTransTestM :: MonadTrans (TestM state) where
-  lift = TestM <<< liftF <<< Lift
-
-instance monadRecTestM :: MonadRec (TestM state m) where
+instance monadRecTestM :: MonadRec TestM where
   tailRecM k a = k a >>= case _ of
     Loop x -> tailRecM k x
     Done y -> pure y
 
-instance monadStateTestM :: MonadState state (TestM state m) where
+instance monadStateTestM :: MonadState HookState' TestM where
   state = TestM <<< liftF <<< State
-
-instance monadAskTestM :: MonadAsk r m => MonadAsk r (TestM state m) where
-  ask = TestM $ liftF $ Lift ask
-
-instance monadTellTestM :: MonadTell w m => MonadTell w (TestM state m) where
-  tell = TestM <<< liftF <<< Lift <<< tell
-
-instance monadThrowTestM :: MonadThrow e m => MonadThrow e (TestM state m) where
-  throwError = TestM <<< liftF <<< Lift <<< throwError
