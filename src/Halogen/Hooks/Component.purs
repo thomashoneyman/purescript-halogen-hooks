@@ -253,16 +253,18 @@ interpretUseHookFn reason hookFn = do
               , value: oldValue
               }
 
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+
           if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then do
             let
-              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
               newValue = memoFn unit
               newQueue = unsafeSetCell index (memos /\ newValue) queue
 
             modifyState_ _ { memoCells = { index: nextIndex, queue: newQueue } }
             pure $ reply newValue
 
-          else
+          else do
+            modifyState_ _ { memoCells = { index: nextIndex } }
             pure $ reply m.value
 
     UseRef initial reply ->
