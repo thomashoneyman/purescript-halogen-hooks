@@ -264,7 +264,7 @@ interpretUseHookFn reason hookFn = do
             pure $ reply newValue
 
           else do
-            modifyState_ _ { memoCells = { index: nextIndex } }
+            modifyState_ _ { memoCells { index = nextIndex } }
             pure $ reply m.value
 
     UseRef initial reply ->
