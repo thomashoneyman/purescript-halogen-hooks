@@ -247,9 +247,15 @@ interpretUseHookFn reason hookFn = do
               modifyState_ _ { effectCells { index = nextIndex } }
 
         Finalize -> do
-          { effectCells: { queue } } <- getState
-          let evalAllFinalizers = map (evalHookM mempty <<< snd) queue
-          modifyState_ \st -> st { evalQueue = append st.evalQueue evalAllFinalizers }
+          { effectCells: { index, queue } } <- getState
+          let
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            _ /\ finalizer = unsafeGetCell index queue
+            finalizeHook = evalHookM mempty finalizer
+          modifyState_ \st ->
+            st { evalQueue = Array.snoc st.evalQueue finalizeHook
+               , effectCells { index = nextIndex }
+               }
 
       pure a
 
