@@ -1,4 +1,4 @@
-module Test.UseEffect where
+module Test.Hooks.UseEffect.UseLifecycleEffect where
 
 import Prelude
 
@@ -10,24 +10,13 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Debug.Trace (traceM)
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (evalTestHook, evalTestHookM, evalTestM, initDriver)
-import Test.Spec (Spec, describe, it, pending)
+import Test.Eval (evalTestHookM, evalTestM, initDriver, runTestHook)
+import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Types (Hook', TestEvent(..), HookM')
-
-effectHook :: Spec Unit
-effectHook = describe "useEffect" do
-  pending "effect body runs on state change"
-  pending "effect cleanup runs on state change"
-  pending "effect is run when memos change"
-  pending "effect is skipped when memos are unchanged"
-
-  lifecycleEffectHook
-  -- tickEffectHook
 
 data Log = EffectBody | EffectCleanup
 
@@ -52,8 +41,8 @@ useLifecycleEffectLog = Hooks.wrap Hooks.do
 
   Hooks.useLifecycleEffect do
     Hooks.modify_ logState (_ `Array.snoc` EffectBody)
-    traceM "running effect body"
-    pure $ Just $ Hooks.modify_ logState (_ `Array.snoc` EffectCleanup)
+    pure $ Just do
+      Hooks.modify_ logState (_ `Array.snoc` EffectCleanup)
 
   Hooks.pure { tick: Hooks.modify_ countState (_ + 1), logs: log }
 
@@ -62,8 +51,8 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
   it "runs the effect on initialize" do
     ref <- initDriver
 
-    Tuple { logs } events <- evalTestM ref $ runWriterT do
-      evalTestHook Initialize useLifecycleEffectLog
+    Tuple _ events <- evalTestM ref $ runWriterT do
+      runTestHook Initialize useLifecycleEffectLog
 
     events `shouldEqual`
       [ RunHooks Initialize -- state 1
@@ -72,16 +61,21 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
       , Render
       ]
 
+    -- Necessary for now, as this returns the _old_ state; logs will not include
+    -- the finalizer step.
+    Tuple { logs } _ <- evalTestM ref $ runWriterT do
+      runTestHook Finalize useLifecycleEffectLog
+
     logs `shouldEqual` [ EffectBody ]
 
-  it "runs the effect on finalize" do
+  it "runs the effect on initialize and finalize" do
     ref <- initDriver
 
     _ <- evalTestM ref $ runWriterT do
-      evalTestHook Initialize useLifecycleEffectLog
+      runTestHook Initialize useLifecycleEffectLog
 
-    Tuple { logs } events <- evalTestM ref $ runWriterT do
-      evalTestHook Finalize useLifecycleEffectLog
+    Tuple _ events <- evalTestM ref $ runWriterT do
+      runTestHook Finalize useLifecycleEffectLog
 
     events `shouldEqual`
       [ RunHooks Finalize -- state 1
@@ -89,16 +83,21 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
       , RunHooks Finalize -- effect
       ]
 
-    logs `shouldEqual` [ EffectCleanup ]
+    -- Necessary for now, as this returns the _old_ state; logs will not include
+    -- this second finalizer step.
+    Tuple { logs } _ <- evalTestM ref $ runWriterT do
+      runTestHook Finalize useLifecycleEffectLog
+
+    logs `shouldEqual` [ EffectBody, EffectCleanup ]
 
   it "doesn't run the effect other than initialize / finalize" do
     ref <- initDriver
 
     Tuple { tick } _ <- evalTestM ref $ runWriterT do
-      evalTestHook Initialize useLifecycleEffectLog
+      runTestHook Initialize useLifecycleEffectLog
 
     Tuple _ events <- evalTestM ref $ runWriterT do
-      let runHooks = void $ evalTestHook Step useLifecycleEffectLog
+      let runHooks = void $ runTestHook Step useLifecycleEffectLog
 
       -- ticks should cause hooks to run, but shouldn't cause the effect itself
       -- to evaluate again
@@ -118,8 +117,13 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
       , Render
       ]
 
+    _ <- evalTestM ref $ runWriterT do
+      runTestHook Finalize useLifecycleEffectLog
+
+    -- Necessary for now; returns the _old_ state, so this finalizer isn't
+    -- counted in the return
     Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      evalTestHook Finalize useLifecycleEffectLog
+      runTestHook Finalize useLifecycleEffectLog
 
     -- Despite the hooks running multiple times, the effect should have only
     -- run once

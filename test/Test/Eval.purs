@@ -1,11 +1,13 @@
+-- An alternate way to evaluate hooks without components, useful for ensuring
+-- the logic is correct.
 module Test.Eval where
 
 import Prelude
 
 import Control.Monad.Free (foldFree, liftF)
-import Control.Monad.Writer (runWriterT, tell)
+import Control.Monad.Writer (lift, runWriterT, tell)
 import Data.Array as Array
-import Data.Foldable (for_)
+import Data.Foldable (for_, sequence_)
 import Data.Indexed (Indexed(..))
 import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..), fst)
@@ -65,12 +67,20 @@ evalTestHookM runHooks (HookM hm) = foldFree go hm
       unsafeCrashWith "not implemented"
 
 -- See `runUseHookFn`
-runTestHook :: forall h a. InterpretHookReason -> Hook' h a -> TestWriterM Unit
+runTestHook :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
 runTestHook reason hookFn = do
-  _ <- evalTestHook reason hookFn
+  -- TODO: this `a` needs to be kept in state or something so that it doesn't
+  -- get stale, and the state can be returned at the end of all this.
+  a <- evalTestHook reason hookFn
   { evalQueue } <- getState
-  -- TODO sequence_ evalQueue
+  let
+    testMQueue :: Array (TestWriterM Unit)
+    testMQueue = map (lift <<< interpretHalogenM <<< imapState wrap unwrap) evalQueue
+  sequence_ testMQueue
   modifyState_ _ { evalQueue = [] }
+
+  -- TODO: how to make this up to date?
+  pure a
 
 -- See `interpretUseHookFn`
 evalTestHook :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
@@ -202,21 +212,20 @@ putState state = do
   { stateRef } <- H.gets (unwrap <<< unwrap)
   pure $ unsafePerformEffect $ Ref.write state stateRef
 
-{-
--- TODO: Can this be done, or does the HTML requirement ruin it?
-evalTestHook' :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
-evalTestHook' reason hookFn@(Hooked (Indexed hookF)) = foldFree (go reason) hookF
-  where
-  go :: UseHookF' ~> TestWriterM
-  go = interpretHalogenM <<< interpretHook reason (const hookFn)
+-- -- TODO: Can this be done, or does the HTML requirement ruin it?
+-- evalTestHook' :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
+-- evalTestHook' reason hookFn@(Hooked (Indexed hookF)) = foldFree (go reason) hookF
+--   where
+--   go :: UseHookF' ~> TestWriterM
+--   go = interpretHalogenM <<< interpretHook reason (const hookFn)
 
 -- TODO: If this works, can I interpret things like `evalHookM` into `TestM`,
 -- and then interpret that back into `Aff` later? This would essentially mean
 -- forgetting all component-specific features and focusing on only state
-interpretHalogenM :: HalogenM HookState' (HookM' Unit) () Void Aff ~> TestM
+interpretHalogenM :: H.HalogenM HookState' (HookM' Unit) () Void Aff ~> TestM
 interpretHalogenM (H.HalogenM hm) = foldFree go hm
   where
-  go :: HalogenF HookState' (HookM' Unit) () Void Aff ~> TestM
+  go :: H.HalogenF HookState' (HookM' Unit) () Void Aff ~> TestM
   go = case _ of
     H.State f ->
       TestM $ liftF $ State f
@@ -249,5 +258,3 @@ interpretHalogenM (H.HalogenM hm) = foldFree go hm
 
     H.GetRef _ _ ->
       unsafeCrashWith "getRef not implemented"
-
--}
