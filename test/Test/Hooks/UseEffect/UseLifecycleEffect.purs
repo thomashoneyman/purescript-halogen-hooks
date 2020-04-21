@@ -54,6 +54,7 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
     Tuple _ events <- evalTestM ref $ runWriterT do
       runTestHook Initialize useLifecycleEffectLog
 
+    -- TODO: this _should_ be firing modifyState events because of the effect
     events `shouldEqual`
       [ RunHooks Initialize -- state 1
       , RunHooks Initialize -- state 2
@@ -64,7 +65,7 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
     -- Necessary for now, as this returns the _old_ state; logs will not include
     -- the finalizer step.
     Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Finalize useLifecycleEffectLog
+      runTestHook Queued useLifecycleEffectLog
 
     logs `shouldEqual` [ EffectBody ]
 
@@ -86,7 +87,7 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
     -- Necessary for now, as this returns the _old_ state; logs will not include
     -- this second finalizer step.
     Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Finalize useLifecycleEffectLog
+      runTestHook Queued useLifecycleEffectLog
 
     logs `shouldEqual` [ EffectBody, EffectCleanup ]
 
@@ -101,16 +102,12 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
 
       -- ticks should cause hooks to run, but shouldn't cause the effect itself
       -- to evaluate again
-      evalTestHookM runHooks tick *> evalTestHookM runHooks tick
+      evalTestHookM runHooks tick
+        *> evalTestHookM runHooks tick
+        *> evalTestHookM runHooks tick
 
-    events `shouldEqual`
+    shouldEqual events $ Array.concat $ Array.replicate 3
       [ ModifyState
-      , RunHooks Step
-      , RunHooks Step
-      , RunHooks Step
-      , Render
-
-      , ModifyState
       , RunHooks Step
       , RunHooks Step
       , RunHooks Step
@@ -123,7 +120,7 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
     -- Necessary for now; returns the _old_ state, so this finalizer isn't
     -- counted in the return
     Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Finalize useLifecycleEffectLog
+      runTestHook Queued useLifecycleEffectLog
 
     -- Despite the hooks running multiple times, the effect should have only
     -- run once
