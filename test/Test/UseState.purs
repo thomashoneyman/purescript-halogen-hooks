@@ -20,14 +20,18 @@ useStateCount = Hooks.do
 
 stateHook :: Spec Unit
 stateHook = describe "useState" do
-  it "initializes" do
+  it "initializes to the proper initial state value" do
     ref <- initDriver
 
     Tuple { count } events <- evalTestM ref $ runWriterT do
       evalTestHook Initialize useStateCount
 
     -- The state should properly initialize
-    count `shouldEqual` 0 *> events `shouldEqual` [ ]
+    count `shouldEqual` 0
+    events `shouldEqual`
+      [ RunHooks Initialize
+      , Render
+      ]
 
   it "updates state" do
     ref <- initDriver
@@ -35,12 +39,30 @@ stateHook = describe "useState" do
     Tuple count events <- evalTestM ref $ runWriterT do
       { increment } <- evalTestHook Initialize useStateCount
 
+      let runHooks = void $ evalTestHook Step useStateCount
+
       -- increment twice
-      evalTestHookM increment *> evalTestHookM increment
+      evalTestHookM runHooks increment *> evalTestHookM runHooks increment
 
       { count } <- evalTestHook Finalize useStateCount
       pure count
 
     -- The final state of the Hook should reflect the number of times it has
     -- been incremented.
-    count `shouldEqual` 2 *> events `shouldEqual` [ ModifyState, ModifyState ]
+    count `shouldEqual` 2
+    events `shouldEqual`
+      [ -- initializer
+        RunHooks Initialize
+      , Render
+
+        -- state updates x2
+      , ModifyState
+      , RunHooks Step
+      , Render
+      , ModifyState
+      , RunHooks Step
+      , Render
+
+        -- finalizer
+      , RunHooks Finalize
+      ]

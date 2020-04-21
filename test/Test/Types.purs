@@ -10,17 +10,17 @@ import Effect.Aff (Aff)
 import Halogen.Aff.Driver.State (DriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (Hook, HookF, HookM, UseHookF)
-import Halogen.Hooks.Component (InternalHookState)
+import Halogen.Hooks.Component (InternalHookState, InterpretHookReason)
 import Test.TestM (HookState', TestM)
 
 type TestWriterM = WriterT (Array TestEvent) TestM
 
 data TestEvent
-  = GetState
-  | ModifyState
+  = ModifyState
+  | RunHooks InterpretHookReason
+  | Render
 
 derive instance eqTestEvent :: Eq TestEvent
-derive instance ordTestEvent :: Ord TestEvent
 derive instance genericTestEvent :: Generic TestEvent _
 
 instance showTestEvent :: Show TestEvent where

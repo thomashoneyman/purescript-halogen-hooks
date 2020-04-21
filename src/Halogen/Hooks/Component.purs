@@ -118,6 +118,15 @@ data InterpretHookReason
   | Step
   | Finalize
 
+derive instance eqInterpretHookReason :: Eq InterpretHookReason
+
+instance showInterpretHookReason :: Show InterpretHookReason where
+  show = case _ of
+    Initialize -> "Initialize"
+    Queued -> "Queued"
+    Step -> "Step"
+    Finalize -> "Finalize"
+
 runUseHookFn
   :: forall hooks q i ps o m
    . InterpretHookReason
