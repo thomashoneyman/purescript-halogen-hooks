@@ -17,10 +17,12 @@ import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
 import Data.Tuple (Tuple(..), snd)
 import Data.Tuple.Nested ((/\), type (/\))
+import Effect.Class.Console (log)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
+import Halogen (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..), StateToken(..))
@@ -84,8 +86,10 @@ componentWithQuery inputUseHookFn = do
         H.Action act a -> do
           evalHookM (interpretUseHookFn Step hookFn) act
           { evalQueue } <- getState
-          sequence_ evalQueue
           modifyState_ _ { evalQueue = [] }
+          sequence_ evalQueue
+          { evalQueue: newQueue } <- getState
+          let _ = unsafePerformEffect $ log $ "action: evalQueue length post sequencing: " <> (show $ Array.length newQueue)
           pure a
 
         H.Receive input a -> do
@@ -119,6 +123,13 @@ data InterpretHookReason
   | Step
   | Finalize
 
+instance showInterpretHookReason :: Show InterpretHookReason where
+  show = case _ of
+    Initialize -> "Initialize"
+    Queued -> "Queued"
+    Step -> "Step"
+    Finalize -> "Finalize"
+
 runUseHookFn
   :: forall hooks q i ps o m
    . InterpretHookReason
@@ -127,8 +138,11 @@ runUseHookFn
 runUseHookFn reason hookFn = do
   interpretUseHookFn reason hookFn
   { evalQueue } <- getState
-  sequence_ evalQueue
   modifyState_ _ { evalQueue = [] }
+  sequence_ evalQueue
+  { evalQueue: newQueue } <- getState
+  let _ = unsafePerformEffect $ log $ "runUseHookFn - " <> show reason <> " - evalQueue length post sequencing: " <> (show $ Array.length newQueue)
+  pure unit
 
 interpretUseHookFn
   :: forall hooks q i ps o m
@@ -240,7 +254,7 @@ interpretUseHookFn reason hookFn = do
                      }
               else do
                 modifyState_ _ { effectCells { index = nextIndex } }
-              
+
             _, _ -> do
               -- this branch is useLifecycleEffect, so
               -- just update the index
