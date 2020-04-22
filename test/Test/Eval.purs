@@ -99,6 +99,8 @@ evalTestHook reason hookFn = do
       tell [ Render ]
       pure a
   where
+  -- TODO: The body of this needs to abstract out `evalHookM` vs. `evalTestHookM`
+  -- (for example) so more of the original implementation can be used.
   go :: UseHookF' ~> TestWriterM
   go h = tell [ RunHooks reason ] *> case h of
     UseState initial reply ->
