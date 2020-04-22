@@ -85,11 +85,7 @@ componentWithQuery inputUseHookFn = do
 
         H.Action act a -> do
           evalHookM (interpretUseHookFn Step hookFn) act
-          { evalQueue } <- getState
-          modifyState_ _ { evalQueue = [] }
-          sequence_ evalQueue
-          { evalQueue: newQueue } <- getState
-          let _ = unsafePerformEffect $ log $ "action: evalQueue length post sequencing: " <> (show $ Array.length newQueue)
+          drainEvalQueue Step
           pure a
 
         H.Receive input a -> do
@@ -137,12 +133,16 @@ runUseHookFn
   -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
 runUseHookFn reason hookFn = do
   interpretUseHookFn reason hookFn
+  drainEvalQueue reason
+
+drainEvalQueue :: forall q i ps o m. InterpretHookReason -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
+drainEvalQueue reason = do
   { evalQueue } <- getState
   modifyState_ _ { evalQueue = [] }
   sequence_ evalQueue
   { evalQueue: newQueue } <- getState
   let _ = unsafePerformEffect $ log $ "runUseHookFn - " <> show reason <> " - evalQueue length post sequencing: " <> (show $ Array.length newQueue)
-  pure unit
+  unless (Array.null newQueue) $ drainEvalQueue reason
 
 interpretUseHookFn
   :: forall hooks q i ps o m
