@@ -11,11 +11,11 @@ import Control.Parallel (parallel, sequential)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Coyoneda (unCoyoneda)
-import Data.Foldable (for_, sequence_)
+import Data.Foldable (sequence_)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (Maybe(..), fromJust, maybe)
+import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), snd)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
@@ -109,7 +109,6 @@ componentWithQuery inputUseHookFn = do
           , effectCells: { queue: [], index: 0 }
           , memoCells: { queue: [], index: 0 }
           , refCells: { queue: [], index: 0 }
-          , finalizerQueue: []
           , evalQueue: []
           }
       }
@@ -183,16 +182,13 @@ interpretUseHookFn reason hookFn = do
     UseEffect mbMemos act a -> do
       case reason of
         Initialize -> do
-          for_ mbMemos \memos -> do
-            modifyState_ \st ->
-              st { effectCells { queue = Array.snoc st.effectCells.queue memos } }
-
           let
             eval = do
               mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
-              for_ mbFinalizer \finalizer ->
-                modifyState_ \st ->
-                  st { finalizerQueue = Array.snoc st.finalizerQueue finalizer }
+              let
+                finalizer = fromMaybe (pure unit) mbFinalizer
+              modifyState_ \st ->
+                st { effectCells { queue = Array.snoc st.effectCells.queue (mbMemos /\ finalizer) } }
 
           modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
 
@@ -200,29 +196,66 @@ interpretUseHookFn reason hookFn = do
           pure unit
 
         Step -> do
-          for_ mbMemos \memos -> do
-            { effectCells: { index, queue } } <- getState
+          { effectCells: { index, queue } } <- getState
 
-            let
-              newQueue = unsafeSetCell index memos queue
-              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+          let
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
 
-              memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-              memos' =
-                { old: fromMemoValues (unsafeGetCell index queue)
-                , new: fromMemoValues memos
-                }
+            mbOldMemos /\ finalizer = unsafeGetCell index queue
 
-            modifyState_ _ { effectCells = { index: nextIndex, queue: newQueue } }
+          case mbMemos, mbOldMemos of
+            Just newMemos, Just oldMemos -> do
+              let
+                memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
+                memos' =
+                  { old: fromMemoValues oldMemos
+                  , new: fromMemoValues newMemos
+                  }
 
-            when (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) do
-              let eval = void $ evalHookM (interpretUseHookFn Queued hookFn) act
-              modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
+              if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos)
+              then do
+                let
+                  eval = do
+                    -- run finalizer
+                    void $ evalHookM (interpretUseHookFn Queued hookFn) finalizer
+
+                    -- rerun effect and get new finalizer (if any)
+                    mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
+
+                    -- we can't use the `queue` binding from above as that would
+                    -- not include any other changes we made, so get the queue
+                    -- again here.
+                    { effectCells: { queue: queueAtThisPoint } } <- getState
+
+                    let
+                      newFinalizer = fromMaybe (pure unit) mbFinalizer
+                      newValue = mbMemos /\ newFinalizer
+
+                      newQueue = unsafeSetCell index newValue queueAtThisPoint
+                    modifyState_ \st -> st { effectCells { queue = newQueue } }
+
+                modifyState_ \st ->
+                  st { evalQueue = Array.snoc st.evalQueue eval
+                     , effectCells { index = nextIndex }
+                     }
+              else do
+                modifyState_ _ { effectCells { index = nextIndex } }
+              
+            _, _ -> do
+              -- this branch is useLifecycleEffect, so
+              -- just update the index
+              modifyState_ _ { effectCells { index = nextIndex } }
 
         Finalize -> do
-          { finalizerQueue } <- getState
-          let evalQueue = map (evalHookM mempty) finalizerQueue
-          modifyState_ \st -> st { evalQueue = append st.evalQueue evalQueue }
+          { effectCells: { index, queue } } <- getState
+          let
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            _ /\ finalizer = unsafeGetCell index queue
+            finalizeHook = evalHookM mempty finalizer
+          modifyState_ \st ->
+            st { evalQueue = Array.snoc st.evalQueue finalizeHook
+               , effectCells { index = nextIndex }
+               }
 
       pure a
 
@@ -308,10 +341,9 @@ derive instance newtypeHookState :: Newtype (HookState q i ps o m) _
 type InternalHookState q i ps o m =
   { input :: i
   , queryFn :: Maybe (QueryFn q ps o m)
-  , finalizerQueue :: Array (HookM ps o m Unit)
   , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit)
   , stateCells :: QueueState StateValue
-  , effectCells :: QueueState MemoValues
+  , effectCells :: QueueState ((Maybe MemoValues) /\ HookM ps o m Unit)
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
   }
