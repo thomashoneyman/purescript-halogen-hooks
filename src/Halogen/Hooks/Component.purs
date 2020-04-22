@@ -11,7 +11,7 @@ import Control.Parallel (parallel, sequential)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Coyoneda (unCoyoneda)
-import Data.Foldable (sequence_)
+import Data.Foldable (for_, sequence_)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
 import Data.Newtype (class Newtype, over, unwrap)
@@ -198,11 +198,13 @@ interpretUseHookFn reason hookFn = do
         Initialize -> do
           let
             eval = do
+              let _ = unsafePerformEffect $ log $ "now running effect that was stored in eval queue"
               mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
               let
                 finalizer = fromMaybe (pure unit) mbFinalizer
               modifyState_ \st ->
                 st { effectCells { queue = Array.snoc st.effectCells.queue (mbMemos /\ finalizer) } }
+
 
           modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
 
@@ -228,13 +230,18 @@ interpretUseHookFn reason hookFn = do
 
               if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos)
               then do
+                let _ = unsafePerformEffect $ log $ "tickEffect: memos changed"
                 let
                   eval = do
                     -- run finalizer
+                    let _ = unsafePerformEffect $ log $ "tickEffect: running finalizer"
                     void $ evalHookM (interpretUseHookFn Queued hookFn) finalizer
+                    let _ = unsafePerformEffect $ log $ "tickEffect: finished finalizer"
 
+                    let _ = unsafePerformEffect $ log $ "tickEffect: rerunning initial effect"
                     -- rerun effect and get new finalizer (if any)
                     mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
+                    let _ = unsafePerformEffect $ log $ "tickEffect: finished initial effect. now storing new finalizer"
 
                     -- we can't use the `queue` binding from above as that would
                     -- not include any other changes we made, so get the queue
@@ -253,9 +260,11 @@ interpretUseHookFn reason hookFn = do
                      , effectCells { index = nextIndex }
                      }
               else do
+                let _ = unsafePerformEffect $ log $ "tickEffect: memos did not change"
                 modifyState_ _ { effectCells { index = nextIndex } }
 
             _, _ -> do
+              let _ = unsafePerformEffect $ log $ "useLifecycleEffect: no need to check memos"
               -- this branch is useLifecycleEffect, so
               -- just update the index
               modifyState_ _ { effectCells { index = nextIndex } }
