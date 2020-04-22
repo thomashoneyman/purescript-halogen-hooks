@@ -7,10 +7,12 @@ import Prelude
 import Control.Monad.Free (foldFree, liftF)
 import Control.Monad.Writer (lift, runWriterT, tell)
 import Data.Array as Array
-import Data.Foldable (for_, sequence_)
+import Data.Foldable (sequence_)
 import Data.Indexed (Indexed(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap, wrap)
 import Data.Tuple (Tuple(..), fst)
+import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
@@ -125,51 +127,85 @@ evalTestHook reason hookFn = do
     UseEffect mbMemos act a -> do
       case reason of
         Initialize -> do
-          for_ mbMemos \memos -> do
-            modifyState_ \st ->
-              st { effectCells { queue = Array.snoc st.effectCells.queue memos } }
-
           let
             -- modified
             eval = imapState unwrap wrap $ evalTestWriterM do
               -- modified
               mbFinalizer <- evalTestHookM (evalTestHook Queued hookFn *> pure unit) act
-              for_ mbFinalizer \finalizer ->
-                modifyState_ \st ->
-                  st { finalizerQueue = Array.snoc st.finalizerQueue finalizer }
 
-          -- modified
+              let
+                finalizer = fromMaybe (pure unit) mbFinalizer
+                newQueue state = Array.snoc state.effectCells.queue (mbMemos /\ finalizer)
+
+              modifyState_ \st -> st { effectCells { queue = newQueue st } }
+
           modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
 
         Queued ->
           pure unit
 
         Step -> do
-          for_ mbMemos \memos -> do
-            { effectCells: { index, queue } } <- getState
+          { effectCells: { index, queue } } <- getState
 
-            let
-              newQueue = unsafeSetCell index memos queue
-              nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+          let
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            mbOldMemos /\ finalizer = unsafeGetCell index queue
 
-              memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-              memos' =
-                { old: fromMemoValues (unsafeGetCell index queue)
-                , new: fromMemoValues memos
-                }
+          case mbMemos, mbOldMemos of
+            Just newMemos, Just oldMemos -> do
+              let
+                memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
+                memos' =
+                  { old: fromMemoValues oldMemos
+                  , new: fromMemoValues newMemos
+                  }
 
-            modifyState_ _ { effectCells = { index: nextIndex, queue: newQueue } }
+              if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
+                let
+                  -- modified
+                  eval = imapState unwrap wrap $ evalTestWriterM do
+                    -- modified: run finalizer
+                    void $ evalTestHookM (evalTestHook Queued hookFn *> pure unit) finalizer
 
-            when (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) do
-              -- modified
-              let eval = void $ imapState unwrap wrap $ evalTestWriterM $ evalTestHookM (evalTestHook Queued hookFn *> pure unit) act
-              modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
+                    -- modified: rerun effect and get new finalizer (if any)
+                    mbFinalizer <- evalTestHookM (evalTestHook Queued hookFn *> pure unit) act
+
+                    { effectCells: { queue: queue' } } <- getState
+
+                    let
+                      newFinalizer = fromMaybe (pure unit) mbFinalizer
+                      newValue = mbMemos /\ newFinalizer
+                      newQueue = unsafeSetCell index newValue queue'
+
+                    modifyState_ _  { effectCells { queue = newQueue } }
+
+                modifyState_ \st -> st
+                  { evalQueue = Array.snoc st.evalQueue eval
+                  , effectCells { index = nextIndex }
+                  }
+
+              else do
+                modifyState_ _ { effectCells { index = nextIndex } }
+
+            _, _ -> do
+              -- this branch is useLifecycleEffect, so just update the index
+              modifyState_ _ { effectCells { index = nextIndex } }
 
         Finalize -> do
-          { finalizerQueue } <- getState
-          -- modified
-          let evalQueue = map (imapState unwrap wrap <<< evalTestWriterM <<< evalTestHookM (pure unit)) finalizerQueue
-          modifyState_ \st -> st { evalQueue = append st.evalQueue evalQueue }
+          { effectCells: { index, queue } } <- getState
+
+          let
+            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+            _ /\ finalizer = unsafeGetCell index queue
+
+            -- modified
+            finalizeHook = imapState unwrap wrap $ evalTestWriterM do
+              evalTestHookM (pure unit) finalizer
+
+          modifyState_ \st -> st
+            { evalQueue = Array.snoc st.evalQueue finalizeHook
+            , effectCells { index = nextIndex }
+            }
 
       pure a
 
