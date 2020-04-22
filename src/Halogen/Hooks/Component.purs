@@ -82,10 +82,7 @@ componentWithQuery inputUseHookFn = do
               evalHookM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
 
         H.Action act a -> do
-          evalHookM (interpretUseHookFn Step hookFn) act
-          { evalQueue } <- getState
-          sequence_ evalQueue
-          modifyState_ _ { evalQueue = [] }
+          evalHookM (runUseHookFn Step hookFn) act
           pure a
 
         H.Receive input a -> do
