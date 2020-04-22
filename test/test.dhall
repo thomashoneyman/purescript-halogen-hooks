@@ -4,6 +4,7 @@ in conf //
       conf.dependencies #
         [ "debug"
         , "spec"
+        , "record"
         ]
   , sources =
       conf.sources #

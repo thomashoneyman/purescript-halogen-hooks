@@ -2,21 +2,17 @@ module Test.Hooks.UseEffect.UseLifecycleEffect where
 
 import Prelude
 
-import Control.Monad.Writer (runWriterT)
 import Data.Array as Array
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
-import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (evalTestHookM, evalTestM, initDriver, runTestHook)
-import Test.Spec (Spec, describe, it)
-import Test.Spec.Assertions (shouldEqual)
-import Test.Types (Hook', TestEvent(..), HookM')
+-- import Test.Eval (evalTestHookM, evalTestM, initDriver, runTestHook)
+import Test.Spec (Spec, describe, pending)
+import Test.Types (Hook', HookM')
 
 data Log = EffectBody | EffectCleanup
 
@@ -48,6 +44,9 @@ useLifecycleEffectLog = Hooks.wrap Hooks.do
 
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = describe "useLifecycleEffect" do
+  pending "implement"
+
+{-
   it "runs the effect on initialize" do
     ref <- initDriver
 
@@ -125,3 +124,5 @@ lifecycleEffectHook = describe "useLifecycleEffect" do
     -- Despite the hooks running multiple times, the effect should have only
     -- run once
     logs `shouldEqual` [ EffectBody, EffectCleanup ]
+
+-}

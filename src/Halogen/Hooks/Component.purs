@@ -63,10 +63,10 @@ componentWithQuery inputUseHookFn = do
 
   H.mkComponent
     { initialState
-    , render: \(HookState { html }) -> html
+    , render: \(HookState { result }) -> result
     , eval: case _ of
         H.Initialize a -> do
-          runUseHookFn Initialize hookFn
+          runWithQueue $ interpretUseHookFn Initialize hookFn
           pure a
 
         H.Query q reply -> do
@@ -75,30 +75,34 @@ componentWithQuery inputUseHookFn = do
             Nothing ->
               pure (reply unit)
             Just fn -> do
-              let runHooks = runUseHookFn Step hookFn
+              let
+                runHooks =
+                  runWithQueue $ interpretUseHookFn Step hookFn
+
               evalHookM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
 
         H.Action act a -> do
           evalHookM (interpretUseHookFn Step hookFn) act
-          { evalQueue } <- getState
-          sequence_ evalQueue
-          modifyState_ _ { evalQueue = [] }
+          runQueue
           pure a
 
         H.Receive input a -> do
           modifyState_ _ { input = input }
-          runUseHookFn Step hookFn
+          runWithQueue $ interpretUseHookFn Step hookFn
           pure a
 
         H.Finalize a -> do
-          runUseHookFn Finalize hookFn
+          runWithQueue $ interpretUseHookFn Finalize hookFn
           pure a
     }
 
-initialState :: forall q i ps o m. i -> HookState q i ps o m
+initialState
+  :: forall q i ps o m
+   . i
+  -> HookState q i ps o m (H.ComponentHTML (HookM ps o m Unit) ps m)
 initialState input =
   HookState
-    { html: HH.text ""
+    { result: HH.text ""
     , stateRef: unsafePerformEffect $ Ref.new
         { input
         , queryFn: Nothing
@@ -125,34 +129,37 @@ instance showInterpretHookReason :: Show InterpretHookReason where
     Step -> "Step"
     Finalize -> "Finalize"
 
-runUseHookFn
-  :: forall hooks q i ps o m
-   . InterpretHookReason
-  -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
-  -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
-runUseHookFn reason hookFn = do
-  interpretUseHookFn reason hookFn
+runWithQueue
+  :: forall q i ps o m a
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+runWithQueue interpreter = interpreter *> runQueue
+
+runQueue
+  :: forall q i ps o m a
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+runQueue = do
   { evalQueue } <- getState
   sequence_ evalQueue
   modifyState_ _ { evalQueue = [] }
 
 interpretUseHookFn
-  :: forall hooks q i ps o m
+  :: forall hooks q i ps o m a
    . InterpretHookReason
-  -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
-  -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
+  -> (i -> Hooked ps o m Unit hooks a)
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
 interpretUseHookFn reason hookFn = do
   { input } <- getState
   let Hooked (Indexed hookF) = hookFn input
-  html <- foldFree (interpretHook reason hookFn) hookF
-  H.modify_ (over HookState _ { html = html })
+  a <- foldFree (interpretHook reason hookFn) hookF
+  H.modify_ (over HookState _ { result = a })
 
 interpretHook
-  :: forall hooks q i ps o m
+  :: forall hooks q i ps o m a
    . InterpretHookReason
-  -> (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
+  -> (i -> Hooked ps o m Unit hooks a)
   -> UseHookF ps o m
-  ~> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m
+  ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
 interpretHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
@@ -181,7 +188,7 @@ interpretHook reason hookFn = case _ of
     case reason of
       Initialize -> do
         let
-          handler' :: forall a. q a -> HookM ps o m (Maybe a)
+          handler' :: forall res. q res -> HookM ps o m (Maybe res)
           handler' = handler <<< toQueryValue
 
         modifyState_ _ { queryFn = Just (toQueryFn handler') }
@@ -341,17 +348,17 @@ toQueryFn = unsafeCoerce
 fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> HookM ps o m (Maybe a))
 fromQueryFn = unsafeCoerce
 
-newtype HookState q i ps o m = HookState
-  { html :: H.ComponentHTML (HookM ps o m Unit) ps m
-  , stateRef :: Ref (InternalHookState q i ps o m)
+newtype HookState q i ps o m a = HookState
+  { result :: a
+  , stateRef :: Ref (InternalHookState q i ps o m a)
   }
 
-derive instance newtypeHookState :: Newtype (HookState q i ps o m) _
+derive instance newtypeHookState :: Newtype (HookState q i ps o m a) _
 
-type InternalHookState q i ps o m =
+type InternalHookState q i ps o m a =
   { input :: i
   , queryFn :: Maybe (QueryFn q ps o m)
-  , evalQueue :: Array (H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit)
+  , evalQueue :: Array (H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit)
   , stateCells :: QueueState StateValue
   , effectCells :: QueueState ((Maybe MemoValues) /\ HookM ps o m Unit)
   , memoCells :: QueueState (MemoValues /\ MemoValue)
@@ -359,32 +366,32 @@ type InternalHookState q i ps o m =
   }
 
 getState
-  :: forall q i ps o m
-   . H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m)
+  :: forall q i ps o m a
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m a)
 getState = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.read stateRef
 
 modifyState
-  :: forall q i ps o m
-   . (InternalHookState q i ps o m -> InternalHookState q i ps o m)
-  -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m)
+  :: forall q i ps o m a
+   . (InternalHookState q i ps o m a -> InternalHookState q i ps o m a)
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m a)
 modifyState fn = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.modify fn stateRef
 
 modifyState_
-  :: forall q i ps o m
-   . (InternalHookState q i ps o m -> InternalHookState q i ps o m)
-  -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
+  :: forall q i ps o m a
+   . (InternalHookState q i ps o m a -> InternalHookState q i ps o m a)
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
 modifyState_ fn = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
 
 putState
-  :: forall q i ps o m
-   . InternalHookState q i ps o m
-  -> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
+  :: forall q i ps o m a
+   . InternalHookState q i ps o m a
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
 putState s = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.write s stateRef
@@ -395,13 +402,13 @@ type QueueState a =
   }
 
 evalHookM
-  :: forall q i ps o m
-   . H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m Unit
+  :: forall q i ps o m a
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
   -> HookM ps o m
-  ~> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m
+  ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
 evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
   where
-  interpretHalogenHook :: HookF ps o m ~> H.HalogenM (HookState q i ps o m) (HookM ps o m Unit) ps o m
+  interpretHalogenHook :: HookF ps o m ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
   interpretHalogenHook = case _ of
     Modify (StateToken token) f reply -> do
       state <- getState

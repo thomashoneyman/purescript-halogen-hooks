@@ -2,18 +2,11 @@ module Test.Types where
 
 import Prelude
 
-import Control.Monad.Writer (WriterT)
-import Data.Const (Const)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Effect.Aff (Aff)
-import Halogen.Aff.Driver.State (DriverState)
-import Halogen.HTML as HH
 import Halogen.Hooks (Hook, HookF, HookM, UseHookF)
-import Halogen.Hooks.Component (InternalHookState, InterpretHookReason)
-import Test.TestM (HookState', TestM)
-
-type TestWriterM = WriterT (Array TestEvent) TestM
+import Halogen.Hooks.Component (InterpretHookReason)
 
 data TestEvent
   = ModifyState
@@ -25,10 +18,6 @@ derive instance genericTestEvent :: Generic TestEvent _
 
 instance showTestEvent :: Show TestEvent where
   show = genericShow
-
-type InternalHookState' = InternalHookState (Const Void) Unit () Void Aff
-
-type DriverState' r = DriverState HH.HTML r HookState' (Const Void) Unit () Unit Void
 
 type UseHookF' = UseHookF () Void Aff
 

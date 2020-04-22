@@ -4,225 +4,110 @@ module Test.Eval where
 
 import Prelude
 
-import Control.Monad.Free (foldFree, liftF)
-import Control.Monad.Writer (lift, runWriterT, tell)
+import Control.Monad.Free (foldFree)
 import Data.Array as Array
-import Data.Foldable (sequence_)
+import Data.Const (Const)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Newtype (unwrap, wrap)
-import Data.Tuple (Tuple(..), fst)
-import Data.Tuple.Nested ((/\))
+import Data.Maybe (Maybe(..))
+import Data.Newtype (over)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
-import Foreign.Object as Object
-import Halogen (gets)
 import Halogen as H
-import Halogen.Aff.Driver.Eval (evalM)
+import Halogen.Aff.Driver.Eval as Eval
 import Halogen.Aff.Driver.State (DriverState, DriverStateX, initDriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (HookM(..), Hooked(..), StateToken(..), UseHookF(..))
-import Halogen.Hooks as HookM
-import Halogen.Hooks.Component (HookState(..), InterpretHookReason(..), initialState, unsafeGetCell, unsafeSetCell)
-import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValues)
-import Halogen.Query.HalogenM (imapState)
+import Halogen.Hooks (HookM, Hooked(..), UseHookF(..))
+import Halogen.Hooks.Component (HookState(..), InterpretHookReason)
+import Halogen.Hooks.Component as Component
 import Partial.Unsafe (unsafeCrashWith)
-import Test.TestM (HookState', TestF(..), TestM(..))
-import Test.Types (DriverState', Hook', HookF', HookM', InternalHookState', TestEvent(..), TestWriterM, UseHookF')
+import Test.Types (TestEvent(..), HookM')
 import Unsafe.Coerce (unsafeCoerce)
 
--- Interpret `TestM` to `Aff`, given a current state. Current implementation
--- first interprets into HalogenM and then into Aff, re-using the existing
--- Halogen machinery.
-evalTestM :: forall r. Ref (DriverState' r) -> TestM ~> Aff
-evalTestM initRef = evalM mempty initRef <<< evalTestM'
+type HookState' a = HookState (Const Void) LogRef () Void Aff a
 
-evalTestWriterM :: forall act ps o m. TestWriterM ~> H.HalogenM HookState' act ps o m
-evalTestWriterM = evalTestM' <<< map fst <<< runWriterT
+type DriverResultState r a =
+  DriverState HH.HTML r (HookState' a) (Const Void) (HookM' Unit) () LogRef Void
 
-evalTestM' :: forall act ps o m. TestM ~> H.HalogenM HookState' act ps o m
-evalTestM' (TestM testM) = foldFree go testM
-  where
-  go :: TestF ~> H.HalogenM _ _ _ _ _
-  go = case _ of
-    State f -> do
-      H.HalogenM $ liftF $ H.State f
+evalM
+  :: forall r a
+   . Ref (DriverResultState r a)
+  -> H.HalogenM (HookState' a) (HookM' Unit) () Void Aff
+  ~> Aff
+evalM initRef = Eval.evalM mempty initRef
 
--- Interpret `HooM` to `TestM`. See `evalHookM` matches `HookM ~> HalogenM`
-evalTestHookM :: TestWriterM Unit -> HookM' ~> TestWriterM
-evalTestHookM runHooks (HookM hm) = foldFree go hm
-  where
-  go :: HookF' ~> TestWriterM
-  go = case _ of
-    HookM.Modify (StateToken token) f reply -> do
-      state <- getState
-      let v = f (unsafeGetCell token state.stateCells.queue)
-      putState $ state { stateCells { queue = unsafeSetCell token v state.stateCells.queue } }
-      tell [ ModifyState ]
-      runHooks
-      pure (reply v)
+type LogRef = Ref (Array TestEvent)
+type WithLog a = { log :: LogRef, result :: a }
 
-    _ ->
-      unsafeCrashWith "not implemented"
+writeLog :: TestEvent -> LogRef -> Unit
+writeLog event ref = unsafePerformEffect do
+  log <- Ref.read ref
+  Ref.write (Array.snoc log event) ref
 
--- See `runUseHookFn`
-runTestHook :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
-runTestHook reason hookFn = do
-  -- TODO: this `a` needs to be kept in state or something so that it doesn't
-  -- get stale, and the state can be returned at the end of all this.
-  a <- evalTestHook reason hookFn
-  { evalQueue } <- getState
-  let
-    testMQueue :: Array (TestWriterM Unit)
-    testMQueue = map (lift <<< interpretHalogenM <<< imapState wrap unwrap) evalQueue
-  sequence_ testMQueue
-  modifyState_ _ { evalQueue = [] }
+-- TODO: This is identical to `interpretUseHookFn`, but calls on `interpretHook`
+interpretUseHookFn
+  :: forall hooks q ps o m a
+   . InterpretHookReason
+  -> (LogRef -> Hooked ps o m Unit hooks a)
+  -> H.HalogenM (HookState q LogRef ps o m a) (HookM ps o m Unit) ps o m Unit
+interpretUseHookFn reason hookFn = do
+  { input } <- Component.getState
+  let Hooked (Indexed hookF) = hookFn input
+  a <- foldFree (interpretHook reason hookFn) hookF
+  H.modify_ (over HookState _ { result = a })
 
-  -- TODO: how to make this up to date?
-  pure a
+interpretHook
+  :: forall hooks q ps o m a
+   . InterpretHookReason
+  -> (LogRef -> Hooked ps o m Unit hooks a)
+  -> UseHookF ps o m
+  ~> H.HalogenM (HookState q LogRef ps o m a) (HookM ps o m Unit) ps o m
+interpretHook reason hookFn = case _ of
+  c@(UseState initial reply) -> do
+    { input: log } <- Component.getState
+    let _ = writeLog ModifyState log
+    Component.interpretHook reason hookFn c
 
--- See `interpretUseHookFn`
-evalTestHook :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
-evalTestHook reason hookFn = do
-  { input } <- getState
-  let Hooked (Indexed hookF) = hookFn
-  a <- foldFree go hookF
-  case reason of
-    Finalize ->
-      -- don't render in the finalizer
-      pure a
-    _ -> do
-      -- H.modify_ (over HookState _ { html = html })
-      tell [ Render ]
-      pure a
-  where
-  -- TODO: The body of this needs to abstract out `evalHookM` vs. `evalTestHookM`
-  -- (for example) so more of the original implementation can be used.
-  go :: UseHookF' ~> TestWriterM
-  go h = tell [ RunHooks reason ] *> case h of
-    UseState initial reply ->
-      case reason of
-        Initialize -> do
-          { stateCells: { queue } } <- getState
-
-          let
-            newQueue = Array.snoc queue initial
-            token = StateToken (Array.length newQueue - 1)
-
-          modifyState_ _ { stateCells { queue = newQueue } }
-          pure $ reply $ Tuple initial token
-
-        _ -> do
-          { stateCells: { index, queue } } <- getState
-
-          let
-            value = unsafeGetCell index queue
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            token = StateToken index
-
-          modifyState_ _ { stateCells { index = nextIndex } }
-          pure $ reply $ Tuple value token
-
-    UseEffect mbMemos act a -> do
-      case reason of
-        Initialize -> do
-          let
-            -- modified
-            eval = imapState unwrap wrap $ evalTestWriterM do
-              -- modified
-              mbFinalizer <- evalTestHookM (evalTestHook Queued hookFn *> pure unit) act
-
-              let
-                finalizer = fromMaybe (pure unit) mbFinalizer
-                newQueue state = Array.snoc state.effectCells.queue (mbMemos /\ finalizer)
-
-              modifyState_ \st -> st { effectCells { queue = newQueue st } }
-
-          modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
-
-        Queued ->
-          pure unit
-
-        Step -> do
-          { effectCells: { index, queue } } <- getState
-
-          let
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            mbOldMemos /\ finalizer = unsafeGetCell index queue
-
-          case mbMemos, mbOldMemos of
-            Just newMemos, Just oldMemos -> do
-              let
-                memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-                memos' =
-                  { old: fromMemoValues oldMemos
-                  , new: fromMemoValues newMemos
-                  }
-
-              if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
-                let
-                  -- modified
-                  eval = imapState unwrap wrap $ evalTestWriterM do
-                    -- modified: run finalizer
-                    void $ evalTestHookM (evalTestHook Queued hookFn *> pure unit) finalizer
-
-                    -- modified: rerun effect and get new finalizer (if any)
-                    mbFinalizer <- evalTestHookM (evalTestHook Queued hookFn *> pure unit) act
-
-                    { effectCells: { queue: queue' } } <- getState
-
-                    let
-                      newFinalizer = fromMaybe (pure unit) mbFinalizer
-                      newValue = mbMemos /\ newFinalizer
-                      newQueue = unsafeSetCell index newValue queue'
-
-                    modifyState_ _  { effectCells { queue = newQueue } }
-
-                modifyState_ \st -> st
-                  { evalQueue = Array.snoc st.evalQueue eval
-                  , effectCells { index = nextIndex }
-                  }
-
-              else do
-                modifyState_ _ { effectCells { index = nextIndex } }
-
-            _, _ -> do
-              -- this branch is useLifecycleEffect, so just update the index
-              modifyState_ _ { effectCells { index = nextIndex } }
-
-        Finalize -> do
-          { effectCells: { index, queue } } <- getState
-
-          let
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            _ /\ finalizer = unsafeGetCell index queue
-
-            -- modified
-            finalizeHook = imapState unwrap wrap $ evalTestWriterM do
-              evalTestHookM (pure unit) finalizer
-
-          modifyState_ \st -> st
-            { evalQueue = Array.snoc st.evalQueue finalizeHook
-            , effectCells { index = nextIndex }
-            }
-
-      pure a
-
-    _ ->
-      unsafeCrashWith "not implemented"
+  _ ->
+    unsafeCrashWith "not implemented"
 
 -- Create a new DriverState, which can be used to evaluate multiple calls to
 -- evaluate test code.
-initDriver :: forall r. Aff (Ref (DriverState' r))
-initDriver = do
-  lifecycleHandlers <- liftEffect $ Ref.new mempty
-  map unDriverStateXRef $ liftEffect do
+initDriver :: forall r a. a -> Aff (Ref (DriverResultState r a))
+initDriver initial = liftEffect do
+  logRef <- Ref.new []
+
+  stateRef <- Ref.new
+    { input: logRef
+    , queryFn: Nothing
+    , stateCells: { queue: [], index: 0 }
+    , effectCells: { queue: [], index: 0 }
+    , memoCells: { queue: [], index: 0 }
+    , refCells: { queue: [], index: 0 }
+    , evalQueue: []
+    }
+
+  lifecycleHandlers <- Ref.new mempty
+
+  map unDriverStateXRef do
     initDriverState
-      { initialState
-      , render: \(HookState { html }) -> html
+      { initialState:
+          \_ ->
+            HookState
+              { result: HH.text ""
+              , stateRef: unsafePerformEffect $ Ref.new
+                  { input: logRef
+                  , queryFn: Nothing
+                  , stateCells: { queue: [], index: 0 }
+                  , effectCells: { queue: [], index: 0 }
+                  , memoCells: { queue: [], index: 0 }
+                  , refCells: { queue: [], index: 0 }
+                  , evalQueue: []
+                  }
+              }
+      , render: \_ -> HH.text ""
       , eval: H.mkEval H.defaultEval
       }
       unit
@@ -235,64 +120,81 @@ initDriver = do
     -> Ref (DriverState HH.HTML r' s' f' act' ps' i' o')
   unDriverStateXRef = unsafeCoerce
 
-getState :: TestWriterM InternalHookState'
-getState = do
-  { stateRef } <- gets (unwrap <<< unwrap)
-  pure $ unsafePerformEffect $ Ref.read stateRef
+{-
 
-modifyState_ :: (InternalHookState' -> InternalHookState') -> TestWriterM Unit
-modifyState_ fn = do
-  { stateRef } <- gets (unwrap <<< unwrap)
-  pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
+-- UseHookF, enriched with the ability to insert logging where needed.
+--
+-- TODO: It should be possible to create a `Hook'` that works the same, except
+-- you can also log things with `tell` internally. This would be really useful
+-- to have in logs as output. Copy instances from `Hook`
+data UseHookTellF ps o m a
+  = Tell (m a)
+  | UseHookF (UseHookF ps o m a)
 
-putState :: InternalHookState' -> TestWriterM Unit
-putState state = do
-  { stateRef } <- H.gets (unwrap <<< unwrap)
-  pure $ unsafePerformEffect $ Ref.write state stateRef
+derive instance functorUseHookTellF :: Functor m => Functor (UseHookTellF ps o m)
 
--- -- TODO: Can this be done, or does the HTML requirement ruin it?
--- evalTestHook' :: forall h. InterpretHookReason -> Hook' h ~> TestWriterM
--- evalTestHook' reason hookFn@(Hooked (Indexed hookF)) = foldFree (go reason) hookF
---   where
---   go :: UseHookF' ~> TestWriterM
---   go = interpretHalogenM <<< interpretHook reason (const hookFn)
+newtype UseHookM ps o m a = UseHookM (Free (UseHookTellF ps o m) a)
 
--- TODO: If this works, can I interpret things like `evalHookM` into `TestM`,
--- and then interpret that back into `Aff` later? This would essentially mean
--- forgetting all component-specific features and focusing on only state
-interpretHalogenM :: H.HalogenM HookState' (HookM' Unit) () Void Aff ~> TestM
-interpretHalogenM (H.HalogenM hm) = foldFree go hm
+derive newtype instance functorUseHookM :: Functor (UseHookM ps o m)
+derive newtype instance applyUseHookM :: Apply (UseHookM ps o m)
+derive newtype instance applicativeUseHookM :: Applicative (UseHookM ps o m)
+derive newtype instance bindUseHookM :: Bind (UseHookM ps o m)
+derive newtype instance monadUseHookM :: Monad (UseHookM ps o m)
+derive newtype instance semigroupUseHookM :: Semigroup a => Semigroup (UseHookM ps o m a)
+derive newtype instance monoidUseHookM :: Monoid a => Monoid (UseHookM ps o m a)
+
+instance monadTellUseHookM :: MonadTell w m => MonadTell w (UseHookM ps o m) where
+  tell = UseHookM <<< liftF <<< Tell <<< tell
+
+layerHook
+  :: forall h ps o m
+   . MonadTell (Array TestEvent) m
+  => Hook ps o m h
+  ~> UseHookM ps o m
+layerHook (Hooked (Indexed h)) = UseHookM (substFree go h)
   where
-  go :: H.HalogenF HookState' (HookM' Unit) () Void Aff ~> TestM
+  go :: UseHookF ps o m ~> Free (UseHookTellF ps o m)
   go = case _ of
-    H.State f ->
-      TestM $ liftF $ State f
+    UseState initial reply -> do
+      liftF $ Tell $ tell [ RunHooks Step ]
+      liftF $ UseHookF $ UseState initial reply
 
-    -- the remainder of these features, while important, are not relevant to
-    -- Hooks implementations, which rely on existing HalogenM machinery to work.
-    H.Subscribe _ _ ->
-      unsafeCrashWith "subscribe not implemented"
+    x ->
+      -- TODO
+      liftF $ UseHookF x
 
-    H.Unsubscribe _ _ ->
-      unsafeCrashWith "unsubscribe not implemented"
+layerHookM
+  :: forall ps o m
+   . MonadTell (Array TestEvent) m
+  => HookM ps o m
+  ~> HookM ps o m
+layerHookM (HookM hm) = HookM (substFree go hm)
+  where
+  go :: HookF ps o m ~> Free (HookF ps o m)
+  go = case _ of
+    Modify token f reply -> do
+      -- <- getState
+      -- if `f state` == `f state` the `GetState` else `ModifyState`
+      liftF $ Lift $ tell [ ModifyState ]
+      liftF $ Modify token f reply
 
-    H.Lift _ ->
-      unsafeCrashWith "lift not implemented"
+    _ ->
+      unsafeCrashWith "not implemented"
 
-    H.ChildQuery _ ->
-      unsafeCrashWith "childQuery not implemented"
+layerHalogenM
+  :: H.HalogenM HookState' (HookM' Unit) () Void Aff
+  ~> H.HalogenM HookState' (HookM' Unit) () Void (WriterT (Array TestEvent) Aff)
+layerHalogenM (HalogenM hm) = HalogenM (substFree go hm)
+  where
+  go
+    :: H.HalogenF HookState' (HookM' Unit) () Void Aff
+    ~> Free (H.HalogenF HookState' (HookM' Unit) () Void (WriterT (Array TestEvent) Aff))
+  go = case _ of
+    H.State f -> do
+      liftF $ H.Lift $ tell [ ModifyState ]
+      liftF $ H.State f
 
-    H.Raise _ _ ->
-      unsafeCrashWith "raise not implemented"
+    _ ->
+      unsafeCrashWith "not implemented"
 
-    H.Par _ ->
-      unsafeCrashWith "par not implemented"
-
-    H.Fork _ _ ->
-      unsafeCrashWith "fork not implemented"
-
-    H.Kill _ _ ->
-      unsafeCrashWith "kill not implemented"
-
-    H.GetRef _ _ ->
-      unsafeCrashWith "getRef not implemented"
+-}
