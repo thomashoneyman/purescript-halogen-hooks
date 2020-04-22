@@ -72,6 +72,7 @@ componentWithQuery inputUseHookFn = do
     , eval: case _ of
         H.Initialize a -> do
           runUseHookFn Initialize hookFn
+          runUseHookFn Step hookFn
           pure a
 
         H.Query q reply -> do
