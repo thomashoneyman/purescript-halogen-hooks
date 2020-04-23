@@ -16,6 +16,7 @@
     "bundle": "spago -x examples/examples.dhall bundle-app --main Example.Main --to examples/app.js --no-install",
     "test:manual:isolated": "spago -x test/test.dhall bundle-app --main Test.Manual.Isolated --to test/app.js",
     "test:manual:shared": "spago -x test/test.dhall bundle-app --main Test.Manual.Shared --to test/app.js",
-    "test:manual:conditional": "spago -x test/test.dhall bundle-app --main Test.Manual.Conditional --to test/app.js"
+    "test:manual:conditional": "spago -x test/test.dhall bundle-app --main Test.Manual.Conditional --to test/app.js",
+    "test:manual:number5": "spago -x test/test.dhall bundle-app --main Test.Manual.IsolatedTickEffect --to test/app.js"
   }
 }
