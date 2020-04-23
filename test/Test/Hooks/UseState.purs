@@ -2,19 +2,14 @@ module Test.Hooks.UseState where
 
 import Prelude
 
-import Data.Newtype (unwrap)
 import Data.Tuple.Nested ((/\))
-import Effect.Class (liftEffect)
-import Effect.Ref (Ref)
-import Effect.Ref as Ref
-import Halogen.Aff.Driver.State (DriverState(..))
 import Halogen.Hooks (UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.Component (InternalHookState, InterpretHookReason(..), runWithQueue)
-import Test.Eval (LogRef, evalM, initDriver, interpretUseHookFn)
+import Halogen.Hooks.Component (InterpretHookReason(..), evalHookM, runWithQueue)
+import Test.Eval (evalM, initDriver, interpretUseHookFn, readLog)
 import Test.Spec (Spec, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Test.Types (Hook', TestEvent(..), HookM')
+import Test.Types (Hook', HookM', HookType(..), LogRef, TestEvent(..))
 
 useStateCount :: LogRef -> Hook' (UseState Int) { increment :: HookM' Unit, count :: Int }
 useStateCount ref = Hooks.do
@@ -25,62 +20,56 @@ stateHook :: Spec Unit
 stateHook = describe "useState" do
   it "initializes to the proper initial state value" do
     ref <- initDriver
-      { increment: pure unit :: HookM' Unit
-      , count: 0
-      }
 
-    _ <- evalM ref do
+    { count } <- evalM ref do
       runWithQueue $ interpretUseHookFn Initialize useStateCount
 
+    log <- readLog ref
+
     -- The state should properly initialize
-    -- count `shouldEqual` 0
-    log :: Array TestEvent <- liftEffect do
-      DriverState driver <- Ref.read ref
+    count `shouldEqual` 0
+    log `shouldEqual`
+      [ RunHooks
+      , EvaluateHook Initialize UseStateHook
+      , Render
+      ]
 
-      let
-        stateRef :: Ref (InternalHookState _ _ _ _ _ _)
-        stateRef = (unwrap driver.state).stateRef
+  it "updates state" do
+    ref <- initDriver
 
-      state <- Ref.read stateRef
+    { count } <- evalM ref do
+      { increment } <- runWithQueue $ interpretUseHookFn Initialize useStateCount
 
-      let
-        logRef :: Ref (Array TestEvent)
-        logRef = state.input
+      let runHooks = runWithQueue $ interpretUseHookFn Step useStateCount
 
-      Ref.read logRef
+      -- increment twice
+      evalHookM runHooks increment *> evalHookM runHooks increment
 
-    log `shouldEqual` [ RunHooks Initialize, Render ]
+      runWithQueue $ interpretUseHookFn Finalize useStateCount
 
-  -- it "updates state" do
-  --   ref <- initDriver
+    log <- readLog ref
 
-  --   Tuple count events <- evalM ref do
-  --     { increment } <- runWithQueue $ interpretUseHookFn Initialize useStateCount
+    -- The final state of the Hook should reflect the number of times it has
+    -- been incremented.
+    count `shouldEqual` 2
+    log `shouldEqual`
+      [ -- initializer
+        RunHooks
+      , EvaluateHook Initialize UseStateHook
+      , Render
 
-  --     let runHooks = void $ runWithQueue $ interpretUseHookFn Step useStateCount
+        -- state updates x2
+      , ModifyState
+      , RunHooks
+      , EvaluateHook Step UseStateHook
+      , Render
 
-  --     -- increment twice
-  --     evalHookM runHooks increment *> evalHookM runHooks increment
+      , ModifyState
+      , RunHooks
+      , EvaluateHook Step UseStateHook
+      , Render
 
-  --     { count } <- runWithQueue $ interpretUseHookFn Finalize useStateCount
-  --     pure count
-
-  --   -- The final state of the Hook should reflect the number of times it has
-  --   -- been incremented.
-  --   count `shouldEqual` 2
-  --   events `shouldEqual`
-  --     [ -- initializer
-  --       RunHooks Initialize
-  --     , Render
-
-  --       -- state updates x2
-  --     , ModifyState
-  --     , RunHooks Step
-  --     , Render
-  --     , ModifyState
-  --     , RunHooks Step
-  --     , Render
-
-  --       -- finalizer
-  --     , RunHooks Finalize
-  --     ]
+        -- finalizer
+      , RunHooks
+      , EvaluateHook Finalize UseStateHook
+      ]

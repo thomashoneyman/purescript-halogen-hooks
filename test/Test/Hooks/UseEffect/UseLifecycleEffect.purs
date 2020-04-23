@@ -3,126 +3,107 @@ module Test.Hooks.UseEffect.UseLifecycleEffect where
 import Prelude
 
 import Data.Array as Array
-import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
+import Effect.Class (liftEffect)
+import Effect.Ref as Ref
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
--- import Test.Eval (evalTestHookM, evalTestM, initDriver, runTestHook)
-import Test.Spec (Spec, describe, pending)
-import Test.Types (Hook', HookM')
+import Halogen.Hooks.Component (InterpretHookReason(..), evalHookM, runWithQueue)
+import Test.Eval (evalM, flushLog, initDriver, interpretUseHookFn, readLog)
+import Test.Spec (Spec, describe, it)
+import Test.Spec.Assertions (shouldEqual)
+import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
 
-data Log = EffectBody | EffectCleanup
-
-derive instance eqLog :: Eq Log
-derive instance genericLog :: Generic Log _
-
-instance showLog :: Show Log where
-  show = genericShow
-
-newtype LogHook h = LogHook (UseEffect (UseState Int (UseState (Array Log) h)))
+newtype LogHook h = LogHook (UseEffect (UseState Int h))
 
 derive instance newtypeLogHook :: Newtype (LogHook h) _
 
-useLifecycleEffectLog :: Hook' LogHook { tick :: HookM' Unit, logs :: Array Log }
-useLifecycleEffectLog = Hooks.wrap Hooks.do
-  -- used to accumulate logs from effect run
-  log /\ logState <- Hooks.useState []
-
+useLifecycleEffectLog :: LogRef -> Hook' LogHook { tick :: HookM' Unit }
+useLifecycleEffectLog log = Hooks.wrap Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
   -- because lifecycle effects run only once
   count /\ countState <- Hooks.useState 0
 
   Hooks.useLifecycleEffect do
-    Hooks.modify_ logState (_ `Array.snoc` EffectBody)
+    liftEffect $ Ref.modify_ (_ `Array.snoc` RunEffect EffectBody) log
     pure $ Just do
-      Hooks.modify_ logState (_ `Array.snoc` EffectCleanup)
+      liftEffect $ Ref.modify_ (_ `Array.snoc` RunEffect EffectCleanup) log
 
-  Hooks.pure { tick: Hooks.modify_ countState (_ + 1), logs: log }
+  Hooks.pure { tick: Hooks.modify_ countState (_ + 1) }
 
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = describe "useLifecycleEffect" do
-  pending "implement"
-
-{-
   it "runs the effect on initialize" do
     ref <- initDriver
 
-    Tuple _ events <- evalTestM ref $ runWriterT do
-      runTestHook Initialize useLifecycleEffectLog
+    _ <- evalM ref do
+      runWithQueue $ interpretUseHookFn Initialize useLifecycleEffectLog
+
+    log0 <- readLog ref
 
     -- TODO: this _should_ be firing modifyState events because of the effect
-    events `shouldEqual`
-      [ RunHooks Initialize -- state 1
-      , RunHooks Initialize -- state 2
-      , RunHooks Initialize -- effect
+    log0 `shouldEqual`
+      [ RunHooks
+      , EvaluateHook Initialize UseStateHook
+      , EvaluateHook Initialize UseEffectHook
       , Render
       ]
 
     -- Necessary for now, as this returns the _old_ state; logs will not include
     -- the finalizer step.
-    Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Queued useLifecycleEffectLog
+    _ <- evalM ref do
+      runWithQueue $ interpretUseHookFn Queued useLifecycleEffectLog
 
-    logs `shouldEqual` [ EffectBody ]
+    log1 <- readLog ref
+
+    log1 `shouldEqual` [ RunEffect EffectBody, RunEffect EffectCleanup ]
 
   it "runs the effect on initialize and finalize" do
     ref <- initDriver
 
-    _ <- evalTestM ref $ runWriterT do
-      runTestHook Initialize useLifecycleEffectLog
+    _ <- evalM ref do
+      runWithQueue $ interpretUseHookFn Initialize useLifecycleEffectLog
 
-    Tuple _ events <- evalTestM ref $ runWriterT do
-      runTestHook Finalize useLifecycleEffectLog
+    flushLog ref
 
-    events `shouldEqual`
-      [ RunHooks Finalize -- state 1
-      , RunHooks Finalize -- state 2
-      , RunHooks Finalize -- effect
+    _ <- evalM ref do
+      runWithQueue $ interpretUseHookFn Finalize useLifecycleEffectLog
+
+    log <- readLog ref
+
+    log `shouldEqual`
+      [ RunHooks
+      , EvaluateHook Finalize UseStateHook
+      , EvaluateHook Finalize UseEffectHook
       ]
-
-    -- Necessary for now, as this returns the _old_ state; logs will not include
-    -- this second finalizer step.
-    Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Queued useLifecycleEffectLog
-
-    logs `shouldEqual` [ EffectBody, EffectCleanup ]
 
   it "doesn't run the effect other than initialize / finalize" do
     ref <- initDriver
 
-    Tuple { tick } _ <- evalTestM ref $ runWriterT do
-      runTestHook Initialize useLifecycleEffectLog
+    { tick } <- evalM ref do
+      runWithQueue $ interpretUseHookFn Initialize useLifecycleEffectLog
 
-    Tuple _ events <- evalTestM ref $ runWriterT do
-      let runHooks = void $ runTestHook Step useLifecycleEffectLog
+    flushLog ref
+
+    _ <- evalM ref do
+      let runHooks = interpretUseHookFn Step useLifecycleEffectLog
 
       -- ticks should cause hooks to run, but shouldn't cause the effect itself
       -- to evaluate again
-      evalTestHookM runHooks tick
-        *> evalTestHookM runHooks tick
-        *> evalTestHookM runHooks tick
+      evalHookM runHooks tick
+        *> evalHookM runHooks tick
+        *> evalHookM runHooks tick
 
-    shouldEqual events $ Array.concat $ Array.replicate 3
+      runWithQueue $ interpretUseHookFn Finalize useLifecycleEffectLog
+
+    log <- readLog ref
+
+    shouldEqual log $ Array.concat $ Array.replicate 3
       [ ModifyState
-      , RunHooks Step
-      , RunHooks Step
-      , RunHooks Step
+      , RunHooks
+      , EvaluateHook Step UseStateHook
+      , EvaluateHook Step UseEffectHook
       , Render
       ]
-
-    _ <- evalTestM ref $ runWriterT do
-      runTestHook Finalize useLifecycleEffectLog
-
-    -- Necessary for now; returns the _old_ state, so this finalizer isn't
-    -- counted in the return
-    Tuple { logs } _ <- evalTestM ref $ runWriterT do
-      runTestHook Queued useLifecycleEffectLog
-
-    -- Despite the hooks running multiple times, the effect should have only
-    -- run once
-    logs `shouldEqual` [ EffectBody, EffectCleanup ]
-
--}

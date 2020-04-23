@@ -66,7 +66,7 @@ componentWithQuery inputUseHookFn = do
     , render: \(HookState { result }) -> result
     , eval: case _ of
         H.Initialize a -> do
-          runWithQueue $ interpretUseHookFn Initialize hookFn
+          _ <- runWithQueue $ interpretUseHookFn Initialize hookFn
           pure a
 
         H.Query q reply -> do
@@ -83,16 +83,16 @@ componentWithQuery inputUseHookFn = do
 
         H.Action act a -> do
           evalHookM (interpretUseHookFn Step hookFn) act
-          runQueue
+          _ <- runQueue
           pure a
 
         H.Receive input a -> do
           modifyState_ _ { input = input }
-          runWithQueue $ interpretUseHookFn Step hookFn
+          _ <- runWithQueue $ interpretUseHookFn Step hookFn
           pure a
 
         H.Finalize a -> do
-          runWithQueue $ interpretUseHookFn Finalize hookFn
+          _ <- runWithQueue $ interpretUseHookFn Finalize hookFn
           pure a
     }
 
@@ -131,28 +131,34 @@ instance showInterpretHookReason :: Show InterpretHookReason where
 
 runWithQueue
   :: forall q i ps o m a
-   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
-  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
-runWithQueue interpreter = interpreter *> runQueue
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
+runWithQueue interpreter = do
+  _ <- interpreter
+  runQueue
 
 runQueue
   :: forall q i ps o m a
-   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
 runQueue = do
   { evalQueue } <- getState
   sequence_ evalQueue
   modifyState_ _ { evalQueue = [] }
+  { result } <- H.gets unwrap
+  pure result
 
 interpretUseHookFn
   :: forall hooks q i ps o m a
    . InterpretHookReason
   -> (i -> Hooked ps o m Unit hooks a)
-  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
 interpretUseHookFn reason hookFn = do
   { input } <- getState
   let Hooked (Indexed hookF) = hookFn input
   a <- foldFree (interpretHook reason hookFn) hookF
   H.modify_ (over HookState _ { result = a })
+  { result } <- H.gets unwrap
+  pure result
 
 interpretHook
   :: forall hooks q i ps o m a
@@ -267,7 +273,7 @@ interpretHook reason hookFn = case _ of
         let
           nextIndex = if index + 1 < Array.length queue then index + 1 else 0
           _ /\ finalizer = unsafeGetCell index queue
-          finalizeHook = evalHookM mempty finalizer
+          finalizeHook = evalHookM (interpretUseHookFn Queued hookFn) finalizer
 
         modifyState_ \st -> st
           { evalQueue = Array.snoc st.evalQueue finalizeHook
@@ -403,7 +409,7 @@ type QueueState a =
 
 evalHookM
   :: forall q i ps o m a
-   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
   -> HookM ps o m
   ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
 evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
@@ -414,7 +420,7 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
       state <- getState
       let v = f (unsafeGetCell token state.stateCells.queue)
       putState $ state { stateCells { queue = unsafeSetCell token v state.stateCells.queue } }
-      runHooks
+      _ <- runHooks
       pure (reply v)
 
     Subscribe eventSource reply ->
