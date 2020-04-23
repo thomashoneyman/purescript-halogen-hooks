@@ -4,142 +4,95 @@ module Test.Eval where
 
 import Prelude
 
-import Control.Monad.Free (foldFree)
-import Data.Array as Array
+import Control.Monad.Free (foldFree, liftF)
 import Data.Indexed (Indexed(..))
-import Data.Maybe (Maybe(..))
-import Data.Newtype (over, unwrap)
+import Data.Newtype (class Newtype, over, wrap)
 import Effect.Aff (Aff)
-import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
-import Effect.Ref as Ref
-import Effect.Unsafe (unsafePerformEffect)
+import Halogen (liftAff)
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Eval
-import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
-import Halogen.HTML as HH
-import Halogen.Hooks (HookM, Hooked(..), UseHookF(..))
-import Halogen.Hooks.Component (HookState(..), InterpretHookReason, InternalHookState)
+import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..), UseHookF(..))
+import Halogen.Hooks.Component (HookState(..), InterpretHookReason(..), runWithQueue)
 import Halogen.Hooks.Component as Component
-import Test.Types (DriverResultState, HookM', HookState', HookType(..), LogRef, TestEvent(..))
-import Unsafe.Coerce (unsafeCoerce)
+import Test.Log (writeLog)
+import Test.Types (DriverResultState, HalogenM', Hook', HookF', HookM', HookType(..), LogRef, TestEvent(..), UseHookF')
 
--- | Replacement for `Halogen.Aff.Driver.Eval.evalM`
-evalM :: forall r a. Ref (DriverResultState r a) -> H.HalogenM (HookState' a) (HookM' Unit) () Void Aff ~> Aff
+-- | A convenience for wrapping up calls to `evalHookM` and `interpretHook`. This
+-- | should be used when setting up tests:
+-- |
+-- | ```purs
+-- | let TestInterface { initialize, action, finalize } = mkInterface myHookFn
+-- |
+-- | ...
+-- | result <- evalM ref do
+-- |   { myHookAction } <- initialize
+-- |   action myHookAction
+-- |   finalize
+-- | ```
+newtype TestInterface a = TestInterface
+  { initialize :: HalogenM' a a
+  , action :: HookM' Unit -> HalogenM' a Unit
+  , finalize :: HalogenM' a a
+  }
+
+derive instance newtypeTestInterface :: Newtype (TestInterface a) _
+
+mkInterface :: forall h a. (LogRef -> Hook' h a) -> TestInterface a
+mkInterface hookFn = wrap do
+  { initialize: runWithQueue (interpretUseHookFn Initialize hookFn)
+  , action: \act -> evalHookM (interpretUseHookFn Step hookFn) act
+  , finalize: runWithQueue (interpretUseHookFn Finalize hookFn)
+  }
+
+-- | `Halogen.Aff.Driver.Eval.evalM`, with an extra layer for logging.
+evalM :: forall r a. Ref (DriverResultState r a) -> HalogenM' a ~> Aff
 evalM initRef = Eval.evalM mempty initRef
 
-interpretUseHookFn
-  :: forall hooks q ps o m a
-   . InterpretHookReason
-  -> (LogRef -> Hooked ps o m Unit hooks a)
-  -> H.HalogenM (HookState q LogRef ps o m a) (HookM ps o m Unit) ps o m a
+-- | `Halogen.Hooks.HookM.evalHookM`, with an extra layer for logging.
+evalHookM :: forall a. HalogenM' a a -> HookM' ~> HalogenM' a
+evalHookM runHooks (HookM hm) = foldFree go hm
+  where
+  go :: HookF' ~> HalogenM' a
+  go = case _ of
+    c@(Modify (StateToken token) f reply) -> do
+      { input } <- Component.getState
+      liftAff $ writeLog ModifyState input -- technically could be get or modify
+      Component.evalHookM runHooks (HookM $ liftF c)
+
+    c ->
+      -- For now, all other constructors are ordinary `HalogenM` and don't really
+      -- need to be tested.
+      Component.evalHookM runHooks (HookM $ liftF c)
+
+-- | Replacement for `Halogen.Hooks.Component.interpretUseHookFn`.
+-- |
+-- | WARNING: Unlike the other functions, this one needs to be manually kept in
+-- | sync with the implementation in the main Hooks library.
+interpretUseHookFn :: forall h a. InterpretHookReason -> (LogRef -> Hook' h a) -> HalogenM' a a
 interpretUseHookFn reason hookFn = do
   { input: log } <- Component.getState
 
-  let _ = writeLog RunHooks log
+  liftAff $ writeLog (RunHooks reason) log
   let Hooked (Indexed hookF) = hookFn log
   a <- foldFree (interpretHook reason hookFn) hookF
 
-  let _ = writeLog Render log
+  liftAff $ writeLog Render log
   H.modify_ (over HookState _ { result = a })
   pure a
 
-interpretHook
-  :: forall hooks q ps o m a
-   . InterpretHookReason
-  -> (LogRef -> Hooked ps o m Unit hooks a)
-  -> UseHookF ps o m
-  ~> H.HalogenM (HookState q LogRef ps o m a) (HookM ps o m Unit) ps o m
+-- | `Halogen.Hooks.Component.interpretHook`, with an extra layer for logging.
+interpretHook :: forall h a. InterpretHookReason -> (LogRef -> Hook' h a) -> UseHookF' ~> HalogenM' a
 interpretHook reason hookFn = case _ of
   c@(UseState initial reply) -> do
     { input: log } <- Component.getState
-    let _ = writeLog (EvaluateHook reason UseStateHook) log
+    liftAff $ writeLog (EvaluateHook UseStateHook) log
+    Component.interpretHook reason hookFn c
+
+  c@(UseEffect _ _ _) -> do
+    { input: log } <- Component.getState
+    liftAff $ writeLog (EvaluateHook UseEffectHook) log
     Component.interpretHook reason hookFn c
 
   c -> do
-    { input: log } <- Component.getState
     Component.interpretHook reason hookFn c
-
--- Create a new DriverState, which can be used to evaluate multiple calls to
--- evaluate test code.
-initDriver :: forall r a. Aff (Ref (DriverResultState r a))
-initDriver = liftEffect do
-  logRef <- Ref.new []
-
-  stateRef <- Ref.new
-    { input: logRef
-    , queryFn: Nothing
-    , stateCells: { queue: [], index: 0 }
-    , effectCells: { queue: [], index: 0 }
-    , memoCells: { queue: [], index: 0 }
-    , refCells: { queue: [], index: 0 }
-    , evalQueue: []
-    }
-
-  lifecycleHandlers <- Ref.new mempty
-
-  map unDriverStateXRef do
-    initDriverState
-      { initialState:
-          \_ ->
-            HookState
-              { result: unit
-              , stateRef: unsafePerformEffect $ Ref.new
-                  { input: logRef
-                  , queryFn: Nothing
-                  , stateCells: { queue: [], index: 0 }
-                  , effectCells: { queue: [], index: 0 }
-                  , memoCells: { queue: [], index: 0 }
-                  , refCells: { queue: [], index: 0 }
-                  , evalQueue: []
-                  }
-              }
-      , render: \_ -> HH.text ""
-      , eval: H.mkEval H.defaultEval
-      }
-      unit
-      mempty
-      lifecycleHandlers
-  where
-  unDriverStateXRef
-    :: forall r' s' f' act' ps' i' o'
-     . Ref (DriverStateX HH.HTML r' f' o')
-    -> Ref (DriverState HH.HTML r' s' f' act' ps' i' o')
-  unDriverStateXRef = unsafeCoerce
-
-writeLog :: TestEvent -> LogRef -> Unit
-writeLog event ref = unsafePerformEffect do
-  log <- Ref.read ref
-  Ref.write (Array.snoc log event) ref
-
-readLog :: forall r a. Ref (DriverResultState r a) -> Aff (Array TestEvent)
-readLog ref = liftEffect do
-  DriverState driver <- Ref.read ref
-
-  let
-    stateRef :: Ref (InternalHookState _ _ _ _ _ _)
-    stateRef = (unwrap driver.state).stateRef
-
-  state <- Ref.read stateRef
-
-  let
-    logRef :: Ref (Array TestEvent)
-    logRef = state.input
-
-  Ref.read logRef
-
-flushLog :: forall r a. Ref (DriverResultState r a) -> Aff Unit
-flushLog ref = liftEffect do
-  DriverState driver <- Ref.read ref
-
-  let
-    stateRef :: Ref (InternalHookState _ _ _ _ _ _)
-    stateRef = (unwrap driver.state).stateRef
-
-  state <- Ref.read stateRef
-
-  let
-    logRef :: Ref (Array TestEvent)
-    logRef = state.input
-
-  Ref.write [] logRef
