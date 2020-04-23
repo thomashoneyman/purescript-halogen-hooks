@@ -25,6 +25,32 @@ writeLog event ref = liftEffect do
   log <- Ref.read ref
   Ref.write (Array.snoc log event) ref
 
+-- | Useful for logging result state outside of hook evaluation. For example, in
+-- | this block we can only access `count` once the actions are completed, but
+-- | not in between several actions:
+-- |
+-- | ```purs`
+-- | { count } <- evalM ref do
+-- |   { tick } <- initialize
+-- |   action tick *> action tick
+-- |   finalize
+-- | ```
+-- |
+-- | But with `readResult` we can inspect the value in between actions:
+-- |
+-- | ```purs
+-- | { count } <- evalM ref do
+-- |    { tick } <- initialize
+-- |    action tick
+-- |    liftAff $ readResult ref >>= \{ count } -> logShow count
+-- |    action tick
+-- |    finalize
+-- | ```
+readResult :: forall r a. Ref (DriverResultState r a) -> Aff a
+readResult ref = liftEffect do
+  DriverState driver <- Ref.read ref
+  pure $ (unwrap driver.state).result
+
 readLog :: forall r a. Ref (DriverResultState r a) -> Aff Log
 readLog ref = liftEffect do
   DriverState driver <- Ref.read ref

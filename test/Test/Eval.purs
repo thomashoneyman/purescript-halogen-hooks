@@ -22,27 +22,33 @@ import Test.Types (DriverResultState, HalogenM', Hook', HookF', HookM', HookType
 -- | should be used when setting up tests:
 -- |
 -- | ```purs
--- | let TestInterface { initialize, action, finalize } = mkInterface myHookFn
+-- | let EvalSpec { initialize, handleAction, finalize } = mkEvalSpec myHookFn
 -- |
 -- | ...
 -- | result <- evalM ref do
 -- |   { myHookAction } <- initialize
--- |   action myHookAction
+-- |   handleAction myHookAction
 -- |   finalize
 -- | ```
-newtype TestInterface a = TestInterface
+newtype EvalSpec a = EvalSpec
   { initialize :: HalogenM' a a
-  , action :: HookM' Unit -> HalogenM' a Unit
+  , handleAction :: HookM' Unit -> HalogenM' a Unit
   , finalize :: HalogenM' a a
   }
 
-derive instance newtypeTestInterface :: Newtype (TestInterface a) _
+derive instance newtypeTestInterface :: Newtype (EvalSpec a) _
 
-mkInterface :: forall h a. (LogRef -> Hook' h a) -> TestInterface a
-mkInterface hookFn = wrap do
-  { initialize: runWithQueue (interpretUseHookFn Initialize hookFn)
-  , action: \act -> evalHookM (interpretUseHookFn Step hookFn) act
-  , finalize: runWithQueue (interpretUseHookFn Finalize hookFn)
+-- | WARNING: This should match with the implementation of `Hooks.component`, but
+-- | it can't use exactly the same code because we're using our own
+-- | `interpretUseHookFn`.
+mkEval :: forall h a. (LogRef -> Hook' h a) -> EvalSpec a
+mkEval hookFn = wrap do
+  { initialize:
+      runWithQueue (interpretUseHookFn Initialize hookFn)
+  , handleAction: \act ->
+      evalHookM (runWithQueue $ interpretUseHookFn Step hookFn) act
+  , finalize:
+      runWithQueue (interpretUseHookFn Finalize hookFn)
   }
 
 -- | `Halogen.Aff.Driver.Eval.evalM`, with an extra layer for logging.

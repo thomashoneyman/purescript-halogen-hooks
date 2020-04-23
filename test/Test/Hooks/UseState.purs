@@ -8,7 +8,7 @@ import Data.Tuple.Nested ((/\))
 import Halogen.Hooks (UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (TestInterface(..), evalM, mkInterface)
+import Test.Eval (EvalSpec(..), evalM, mkEval)
 import Test.Log (initDriver, logShouldBe)
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -22,11 +22,8 @@ useStateCount ref = Hooks.do
 stateHook :: Spec Unit
 stateHook = before initDriver $ describe "useState" do
   let
-    TestInterface { initialize, action, finalize } =
-      mkInterface useStateCount
-
-    hooksLog reason =
-      [ RunHooks reason, EvaluateHook UseStateHook, Render ]
+    EvalSpec { initialize, handleAction, finalize } = mkEval useStateCount
+    hooksLog reason = [ RunHooks reason, EvaluateHook UseStateHook, Render ]
 
   it "initializes to the proper initial state value" \ref -> do
     { count } <- evalM ref initialize
@@ -35,7 +32,7 @@ stateHook = before initDriver $ describe "useState" do
   it "updates state in response to actions" \ref -> do
     { count } <- evalM ref do
       { increment } <- initialize
-      action increment *> action increment
+      handleAction increment *> handleAction increment
       finalize
 
     count `shouldEqual` 2

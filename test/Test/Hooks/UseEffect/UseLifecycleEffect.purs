@@ -10,7 +10,7 @@ import Effect.Aff.Class (liftAff)
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (TestInterface(..), evalM, mkInterface)
+import Test.Eval (EvalSpec(..), evalM, mkEval)
 import Test.Log (initDriver, logShouldBe, writeLog)
 import Test.Spec (Spec, before, describe, it)
 import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
@@ -22,7 +22,7 @@ derive instance newtypeLogHook :: Newtype (LogHook h) _
 useLifecycleEffectLog :: LogRef -> Hook' LogHook { tick :: HookM' Unit }
 useLifecycleEffectLog log = Hooks.wrap Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
-  -- because lifecycle effects run only once
+  -- because lifecycle effects run only once.
   count /\ countState <- Hooks.useState 0
 
   Hooks.useLifecycleEffect do
@@ -35,8 +35,7 @@ useLifecycleEffectLog log = Hooks.wrap Hooks.do
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
   let
-    TestInterface { initialize, action, finalize } =
-      mkInterface useLifecycleEffectLog
+    EvalSpec { initialize, handleAction, finalize } = mkEval useLifecycleEffectLog
 
     hooksLog reason =
       [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
@@ -60,7 +59,7 @@ lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
   it "doesn't run the effect other than initialize / finalize" \ref -> do
     _ <- evalM ref do
       { tick } <- initialize
-      action tick *> action tick
+      handleAction tick *> handleAction tick
       finalize
 
     logShouldBe ref $ fold

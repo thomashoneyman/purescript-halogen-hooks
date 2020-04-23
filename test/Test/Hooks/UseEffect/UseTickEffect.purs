@@ -2,11 +2,94 @@ module Test.Hooks.UseEffect.UseTickEffect where
 
 import Prelude
 
-import Test.Spec (Spec, describe, pending)
+import Data.Array (replicate)
+import Data.Foldable (fold)
+import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype)
+import Data.Tuple.Nested ((/\))
+import Effect.Aff.Class (liftAff)
+import Halogen.Hooks (UseEffect, UseState)
+import Halogen.Hooks as Hooks
+import Halogen.Hooks.Component (InterpretHookReason(..))
+import Test.Eval (EvalSpec(..), evalM, mkEval)
+import Test.Log (initDriver, logShouldBe, writeLog)
+import Test.Spec (Spec, before, describe, it)
+import Test.Spec.Assertions (shouldEqual)
+import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
+
+newtype LogHook h = LogHook (UseEffect (UseState Boolean (UseState Int h)))
+
+derive instance newtypeLogHook :: Newtype (LogHook h) _
+
+useTickEffectLog :: LogRef -> Hook' LogHook { increment :: HookM' Unit, toggle :: HookM' Unit, count :: Int }
+useTickEffectLog log = Hooks.wrap Hooks.do
+  count /\ countState <- Hooks.useState 0
+  toggle /\ toggleState <- Hooks.useState false
+  useLogger { count }
+  Hooks.pure
+    { count
+    , increment: Hooks.modify_ countState (_ + 1)
+    , toggle: Hooks.modify_ toggleState not
+    }
+  where
+  useLogger deps@{ count } = Hooks.captures deps Hooks.useTickEffect do
+    liftAff $ writeLog (RunEffect EffectBody) log
+    pure $ Just do
+      liftAff $ writeLog (RunEffect EffectCleanup) log
 
 tickEffectHook :: Spec Unit
-tickEffectHook = describe "useTickEffect" do
-  pending "effect body runs on state change"
-  pending "effect cleanup runs on state change"
-  pending "effect is run when memos change"
-  pending "effect is skipped when memos are unchanged"
+tickEffectHook = before initDriver $ describe "useTickEffect" do
+  let
+    EvalSpec { initialize, handleAction, finalize } =
+      mkEval useTickEffectLog
+
+    hooksLog reason =
+      [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
+
+  it "effect runs on initialize and cleans up on finalize" \ref -> do
+    _ <- evalM ref (initialize *> finalize)
+    logShouldBe ref $ fold
+      [ hooksLog Initialize
+      , pure (RunEffect EffectBody)
+      , hooksLog Finalize
+      , pure (RunEffect EffectCleanup)
+      ]
+
+  it "effect runs on memo change and cleans up before next run" \ref -> do
+    { count } <- evalM ref do
+      { increment } <- initialize
+      handleAction increment *> handleAction increment
+      finalize
+
+    count `shouldEqual` 2
+    logShouldBe ref $ fold
+      [ hooksLog Initialize
+      , pure (RunEffect EffectBody)
+      , fold $ replicate 2 $ fold
+          [ pure ModifyState
+          , hooksLog Step
+          , pure (RunEffect EffectCleanup)
+          , pure (RunEffect EffectBody)
+          ]
+      , hooksLog Finalize
+      , pure (RunEffect EffectCleanup)
+      ]
+
+  it "effect is skipped when memos are unchanged" \ref -> do
+    { count } <- evalM ref do
+      { toggle } <- initialize
+      handleAction toggle *> handleAction toggle
+      finalize
+
+    logShouldBe ref $ fold
+      [ hooksLog Initialize
+      , pure (RunEffect EffectBody)
+      -- Unlike the previous test, there should not be successive effect cleanup
+      -- and evaluation during these evaluations because deps are unchanged
+      , fold $ replicate 2 $ fold
+          [ pure ModifyState
+          , hooksLog Step
+          ]
+      , hooksLog Finalize
+      , pure (RunEffect EffectCleanup)
+      ]
