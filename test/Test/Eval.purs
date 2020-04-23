@@ -48,24 +48,30 @@ interpretUseHookFn reason hookFn = do
 
   liftAff $ writeLog (RunHooks reason) log
   let Hooked (Indexed hookF) = hookFn log
-  a <- foldFree (interpretHook reason hookFn) hookF
+  a <- foldFree (interpretHook evalHookM reason hookFn) hookF
 
   liftAff $ writeLog Render log
   H.modify_ (over HookState _ { result = a })
   pure a
 
 -- | `Halogen.Hooks.Component.interpretHook`, with an extra layer for logging.
-interpretHook :: forall h a. InterpretHookReason -> (LogRef -> Hooked' h a) -> UseHookF' ~> HalogenM' a
-interpretHook reason hookFn = case _ of
+interpretHook
+  :: forall h a
+   . (HalogenM' a a -> HookM' ~> HalogenM' a)
+  -> InterpretHookReason
+  -> (LogRef -> Hooked' h a)
+  -> UseHookF'
+  ~> HalogenM' a
+interpretHook runHookM reason hookFn = case _ of
   c@(UseState initial reply) -> do
     { input: log } <- Component.getState
     liftAff $ writeLog (EvaluateHook UseStateHook) log
-    Component.interpretHook reason hookFn c
+    Component.interpretHook runHookM (\r -> interpretUseHookFn r hookFn) reason hookFn c
 
   c@(UseEffect _ _ _) -> do
     { input: log } <- Component.getState
     liftAff $ writeLog (EvaluateHook UseEffectHook) log
-    Component.interpretHook reason hookFn c
+    Component.interpretHook runHookM (\r -> interpretUseHookFn r hookFn) reason hookFn c
 
   c -> do
-    Component.interpretHook reason hookFn c
+    Component.interpretHook runHookM (\r -> interpretUseHookFn r hookFn) reason hookFn c
