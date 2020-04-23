@@ -5,7 +5,10 @@ module Test.Eval where
 import Prelude
 
 import Control.Monad.Free (foldFree, liftF)
+import Data.Const (Const)
+import Data.Coyoneda (unCoyoneda)
 import Data.Indexed (Indexed(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, over, wrap)
 import Effect.Aff (Aff)
 import Effect.Ref (Ref)
@@ -13,7 +16,7 @@ import Halogen (liftAff)
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Eval
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..), UseHookF(..))
-import Halogen.Hooks.Component (HookState(..), InterpretHookReason(..), runWithQueue)
+import Halogen.Hooks.Component (HookState(..), InterpretHookReason(..), fromQueryFn, runWithQueue)
 import Halogen.Hooks.Component as Component
 import Test.Log (writeLog)
 import Test.Types (DriverResultState, HalogenM', Hook', HookF', HookM', HookType(..), LogRef, TestEvent(..), UseHookF')
@@ -30,26 +33,43 @@ import Test.Types (DriverResultState, HalogenM', Hook', HookF', HookM', HookType
 -- |   handleAction myHookAction
 -- |   finalize
 -- | ```
-newtype EvalSpec a = EvalSpec
-  { initialize :: HalogenM' a a
-  , handleAction :: HookM' Unit -> HalogenM' a Unit
-  , finalize :: HalogenM' a a
-  }
+newtype Eval b a = Eval (H.HalogenQ (Const Void) (HookM' Unit) LogRef a -> HalogenM' b a)
 
-derive instance newtypeTestInterface :: Newtype (EvalSpec a) _
+derive instance newtypeTestInterface :: Newtype (Eval b a) _
 
--- | WARNING: This should match with the implementation of `Hooks.component`, but
--- | it can't use exactly the same code because we're using our own
--- | `interpretUseHookFn`.
-mkEval :: forall h a. (LogRef -> Hook' h a) -> EvalSpec a
-mkEval hookFn = wrap do
-  { initialize:
-      runWithQueue (interpretUseHookFn Initialize hookFn)
-  , handleAction: \act ->
-      evalHookM (runWithQueue $ interpretUseHookFn Step hookFn) act
-  , finalize:
-      runWithQueue (interpretUseHookFn Finalize hookFn)
-  }
+-- | TODO: By passing in `interpretUseHookFn` this can use the exact implementation
+-- | used by `mkComponent`, sharing as much code as possible. At that point only
+-- | the definition of `interpretUseHookFn` is any different.
+mkEval :: forall h b a. (LogRef -> Hook' h b) -> Eval b a
+mkEval hookFn = wrap case _ of
+  H.Initialize a -> do
+    _ <- runWithQueue $ interpretUseHookFn Initialize hookFn
+    pure a
+
+  H.Query q reply -> do
+    { queryFn } <- Component.getState
+    case queryFn of
+      Nothing ->
+        pure (reply unit)
+      Just fn -> do
+        let
+          runHooks =
+            runWithQueue $ interpretUseHookFn Step hookFn
+
+        evalHookM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
+
+  H.Action act a -> do
+    evalHookM (runWithQueue $ interpretUseHookFn Step hookFn) act
+    pure a
+
+  H.Receive input a -> do
+    Component.modifyState_ _ { input = input }
+    _ <- runWithQueue $ interpretUseHookFn Step hookFn
+    pure a
+
+  H.Finalize a -> do
+    _ <- runWithQueue $ interpretUseHookFn Finalize hookFn
+    pure a
 
 -- | `Halogen.Aff.Driver.Eval.evalM`, with an extra layer for logging.
 evalM :: forall r a. Ref (DriverResultState r a) -> HalogenM' a ~> Aff

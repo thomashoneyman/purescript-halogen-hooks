@@ -7,11 +7,12 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (liftAff)
+import Halogen as H
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (EvalSpec(..), evalM, mkEval)
-import Test.Log (initDriver, logShouldBe, writeLog)
+import Test.Eval (Eval(..), evalM, mkEval)
+import Test.Log (initDriver, logShouldBe, readResult, writeLog)
 import Test.Spec (Spec, before, describe, it)
 import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
 
@@ -35,20 +36,19 @@ useLifecycleEffectLog log = Hooks.wrap Hooks.do
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
   let
-    EvalSpec { initialize, handleAction, finalize } = mkEval useLifecycleEffectLog
-
+    Eval eval = mkEval useLifecycleEffectLog
     hooksLog reason =
       [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
 
   it "runs the effect on initialize" \ref -> do
-    _ <- evalM ref initialize
+    evalM ref $ eval $ H.tell H.Initialize
     logShouldBe ref $ fold
       [ hooksLog Initialize
       , pure (RunEffect EffectBody)
       ]
 
   it "runs the effect on initialize and finalize" \ref -> do
-    _ <- evalM ref (initialize *> finalize)
+    evalM ref $ (eval (H.tell H.Initialize) *> eval (H.tell H.Finalize))
     logShouldBe ref $ fold
       [ hooksLog Initialize
       , pure (RunEffect EffectBody)
@@ -57,10 +57,11 @@ lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
       ]
 
   it "doesn't run the effect other than initialize / finalize" \ref -> do
-    _ <- evalM ref do
-      { tick } <- initialize
-      handleAction tick *> handleAction tick
-      finalize
+    evalM ref do
+      eval $ H.tell H.Initialize
+      { tick } <- liftAff $ readResult ref
+      eval (H.tell $ H.Action tick) *> eval (H.tell $ H.Action tick)
+      eval $ H.tell H.Finalize
 
     logShouldBe ref $ fold
       [ hooksLog Initialize

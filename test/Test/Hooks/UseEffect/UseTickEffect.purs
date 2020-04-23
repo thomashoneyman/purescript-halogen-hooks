@@ -8,11 +8,12 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (liftAff)
+import Halogen as H
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (EvalSpec(..), evalM, mkEval)
-import Test.Log (initDriver, logShouldBe, writeLog)
+import Test.Eval (Eval(..), evalM, mkEval)
+import Test.Log (initDriver, logShouldBe, readResult, writeLog)
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
@@ -40,14 +41,12 @@ useTickEffectLog log = Hooks.wrap Hooks.do
 tickEffectHook :: Spec Unit
 tickEffectHook = before initDriver $ describe "useTickEffect" do
   let
-    EvalSpec { initialize, handleAction, finalize } =
-      mkEval useTickEffectLog
-
+    Eval eval = mkEval useTickEffectLog
     hooksLog reason =
       [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
 
   it "effect runs on initialize and cleans up on finalize" \ref -> do
-    _ <- evalM ref (initialize *> finalize)
+    evalM ref (eval (H.tell H.Initialize) *> eval (H.tell H.Finalize))
     logShouldBe ref $ fold
       [ hooksLog Initialize
       , pure (RunEffect EffectBody)
@@ -57,9 +56,11 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
 
   it "effect runs on memo change and cleans up before next run" \ref -> do
     { count } <- evalM ref do
-      { increment } <- initialize
-      handleAction increment *> handleAction increment
-      finalize
+      eval $ H.tell H.Initialize
+      { increment } <- liftAff $ readResult ref
+      eval (H.tell $ H.Action increment) *> eval (H.tell $ H.Action increment)
+      eval $ H.tell H.Finalize
+      liftAff $ readResult ref
 
     count `shouldEqual` 2
     logShouldBe ref $ fold
@@ -77,9 +78,11 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
 
   it "effect is skipped when memos are unchanged" \ref -> do
     { count } <- evalM ref do
-      { toggle } <- initialize
-      handleAction toggle *> handleAction toggle
-      finalize
+      eval $ H.tell H.Initialize
+      { toggle } <- liftAff $ readResult ref
+      eval (H.tell $ H.Action toggle) *> eval (H.tell $ H.Action toggle)
+      eval $ H.tell H.Finalize
+      liftAff $ readResult ref
 
     logShouldBe ref $ fold
       [ hooksLog Initialize
