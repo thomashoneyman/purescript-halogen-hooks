@@ -142,7 +142,6 @@ drainEvalQueue reason = do
   modifyState_ _ { evalQueue = [] }
   sequence_ evalQueue
   { evalQueue: newQueue } <- getState
-  let _ = unsafePerformEffect $ log $ "runUseHookFn - " <> show reason <> " - evalQueue length post sequencing: " <> (show $ Array.length newQueue)
   unless (Array.null newQueue) $ drainEvalQueue reason
 
 interpretUseHookFn
@@ -199,7 +198,6 @@ interpretUseHookFn reason hookFn = do
         Initialize -> do
           let
             eval = do
-              let _ = unsafePerformEffect $ log $ "now running effect that was stored in eval queue"
               mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
               let
                 finalizer = fromMaybe (pure unit) mbFinalizer
@@ -231,18 +229,12 @@ interpretUseHookFn reason hookFn = do
 
               if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos)
               then do
-                let _ = unsafePerformEffect $ log $ "tickEffect: memos changed"
                 let
                   eval = do
                     -- run finalizer
                     mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) do
-                      let _ = unsafePerformEffect $ log $ "tickEffect: running finalizer"
                       finalizer
-                      let _ = unsafePerformEffect $ log $ "tickEffect: finished finalizer"
-
-                      let _ = unsafePerformEffect $ log $ "tickEffect: rerunning initial effect"
                       mbFinalizer <- act
-                      let _ = unsafePerformEffect $ log $ "tickEffect: finished initial effect"
                       pure mbFinalizer
 
                     { effectCells: { queue: queueAtThisPoint } } <- getState
@@ -260,11 +252,9 @@ interpretUseHookFn reason hookFn = do
                      , effectCells { index = nextIndex }
                      }
               else do
-                let _ = unsafePerformEffect $ log $ "tickEffect: memos did not change"
                 modifyState_ _ { effectCells { index = nextIndex } }
 
             _, _ -> do
-              let _ = unsafePerformEffect $ log $ "useLifecycleEffect: no need to check memos"
               -- this branch is useLifecycleEffect, so
               -- just update the index
               modifyState_ _ { effectCells { index = nextIndex } }
