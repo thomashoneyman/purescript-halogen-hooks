@@ -9,13 +9,12 @@ import Halogen (liftAff)
 import Halogen as H
 import Halogen.Hooks (UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.Component (InterpretHookReason(..))
-import Halogen.Hooks.Component as Component
-import Test.Eval (evalHookM, evalM, interpretUseHookFn)
-import Test.Log (initDriver, logShouldBe, readResult)
+import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
+import Test.Setup.Eval (evalM, mkEval)
+import Test.Setup.Log (initDriver, logShouldBe, readResult)
+import Test.Setup.Types (Hook', HookM', HookType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
-import Test.Types (Hook', HookM', HookType(..), LogRef, TestEvent(..))
 
 useStateCount :: LogRef -> Hook' (UseState Int) { increment :: HookM' Unit, count :: Int }
 useStateCount ref = Hooks.do
@@ -25,7 +24,7 @@ useStateCount ref = Hooks.do
 stateHook :: Spec Unit
 stateHook = before initDriver $ describe "useState" do
   let
-    eval = Component.mkEval evalHookM interpretUseHookFn useStateCount
+    eval = mkEval useStateCount
     hooksLog reason = [ RunHooks reason, EvaluateHook UseStateHook, Render ]
 
   it "initializes to the proper initial state value" \ref -> do

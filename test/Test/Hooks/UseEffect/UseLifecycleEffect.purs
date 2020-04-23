@@ -10,12 +10,11 @@ import Effect.Aff.Class (liftAff)
 import Halogen as H
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.Component (InterpretHookReason(..))
-import Halogen.Hooks.Component as Component
-import Test.Eval (evalHookM, evalM, interpretUseHookFn)
-import Test.Log (initDriver, logShouldBe, readResult, writeLog)
+import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Spec (Spec, before, describe, it)
-import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..), Log)
+import Test.Setup.Eval (evalM, mkEval)
+import Test.Setup.Log (initDriver, logShouldBe, readResult, writeLog)
+import Test.Setup.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..), Log)
 
 newtype LogHook h = LogHook (UseEffect (UseState Int h))
 
@@ -37,8 +36,7 @@ useLifecycleEffectLog log = Hooks.wrap Hooks.do
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
   let
-    eval =
-      Component.mkEval evalHookM interpretUseHookFn useLifecycleEffectLog
+    eval = mkEval useLifecycleEffectLog
 
     hooksLog :: InterpretHookReason -> Log
     hooksLog reason =

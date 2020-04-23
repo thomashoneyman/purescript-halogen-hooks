@@ -1,4 +1,4 @@
-module Test.Types where
+module Test.Setup.Types where
 
 import Prelude
 
@@ -10,8 +10,9 @@ import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (Hook, HookF, HookM, Hooked, UseHookF)
-import Halogen.Hooks.Component (HookState, InterpretHookReason)
+import Halogen.Hooks (Hook, HookF, HookM, Hooked)
+import Halogen.Hooks.Internal.Eval.Types (HookState, InterpretHookReason)
+import Halogen.Hooks.Internal.UseHookF (UseHookF)
 
 type HookState' a = HookState (Const Void) LogRef () Void Aff a
 
@@ -27,7 +28,9 @@ type HookF' a = HookF () Void Aff a
 
 type HookM' a = HookM () Void Aff a
 
-type HalogenM' res a = H.HalogenM (HookState' res) (HookM' Unit) () Void Aff a
+type HalogenQ' a = H.HalogenQ (Const Void) (HookM' Unit) LogRef a
+
+type HalogenM' b a = H.HalogenM (HookState' b) (HookM' Unit) () Void Aff a
 
 type LogRef = Ref Log
 

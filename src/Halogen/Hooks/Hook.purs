@@ -1,8 +1,4 @@
-module Halogen.Hooks.UseHookF
-  ( Hook
-  , Hooked(..)
-  , UseHookF(..)
-  ) where
+module Halogen.Hooks.Hook where
 
 import Control.Applicative.Indexed (class IxApplicative)
 import Control.Apply.Indexed (class IxApply)
@@ -15,19 +11,8 @@ import Data.Maybe (Maybe)
 import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
 import Halogen.Hooks.HookM (HookM, StateToken)
-import Halogen.Hooks.Internal.Types (MemoValue, MemoValues, QueryToken, QueryValue, RefValue, StateValue)
+import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Prelude (class Functor, Unit)
-
--- | The Hook API: a set of primitive building blocks for writing stateful logic
--- | in Halogen.
-data UseHookF ps o m a
-  = UseState StateValue ((StateValue /\ StateToken StateValue) -> a)
-  | UseEffect (Maybe MemoValues) (HookM ps o m (Maybe (HookM ps o m Unit))) a
-  | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> HookM ps o m (Maybe b)) a
-  | UseMemo MemoValues (Unit -> MemoValue) (MemoValue -> a)
-  | UseRef RefValue ((RefValue /\ Ref RefValue) -> a)
-
-derive instance functorUseHookF :: Functor (UseHookF ps o m)
 
 -- | A largely internal type which underlies the `Hook` type. Used when the first
 -- | type variable of the indexed monad, `hooks`, cannot be hidden.

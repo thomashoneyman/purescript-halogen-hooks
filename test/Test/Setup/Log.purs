@@ -1,4 +1,4 @@
-module Test.Log where
+module Test.Setup.Log where
 
 import Prelude
 
@@ -12,9 +12,9 @@ import Effect.Ref as Ref
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks.Component (HookState(..))
+import Halogen.Hooks.Internal.Eval.Types (HookState(..))
 import Test.Spec.Assertions (shouldEqual)
-import Test.Types (DriverResultState, LogRef, TestEvent, Log)
+import Test.Setup.Types (DriverResultState, LogRef, TestEvent, Log)
 import Unsafe.Coerce (unsafeCoerce)
 
 logShouldBe :: forall r a. Ref (DriverResultState r a) -> Log -> Aff Unit
