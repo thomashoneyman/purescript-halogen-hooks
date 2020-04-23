@@ -235,18 +235,16 @@ interpretUseHookFn reason hookFn = do
                 let
                   eval = do
                     -- run finalizer
-                    let _ = unsafePerformEffect $ log $ "tickEffect: running finalizer"
-                    void $ evalHookM (interpretUseHookFn Queued hookFn) finalizer
-                    let _ = unsafePerformEffect $ log $ "tickEffect: finished finalizer"
+                    mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) do
+                      let _ = unsafePerformEffect $ log $ "tickEffect: running finalizer"
+                      finalizer
+                      let _ = unsafePerformEffect $ log $ "tickEffect: finished finalizer"
 
-                    let _ = unsafePerformEffect $ log $ "tickEffect: rerunning initial effect"
-                    -- rerun effect and get new finalizer (if any)
-                    mbFinalizer <- evalHookM (interpretUseHookFn Queued hookFn) act
-                    let _ = unsafePerformEffect $ log $ "tickEffect: finished initial effect. now storing new finalizer"
+                      let _ = unsafePerformEffect $ log $ "tickEffect: rerunning initial effect"
+                      mbFinalizer <- act
+                      let _ = unsafePerformEffect $ log $ "tickEffect: finished initial effect"
+                      pure mbFinalizer
 
-                    -- we can't use the `queue` binding from above as that would
-                    -- not include any other changes we made, so get the queue
-                    -- again here.
                     { effectCells: { queue: queueAtThisPoint } } <- getState
 
                     let
@@ -255,6 +253,7 @@ interpretUseHookFn reason hookFn = do
 
                       newQueue = unsafeSetCell index newValue queueAtThisPoint
                     modifyState_ \st -> st { effectCells { queue = newQueue } }
+                    runUseHookFn Step hookFn
 
                 modifyState_ \st ->
                   st { evalQueue = Array.snoc st.evalQueue eval
