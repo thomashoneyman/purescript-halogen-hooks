@@ -64,36 +64,7 @@ componentWithQuery inputUseHookFn = do
   H.mkComponent
     { initialState
     , render: \(HookState { result }) -> result
-    , eval: case _ of
-        H.Initialize a -> do
-          _ <- runWithQueue $ interpretUseHookFn Initialize hookFn
-          pure a
-
-        H.Query q reply -> do
-          { queryFn } <- getState
-          case queryFn of
-            Nothing ->
-              pure (reply unit)
-            Just fn -> do
-              let
-                runHooks =
-                  runWithQueue $ interpretUseHookFn Step hookFn
-
-              evalHookM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
-
-        H.Action act a -> do
-          evalHookM (interpretUseHookFn Step hookFn) act
-          _ <- runQueue
-          pure a
-
-        H.Receive input a -> do
-          modifyState_ _ { input = input }
-          _ <- runWithQueue $ interpretUseHookFn Step hookFn
-          pure a
-
-        H.Finalize a -> do
-          _ <- runWithQueue $ interpretUseHookFn Finalize hookFn
-          pure a
+    , eval: mkEval evalHookM interpretUseHookFn hookFn
     }
 
 initialState
@@ -113,6 +84,43 @@ initialState input =
         , evalQueue: []
         }
     }
+
+-- | By passing in `interpretUseHookFn` this can use the exact implementation
+-- | used by `mkComponent`, sharing as much code as possible. At that point only
+-- | the definition of `interpretUseHookFn` is any different.
+mkEval
+  :: forall h q i ps o m b a
+   . (H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m b -> HookM ps o m ~> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m)
+  -> (InterpretHookReason -> (i -> Hooked ps o m Unit h b) -> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m b)
+  -> (i -> Hooked ps o m Unit h b)
+  -> H.HalogenQ q (HookM ps o m Unit) i a
+  -> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m a
+mkEval runHookM runHook hookFn = case _ of
+  H.Initialize a -> do
+    _ <- runWithQueue $ runHook Initialize hookFn
+    pure a
+
+  H.Query q reply -> do
+    { queryFn } <- getState
+    case queryFn of
+      Nothing ->
+        pure (reply unit)
+      Just fn -> do
+        let runHooks = runWithQueue $ runHook Step hookFn
+        runHookM runHooks $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
+
+  H.Action act a -> do
+    runHookM (runWithQueue $ runHook Step hookFn) act
+    pure a
+
+  H.Receive input a -> do
+    modifyState_ _ { input = input }
+    _ <- runWithQueue $ runHook Step hookFn
+    pure a
+
+  H.Finalize a -> do
+    _ <- runWithQueue $ runHook Finalize hookFn
+    pure a
 
 data InterpretHookReason
   = Initialize

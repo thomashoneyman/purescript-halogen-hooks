@@ -11,10 +11,11 @@ import Halogen as H
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Component (InterpretHookReason(..))
-import Test.Eval (Eval(..), evalM, mkEval)
+import Halogen.Hooks.Component as Component
+import Test.Eval (evalHookM, evalM, interpretUseHookFn)
 import Test.Log (initDriver, logShouldBe, readResult, writeLog)
 import Test.Spec (Spec, before, describe, it)
-import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
+import Test.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..), Log)
 
 newtype LogHook h = LogHook (UseEffect (UseState Int h))
 
@@ -36,7 +37,10 @@ useLifecycleEffectLog log = Hooks.wrap Hooks.do
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
   let
-    Eval eval = mkEval useLifecycleEffectLog
+    eval =
+      Component.mkEval evalHookM interpretUseHookFn useLifecycleEffectLog
+
+    hooksLog :: InterpretHookReason -> Log
     hooksLog reason =
       [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
 

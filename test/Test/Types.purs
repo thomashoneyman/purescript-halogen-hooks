@@ -10,12 +10,14 @@ import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (Hook, HookF, HookM, UseHookF)
+import Halogen.Hooks (Hook, HookF, HookM, Hooked, UseHookF)
 import Halogen.Hooks.Component (HookState, InterpretHookReason)
 
 type HookState' a = HookState (Const Void) LogRef () Void Aff a
 
 type DriverResultState r a = DriverState HH.HTML r (HookState' a) (Const Void) (HookM' Unit) () LogRef Void
+
+type Hooked' hookType a = Hooked () Void Aff Unit hookType a
 
 type Hook' hookType a = Hook () Void Aff hookType a
 
