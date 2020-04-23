@@ -12,7 +12,7 @@ import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval)
 import Test.Setup.Log (initDriver, logShouldBe, readResult)
-import Test.Setup.Types (Hook', HookM', HookType(..), LogRef, TestEvent(..))
+import Test.Setup.Types (Hook', HookM', LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -25,7 +25,7 @@ stateHook :: Spec Unit
 stateHook = before initDriver $ describe "useState" do
   let
     eval = mkEval useStateCount
-    hooksLog reason = [ RunHooks reason, EvaluateHook UseStateHook, Render ]
+    hooksLog reason = [ RunHooks reason, Render ]
 
   it "initializes to the proper initial state value" \ref -> do
     { count } <- evalM ref do

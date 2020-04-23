@@ -1,6 +1,6 @@
 module Halogen.Hooks.Internal.Eval where
 
-import Prelude (type (~>), Unit, bind, const, discard, map, not, pure, unit, void, ($), (*>), (+), (-), (<), (<<<), (=<<), (||))
+import Prelude
 
 import Control.Applicative.Free (hoistFreeAp, retractFreeAp)
 import Control.Monad.Free (foldFree, liftF)
@@ -61,8 +61,9 @@ mkEval runHookM runHook hookFn = case _ of
   where
   runHookAndEffects reason = do
     _ <- runHook reason hookFn
-    sequence_ <<< _.evalQueue =<< getState
+    { evalQueue } <- getState
     modifyState_ _ { evalQueue = [] }
+    sequence_ evalQueue
     H.gets (_.result <<< unwrap)
 
 interpretHook

@@ -13,7 +13,6 @@ import Halogen (liftAff)
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..))
-import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason)
 import Prelude (type (~>), bind, discard, mempty, pure, ($))
@@ -45,15 +44,16 @@ interpretHook
   -> UseHookF'
   ~> HalogenM' a
 interpretHook runHookM runHook reason hookFn = case _ of
-  c@(UseState initial reply) -> do
-    { input: log } <- Hooks.Eval.getState
-    liftAff $ writeLog (EvaluateHook UseStateHook) log
-    Hooks.Eval.interpretHook runHookM runHook reason hookFn c
+  {-
+    Left here as an example of how to insert logging into this test, but logging
+    hook evaluation is too noisy at the moment. If this is needed in a special
+    case, then this can be provided as an alternate interpreter to `mkEval`.
 
-  c@(UseEffect _ _ _) -> do
-    { input: log } <- Hooks.Eval.getState
-    liftAff $ writeLog (EvaluateHook UseEffectHook) log
-    Hooks.Eval.interpretHook runHookM runHook reason hookFn c
+    c@(UseState initial reply) -> do
+      { input: log } <- Hooks.Eval.getState
+      liftAff $ writeLog (EvaluateHook UseStateHook) log
+      Hooks.Eval.interpretHook runHookM runHook reason hookFn c
+  -}
 
   c -> do
     Hooks.Eval.interpretHook runHookM runHook reason hookFn c

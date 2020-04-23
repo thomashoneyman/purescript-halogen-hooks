@@ -5,20 +5,26 @@ import Prelude
 import Data.Array as Array
 import Data.Maybe (Maybe(..))
 import Data.Newtype (unwrap)
-import Effect.Aff (Aff)
+import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks.Internal.Eval.Types (HookState(..))
-import Test.Spec.Assertions (shouldEqual)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent, Log)
+import Test.Spec.Assertions (shouldEqual)
 import Unsafe.Coerce (unsafeCoerce)
 
 logShouldBe :: forall r a. Ref (DriverResultState r a) -> Log -> Aff Unit
 logShouldBe ref x = readLog ref >>= shouldEqual x
+
+unsafeWriteLog :: TestEvent -> LogRef -> Unit
+unsafeWriteLog event ref = do
+  let _ = unsafePerformEffect $ launchAff_ $ writeLog event ref
+  unit
 
 writeLog :: TestEvent -> LogRef -> Aff Unit
 writeLog event ref = liftEffect do

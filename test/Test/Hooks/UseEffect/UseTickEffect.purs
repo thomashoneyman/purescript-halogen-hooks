@@ -14,7 +14,7 @@ import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval)
 import Test.Setup.Log (initDriver, logShouldBe, readResult, writeLog)
-import Test.Setup.Types (EffectType(..), Hook', HookM', HookType(..), LogRef, TestEvent(..))
+import Test.Setup.Types (EffectType(..), Hook', HookM', LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -42,8 +42,7 @@ tickEffectHook :: Spec Unit
 tickEffectHook = before initDriver $ describe "useTickEffect" do
   let
     eval = mkEval useTickEffectLog
-    hooksLog reason =
-      [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
+    hooksLog reason = [ RunHooks reason, Render ]
 
   it "effect runs on initialize and cleans up on finalize" \ref -> do
     evalM ref (eval (H.tell H.Initialize) *> eval (H.tell H.Finalize))

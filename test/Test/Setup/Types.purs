@@ -37,9 +37,10 @@ type LogRef = Ref Log
 type Log = Array TestEvent
 
 data TestEvent
-  = ModifyState
+  = RunHooks InterpretHookReason
+  | ModifyState
   | RunEffect EffectType
-  | RunHooks InterpretHookReason
+  | RunMemo MemoType
   | EvaluateHook HookType
   | Render
 
@@ -67,4 +68,12 @@ derive instance eqEffectType :: Eq EffectType
 derive instance genericEffectType :: Generic EffectType _
 
 instance showEffectType :: Show EffectType where
+  show = genericShow
+
+data MemoType = CalculateMemo Int
+
+derive instance eqMemoType :: Eq MemoType
+derive instance genericMemoType :: Generic MemoType _
+
+instance showMemoType :: Show MemoType where
   show = genericShow

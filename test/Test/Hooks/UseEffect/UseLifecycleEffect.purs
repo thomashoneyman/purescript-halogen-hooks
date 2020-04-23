@@ -39,8 +39,7 @@ lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
     eval = mkEval useLifecycleEffectLog
 
     hooksLog :: InterpretHookReason -> Log
-    hooksLog reason =
-      [ RunHooks reason, EvaluateHook UseStateHook, EvaluateHook UseEffectHook, Render ]
+    hooksLog reason = [ RunHooks reason, Render ]
 
   it "runs the effect on initialize" \ref -> do
     evalM ref $ eval $ H.tell H.Initialize
