@@ -7,12 +7,7 @@ import Control.Monad.Free (Free)
 import Control.Monad.Indexed (class IxMonad)
 import Data.Functor.Indexed (class IxFunctor)
 import Data.Indexed (Indexed)
-import Data.Maybe (Maybe)
-import Data.Tuple.Nested (type (/\))
-import Effect.Ref (Ref)
-import Halogen.Hooks.HookM (HookM, StateToken)
-import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Prelude (class Functor, Unit)
+import Halogen.Hooks.Internal.UseHookF (UseHookF)
 
 -- | A function which has access to primitive and custom hooks like UseState,
 -- | UseEffect, UseRef, and UseMemo. Hook functions can be used to implement

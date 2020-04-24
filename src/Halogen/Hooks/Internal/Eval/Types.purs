@@ -3,13 +3,11 @@ module Halogen.Hooks.Internal.Eval.Types where
 import Prelude
 
 import Data.Maybe (Maybe)
-import Data.Newtype (class Newtype, unwrap)
-import Data.Tuple.Nested (type (/\), (/\))
+import Data.Newtype (class Newtype)
+import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
-import Effect.Ref as Ref
-import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
-import Halogen.Hooks.HookM (HookM(..))
+import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Types (MemoValues)
 import Halogen.Hooks.Internal.Types (StateValue, MemoValue, RefValue)
 import Unsafe.Coerce (unsafeCoerce)

@@ -1,19 +1,13 @@
 module Halogen.Hooks.Internal.UseHookF where
 
-import Control.Applicative.Indexed (class IxApplicative)
-import Control.Apply.Indexed (class IxApply)
-import Control.Bind.Indexed (class IxBind)
-import Control.Monad.Free (Free)
-import Control.Monad.Indexed (class IxMonad)
-import Data.Functor.Indexed (class IxFunctor)
-import Data.Indexed (Indexed)
+import Prelude
+
 import Data.Maybe (Maybe)
 import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
 import Halogen.Hooks.HookM (HookM, StateToken)
 import Halogen.Hooks.Types (MemoValues, QueryToken)
 import Halogen.Hooks.Internal.Types (MemoValue, QueryValue, RefValue, StateValue)
-import Prelude (class Functor, Unit)
 
 -- | The Hook API: a set of primitive building blocks for writing stateful logic
 -- | in Halogen. These should not be used directly; the hook functions supplied
