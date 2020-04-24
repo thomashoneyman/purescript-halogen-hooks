@@ -17,16 +17,14 @@ module Halogen.Hooks
 
   -- Hook types and helpers
   , module Halogen.Hooks.Component
-  , module Halogen.Hooks.Internal.Types
-  , module Halogen.Hooks.UseHookF
+  , module Halogen.Hooks.Hook
+  , module Halogen.Hooks.HookM
+  , module Halogen.Hooks.Types
 
   -- Helpers
   , captures
   , capturesWith
   , wrap
-
-  -- HookM, which supports the same functions as HalogenM
-  , module Halogen.Hooks.HookM
 
   -- Qualified do
   , bind
@@ -47,10 +45,11 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
+import Halogen.Hooks.Hook (Hook, Hooked(..))
 import Halogen.Hooks.Component (component, componentWithQuery)
-import Halogen.Hooks.Internal.Types (MemoValues, QueryToken)
+import Halogen.Hooks.Types (MemoValues, QueryToken)
 import Halogen.Hooks.Internal.Types as IT
-import Halogen.Hooks.UseHookF (Hook, UseHookF(..), Hooked(..))
+import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 

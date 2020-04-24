@@ -10,8 +10,11 @@
     "clean": "rm -rf .spago output node_modules *.lock",
     "build": "spago build",
     "build:examples": "spago -x examples/examples.dhall build",
+    "build:test": "spago -x test/test.dhall build",
     "watch": "spago build --watch",
     "watch:examples": "spago -x examples/examples.dhall build --watch",
+    "watch:test": "spago -x test/test.dhall test --watch",
+    "test": "spago -x test/test.dhall test",
     "bundle": "spago -x examples/examples.dhall bundle-app --main Example.Main --to examples/app.js"
   }
 }

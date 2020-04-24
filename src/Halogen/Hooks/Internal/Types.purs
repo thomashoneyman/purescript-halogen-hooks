@@ -1,5 +1,6 @@
 module Halogen.Hooks.Internal.Types where
 
+import Halogen.Hooks.Types
 import Foreign.Object (Object)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -11,8 +12,6 @@ toStateValue = unsafeCoerce
 fromStateValue :: forall state. StateValue -> state
 fromStateValue = unsafeCoerce
 
-foreign import data QueryToken :: (Type -> Type) -> Type
-
 foreign import data QueryValue :: Type -> Type
 
 toQueryValue :: forall q a. q a -> QueryValue a
@@ -21,7 +20,7 @@ toQueryValue = unsafeCoerce
 fromQueryValue :: forall q a. QueryValue a -> q a
 fromQueryValue = unsafeCoerce
 
-foreign import data MemoValues :: Type
+foreign import data MemoValue :: Type
 
 type MemoValuesImpl =
   { eq :: Object MemoValue -> Object MemoValue -> Boolean
@@ -41,8 +40,6 @@ toMemoValues = unsafeCoerce
 
 fromMemoValues :: MemoValues -> MemoValuesImpl
 fromMemoValues = unsafeCoerce
-
-foreign import data MemoValue :: Type
 
 toMemoValue :: forall memo. memo -> MemoValue
 toMemoValue = unsafeCoerce
