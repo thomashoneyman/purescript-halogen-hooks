@@ -1,5 +1,9 @@
 # Halogen Hooks
 
+![CI](https://github.com/thomashoneyman/purescript-halogen-hooks/workflows/CI/badge.svg?branch=master)
+[![Latest release](http://img.shields.io/github/release/thomashoneyman/purescript-halogen-hooks.svg)](https://github.com/thomashoneyman/purescript-halogen-hooks/releases)
+[![Latest package set](https://img.shields.io/endpoint.svg?url=https://package-sets-badge-0lf69kxs4fbd.runkit.sh/halogen-hooks)](https://github.com/purescript/package-sets)
+
 Reusable stateful logic for Halogen, inspired by [React Hooks](https://reactjs.org/docs/hooks-intro.html).
 
 Hooks offer a simpler mental model for writing stateful code in Halogen. They are a better alternative to higher-order and renderless components and offer a more convenient way to write most ordinary components. They can be incrementally adopted and require no changes to existing components in your application.
