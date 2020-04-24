@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  install:
+  build:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,11 +24,6 @@ jobs:
     - name: Install Spago
       run: npm install -g spago
 
-  build:
-    needs: [install]
-    runs-on: ubuntu-latest
-
-    steps:
     - name: Build source
       run: npm run build
     
@@ -38,10 +33,5 @@ jobs:
     - name: Build tests
       run: npm run build:test
 
-  test:
-    needs: [build]
-    runs-on: ubuntu-latest
-
-    steps:
     - name: Run tests
       run: npm run test
