@@ -33,7 +33,11 @@ mkEval
   -> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m a
 mkEval runHookM runHook hookFn = case _ of
   H.Initialize a -> do
+    -- initialize all hooks and enqueue effects
     _ <- runHookAndEffects Initialize
+    -- now check all tick effects memos in case initial
+    -- effects modified them
+    _ <- runHookAndEffects Step
     pure a
 
   H.Query q reply -> do
@@ -148,11 +152,12 @@ interpretHook runHookM runHook reason hookFn = case _ of
             if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
               let
                 eval = do
-                  -- run finalizer
-                  void $ runHookM (runHook Queued) finalizer
-
                   -- rerun effect and get new finalizer (if any)
-                  mbFinalizer <- runHookM (runHook Queued) act
+                  mbFinalizer <- runHookM (runHook Queued) do
+                    -- run the finalizer
+                    finalizer
+                    -- now run the actual effect, which produces mbFinalizer
+                    act
 
                   { effectCells: { queue: queue' } } <- getState
 
@@ -162,6 +167,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
                     newQueue = unsafeSetCell index newValue queue'
 
                   modifyState_ _  { effectCells { queue = newQueue } }
+                  -- now rerun all hooks in case the finalizer and initializer
+                  -- modified state, which should trigger other
+                  -- useTickEffects' effects
+                  void $ runHook Step
 
               modifyState_ \st -> st
                 { evalQueue = Array.snoc st.evalQueue eval
