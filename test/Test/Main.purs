@@ -8,6 +8,7 @@ import Test.Hooks.UseEffect (effectHook)
 import Test.Hooks.UseMemo (memoHook)
 import Test.Hooks.UseRef (refHook)
 import Test.Hooks.UseState (stateHook)
+import Test.Hooks.Multiple.Bug5 (rerunTickAfterInitialEffectsHook)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
 
@@ -17,3 +18,4 @@ main = launchAff_ $ runSpec [ consoleReporter ] do
   effectHook
   memoHook
   refHook
+  rerunTickAfterInitialEffectsHook
