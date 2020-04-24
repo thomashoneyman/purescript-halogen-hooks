@@ -16,7 +16,7 @@ import Halogen.Hooks.Internal.UseHookF (UseHookF)
 
 type HookState' a = HookState (Const Void) LogRef () Void Aff a
 
-type DriverResultState r a = DriverState HH.HTML r (HookState' a) (Const Void) (HookM' Unit) () LogRef Void
+type DriverResultState r q a = DriverState HH.HTML r (HookState' a) q (HookM' Unit) () LogRef Void
 
 type Hooked' hookType a = Hooked () Void Aff Unit hookType a
 

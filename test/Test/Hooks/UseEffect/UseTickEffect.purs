@@ -7,13 +7,12 @@ import Data.Foldable (fold)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
-import Effect.Aff.Class (liftAff)
 import Halogen as H
 import Halogen.Hooks (UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, mkEval)
-import Test.Setup.Log (initDriver, logShouldBe, readResult, writeLog)
+import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), Hook', HookM', LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -34,64 +33,62 @@ useTickEffectLog log = Hooks.wrap Hooks.do
     }
   where
   useLogger deps@{ count } = Hooks.captures deps Hooks.useTickEffect do
-    liftAff $ writeLog (RunEffect EffectBody) log
+    writeLog (RunEffect EffectBody) log
     pure $ Just do
-      liftAff $ writeLog (RunEffect EffectCleanup) log
+      writeLog (RunEffect EffectCleanup) log
 
 tickEffectHook :: Spec Unit
 tickEffectHook = before initDriver $ describe "useTickEffect" do
-  let
-    eval = mkEval useTickEffectLog
-    hooksLog reason = [ RunHooks reason, Render ]
+  let eval = mkEval useTickEffectLog
 
   it "effect runs on initialize and cleans up on finalize" \ref -> do
-    evalM ref (eval (H.tell H.Initialize) *> eval (H.tell H.Finalize))
-    logShouldBe ref $ fold
-      [ hooksLog Initialize
-      , pure (RunEffect EffectBody)
-      , hooksLog Finalize
-      , pure (RunEffect EffectCleanup)
-      ]
+    evalM ref $ eval H.Initialize *> eval H.Finalize
+    logShouldBe ref $ fold [ initializeSteps, finalizeSteps ]
 
   it "effect runs on memo change and cleans up before next run" \ref -> do
     { count } <- evalM ref do
-      eval $ H.tell H.Initialize
-      { increment } <- liftAff $ readResult ref
-      eval (H.tell $ H.Action increment) *> eval (H.tell $ H.Action increment)
-      eval $ H.tell H.Finalize
-      liftAff $ readResult ref
+      eval H.Initialize
+
+      { increment } <- readResult ref
+      eval (H.Action increment) *> eval (H.Action increment)
+
+      eval H.Finalize
+      readResult ref
 
     count `shouldEqual` 2
     logShouldBe ref $ fold
-      [ hooksLog Initialize
-      , pure (RunEffect EffectBody)
-      , fold $ replicate 2 $ fold
-          [ pure ModifyState
-          , hooksLog Step
-          , pure (RunEffect EffectCleanup)
-          , pure (RunEffect EffectBody)
+      [ initializeSteps
+      , fold $ replicate 2
+          [ ModifyState
+          , RunHooks Step
+          , Render
+          , RunEffect EffectCleanup
+          , RunEffect EffectBody
           ]
-      , hooksLog Finalize
-      , pure (RunEffect EffectCleanup)
+      , finalizeSteps
       ]
 
   it "effect is skipped when memos are unchanged" \ref -> do
     { count } <- evalM ref do
-      eval $ H.tell H.Initialize
-      { toggle } <- liftAff $ readResult ref
-      eval (H.tell $ H.Action toggle) *> eval (H.tell $ H.Action toggle)
-      eval $ H.tell H.Finalize
-      liftAff $ readResult ref
+      eval H.Initialize
 
+      { toggle } <- readResult ref
+      eval (H.Action toggle) *> eval (H.Action toggle)
+
+      eval H.Finalize
+      readResult ref
+
+    -- Unlike the previous test, there should not be successive effect cleanup
+    -- and evaluation during hook evaluations because deps are unchanged.
     logShouldBe ref $ fold
-      [ hooksLog Initialize
-      , pure (RunEffect EffectBody)
-      -- Unlike the previous test, there should not be successive effect cleanup
-      -- and evaluation during these evaluations because deps are unchanged
-      , fold $ replicate 2 $ fold
-          [ pure ModifyState
-          , hooksLog Step
-          ]
-      , hooksLog Finalize
-      , pure (RunEffect EffectCleanup)
+      [ initializeSteps
+      , fold $ replicate 2 [ ModifyState, RunHooks Step, Render ]
+      , finalizeSteps
       ]
+
+  where
+  initializeSteps =
+    [ RunHooks Initialize, Render, RunEffect EffectBody ]
+
+  finalizeSteps =
+    [ RunHooks Finalize, Render, RunEffect EffectCleanup ]

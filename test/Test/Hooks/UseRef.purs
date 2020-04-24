@@ -2,15 +2,16 @@ module Test.Hooks.UseRef where
 
 import Prelude
 
+import Data.Foldable (fold)
 import Data.Tuple.Nested ((/\))
 import Effect.Ref as Ref
-import Halogen (liftAff, liftEffect)
+import Halogen (liftEffect)
 import Halogen as H
 import Halogen.Hooks (UseRef)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, mkEval)
-import Test.Setup.Log (initDriver, logShouldBe, readResult)
+import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Log (logShouldBe, readResult)
 import Test.Setup.Types (Hook', HookM', LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
@@ -26,45 +27,47 @@ refHook = before initDriver $ describe "useRef" do
 
   it "initializes to the proper initial value" \ref -> do
     { count } <- evalM ref do
-      eval $ H.tell H.Initialize
-      liftAff $ readResult ref
+      eval H.Initialize
+      readResult ref
 
     count `shouldEqual` 0
 
   it "updates state in response to actions" \ref -> do
     { count } <- evalM ref do
-      eval $ H.tell H.Initialize
-      { increment } <- liftAff $ readResult ref
+      eval H.Initialize
 
-      eval (H.tell $ H.Action increment)
-        *> eval (H.tell $ H.Action increment)
-        *> eval (H.tell $ H.Action increment)
+      { increment } <- readResult ref
+      eval (H.Action increment)
+      eval (H.Action increment)
+      eval (H.Action increment)
 
-      eval $ H.tell $ H.Finalize
-      liftAff $ readResult ref
+      eval H.Finalize
+      readResult ref
 
     count `shouldEqual` 3
 
   it "does not cause re-evaluation when value updates" \ref -> do
     { count } <- evalM ref do
-      eval $ H.tell H.Initialize
-      { increment } <- liftAff $ readResult ref
+      eval H.Initialize
 
-      eval (H.tell $ H.Action increment)
-        *> eval (H.tell $ H.Action increment)
-        *> eval (H.tell $ H.Action increment)
-        *> eval (H.tell $ H.Action increment)
+      { increment } <- readResult ref
+      eval (H.Action increment)
+      eval (H.Action increment)
+      eval (H.Action increment)
+      eval (H.Action increment)
 
-      eval $ H.tell $ H.Finalize
-      liftAff $ readResult ref
+      eval H.Finalize
+      readResult ref
 
     count `shouldEqual` 4
-    logShouldBe ref do
-      [ RunHooks Initialize
-      , Render
 
-      -- despite multiple increments there should be no further hook evaluation
+    -- despite multiple increments there should be no hook evaluation outside
+    -- of the initializer and finalizer
+    logShouldBe ref $ fold [ initializeSteps, finalizeSteps ]
 
-      , RunHooks Finalize
-      , Render
-      ]
+  where
+  initializeSteps =
+    [ RunHooks Initialize, Render ]
+
+  finalizeSteps =
+    [ RunHooks Finalize, Render ]
