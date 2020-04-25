@@ -8,9 +8,11 @@ import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Hooks.HookM (HookM)
+import Halogen.Hooks.Internal.Types (MemoValue, OutputValue, RefValue, SlotType, StateValue)
 import Halogen.Hooks.Types (MemoValues)
-import Halogen.Hooks.Internal.Types (StateValue, MemoValue, RefValue)
 import Unsafe.Coerce (unsafeCoerce)
+
+type HalogenM' q i m b a = H.HalogenM (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
 
 data InterpretHookReason
   = Initialize
@@ -27,27 +29,27 @@ instance showInterpretHookReason :: Show InterpretHookReason where
     Step -> "Step"
     Finalize -> "Finalize"
 
-foreign import data QueryFn :: (Type -> Type) -> # Type -> Type -> (Type -> Type) -> Type
+foreign import data QueryFn :: (Type -> Type) -> (Type -> Type) -> Type
 
-toQueryFn :: forall q ps o m. (forall a. q a -> HookM ps o m (Maybe a)) -> QueryFn q ps o m
+toQueryFn :: forall q m. (forall a. q a -> HookM m (Maybe a)) -> QueryFn q m
 toQueryFn = unsafeCoerce
 
-fromQueryFn :: forall q ps o m. QueryFn q ps o m -> (forall a. q a -> HookM ps o m (Maybe a))
+fromQueryFn :: forall q m. QueryFn q m -> (forall a. q a -> HookM m (Maybe a))
 fromQueryFn = unsafeCoerce
 
-newtype HookState q i ps o m a = HookState
+newtype HookState q i m a = HookState
   { result :: a
-  , stateRef :: Ref (InternalHookState q i ps o m a)
+  , stateRef :: Ref (InternalHookState q i m a)
   }
 
-derive instance newtypeHookState :: Newtype (HookState q i ps o m a) _
+derive instance newtypeHookState :: Newtype (HookState q i m a) _
 
-type InternalHookState q i ps o m a =
+type InternalHookState q i m a =
   { input :: i
-  , queryFn :: Maybe (QueryFn q ps o m)
-  , evalQueue :: Array (H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit)
+  , queryFn :: Maybe (QueryFn q m)
+  , evalQueue :: Array (H.HalogenM (HookState q i m a) (HookM m Unit) SlotType OutputValue m Unit)
   , stateCells :: QueueState StateValue
-  , effectCells :: QueueState ((Maybe MemoValues) /\ HookM ps o m Unit)
+  , effectCells :: QueueState ((Maybe MemoValues) /\ HookM m Unit)
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
   }

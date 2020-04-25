@@ -12,9 +12,10 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Types (QueryToken)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
 import Halogen.Hooks.Internal.Eval.Types (HookState(..))
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
+import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
@@ -29,10 +30,10 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |   ... hook implementation
 -- | ```
 component
-  :: forall hooks i ps o m
-   . (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
-  -> (forall q. H.Component HH.HTML q i o m)
-component hookFn = componentWithQuery (\_ i -> hookFn i)
+  :: forall hooks i m
+   . (forall ps. i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
+  -> (forall q o. H.Component HH.HTML q i o m)
+component hookFn = componentWithTokens (\_ i -> hookFn i)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`,
 -- | enabling the resulting component to use queries.
@@ -44,12 +45,18 @@ component hookFn = componentWithQuery (\_ i -> hookFn i)
 -- |   Hooks.useQuery queryToken handleQuery
 -- |   ... hook implementation
 -- | ```
-componentWithQuery
+componentWithTokens
   :: forall hooks q i ps o m
-   . (QueryToken q -> i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
+   . (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
   -> H.Component HH.HTML q i o m
-componentWithQuery inputHookFn = do
-  let hookFn = inputHookFn (unsafeCoerce unit :: QueryToken q)
+componentWithTokens inputHookFn = do
+  let
+    hookFn = inputHookFn
+      { queryToken: unsafeCoerce unit :: QueryToken q
+      , slotToken: unsafeCoerce unit :: SlotToken ps
+      , outputToken: unsafeCoerce unit :: OutputToken o
+      }
+
   H.mkComponent
     { initialState
     , render: \(HookState { result }) -> result
