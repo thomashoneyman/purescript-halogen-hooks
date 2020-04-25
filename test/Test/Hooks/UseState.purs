@@ -15,10 +15,21 @@ import Test.Setup.Types (Hook', HookM', LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-useStateCount :: LogRef -> Hook' (UseState Int) { increment :: HookM' Unit, count :: Int }
+type StateCount =
+  { count :: Int
+  , increment :: HookM' Unit
+  , getState :: HookM' Int
+  }
+
+useStateCount :: LogRef -> Hook' (UseState Int) StateCount
 useStateCount ref = Hooks.do
   count /\ countState <- Hooks.useState 0
-  Hooks.pure { count, increment: Hooks.modify_ countState (_ + 1) }
+
+  Hooks.pure
+    { count
+    , increment: Hooks.modify_ countState (_ + 1)
+    , getState: Hooks.get countState
+    }
 
 stateHook :: Spec Unit
 stateHook = before initDriver $ describe "useState" do
@@ -44,7 +55,25 @@ stateHook = before initDriver $ describe "useState" do
 
     count `shouldEqual` 2
     logShouldBe ref $ fold
-      [ [ RunHooks Initialize, Render ]
+      [ initializeSteps
       , fold $ replicate 2 [ ModifyState, RunHooks Step, Render ]
-      , [ RunHooks Finalize, Render ]
+      , finalizeSteps
       ]
+
+  it "does not evaluate on calls to get state, only modifications" \ref -> do
+    evalM ref do
+      eval H.Initialize
+
+      { getState } <- readResult ref
+      eval (H.Action (getState *> pure unit))
+
+    -- There should be no calls to `ModifyState` or any hook evaluations except
+    -- for the initializer
+    logShouldBe ref initializeSteps
+
+  where
+  initializeSteps =
+    [ RunHooks Initialize, Render ]
+
+  finalizeSteps =
+    [ RunHooks Finalize, Render ]
