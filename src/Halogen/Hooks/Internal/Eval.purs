@@ -23,6 +23,7 @@ import Halogen.Hooks.Internal.Eval.Types (HookState, InternalHookState, Interpre
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Partial.Unsafe (unsafePartial)
+import Unsafe.Reference (unsafeRefEq)
 
 mkEval
   :: forall h q i ps o m b a
@@ -265,10 +266,20 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
   interpretHalogenHook = case _ of
     Modify (StateToken token) f reply -> do
       state <- getState
-      let v = f (unsafeGetCell token state.stateCells.queue)
-      putState $ state { stateCells { queue = unsafeSetCell token v state.stateCells.queue } }
-      _ <- runHooks
-      pure (reply v)
+
+      let
+        current = unsafeGetCell token state.stateCells.queue
+        next = f current
+
+      -- Like Halogen's implementation, `Modify` covers both get and set
+      -- calls to state. We can use the same `unsafeRefEq` technique to
+      -- ensure calls to `get` don't trigger evaluations.
+      unless (unsafeRefEq current next) do
+        let newQueue = unsafeSetCell token next
+        putState $ state { stateCells { queue = newQueue state.stateCells.queue } }
+        void runHooks
+
+      pure (reply next)
 
     Subscribe eventSource reply ->
       H.HalogenM $ liftF $ H.Subscribe eventSource reply

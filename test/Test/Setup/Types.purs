@@ -30,6 +30,8 @@ type HookM' a = HookM () Void Aff a
 
 type HalogenQ' a = H.HalogenQ (Const Void) (HookM' Unit) LogRef a
 
+type HalogenF' b a = H.HalogenF (HookState' b) (HookM' Unit) () Void Aff a
+
 type HalogenM' b a = H.HalogenM (HookState' b) (HookM' Unit) () Void Aff a
 
 type LogRef = Ref Log

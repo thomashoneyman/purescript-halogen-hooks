@@ -2,29 +2,54 @@
 -- the logic is correct.
 module Test.Setup.Eval where
 
-import Test.Setup.Types
+import Prelude
 
 import Control.Monad.Free (foldFree, liftF)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
-import Data.Newtype (over)
+import Data.Newtype (over, unwrap)
+import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
-import Halogen.Aff.Driver.State (DriverState, DriverStateX, initDriverState)
+import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason)
-import Prelude (type (~>), Unit, bind, compose, discard, map, mempty, pure, unit, ($))
 import Test.Setup.Log (writeLog)
+import Test.Setup.Types (DriverResultState, HalogenF', HalogenM', HalogenQ', HookF', HookM', Hooked', LogRef, TestEvent(..), UseHookF')
 import Unsafe.Coerce (unsafeCoerce)
+import Unsafe.Reference (unsafeRefEq)
 
 evalM :: forall r q a. Ref (DriverResultState r q a) -> HalogenM' a ~> Aff
-evalM initRef = Aff.Driver.Eval.evalM mempty initRef
+evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
+  where
+  go :: HalogenF' a ~> HalogenM' a
+  go = case _ of
+    c@(H.State f) -> do
+      -- We'll report renders the same way Halogen triggers them: successful
+      -- state modifications.
+      DriverState { state } <- liftEffect $ Ref.read ref
+      case f state of
+        Tuple a state'
+          | unsafeRefEq state state' ->
+              -- Halogen has determined referential equality here, and so it will
+              -- not trigger a re-render.
+              pure unit
+          | otherwise -> do
+              -- Halogen has determined a state update has occurred and will now
+              -- render again.
+              { input } <- liftEffect $ Ref.read (unwrap state).stateRef
+              writeLog Render input
+
+      H.HalogenM $ liftF c
+
+    c ->
+      H.HalogenM $ liftF c
 
 evalHookM :: forall a. HalogenM' a a -> HookM' ~> HalogenM' a
 evalHookM runHooks (HookM hm) = foldFree go hm
@@ -32,8 +57,14 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   go :: HookF' ~> HalogenM' a
   go = case _ of
     c@(Modify (StateToken token) f reply) -> do
-      { input } <- Hooks.Eval.getState
-      writeLog ModifyState input -- technically could be get or modify
+      state <- Hooks.Eval.getState
+      let v = Hooks.Eval.unsafeGetCell token state.stateCells.queue
+
+      -- Calls to `get` should not trigger evaluation. This matches with the
+      -- underlying implementation of `evalHookM` and Halogen's `evalM`.
+      unless (unsafeRefEq v (f v)) do
+        writeLog ModifyState state.input
+
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
     c ->
@@ -80,8 +111,6 @@ mkEvalQuery = Hooks.Eval.mkEval evalHookM (interpretUseHookFn evalHookM)
 
     writeLog (RunHooks reason) input
     a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
-
-    writeLog Render input
     H.modify_ (over HookState _ { result = a })
     pure a
 
