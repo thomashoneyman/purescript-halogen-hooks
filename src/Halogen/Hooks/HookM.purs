@@ -45,8 +45,8 @@ data HookF m a
   | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
-  | ChildQuery (SlotToken SlotType) (CQ.ChildQueryBox SlotType a)
-  | Raise (OutputToken OutputValue) OutputValue a
+  | ChildQuery (CQ.ChildQueryBox SlotType a)
+  | Raise OutputValue a
   | Par (HookAp m a)
   | Fork (HookM m Unit) (H.ForkId -> a)
   | Kill H.ForkId a
@@ -164,18 +164,12 @@ put token state = modify_ token (const state)
 
 -- | Raise an output message for the component.
 raise :: forall o m. OutputToken o -> o -> HookM m Unit
-raise token o = HookM $ liftF $ Raise token' o' unit
-  where
-  token' :: OutputToken OutputValue
-  token' = unsafeCoerce token
-
-  o' :: OutputValue
-  o' = toOutputValue o
+raise _ o = HookM $ liftF $ Raise (toOutputValue o) unit
 
 -- | Send a query to a child of a component at the specified slot
 query
   :: forall m label ps query o' slot a _1
-   . Row.Cons label (H.Slot query o' slot) _1 SlotType -- TODO: Verify this is safe
+   . Row.Cons label (H.Slot query o' slot) _1 ps
   => IsSymbol label
   => Ord slot
   => SlotToken ps
@@ -184,16 +178,16 @@ query
   -> query a
   -> HookM m (Maybe a)
 query token label p q =
-  HookM $ liftF $ ChildQuery token' $ CQ.mkChildQueryBox do
+  HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> maybe (pure Nothing) k <<< Slot.lookup label p) q identity
   where
-  token' :: SlotToken SlotType
-  token' = unsafeCoerce token
+  box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
+  box = unsafeCoerce
 
 -- | Sends a query to all children of a component at a given slot label.
 queryAll
   :: forall m label ps query o' slot a _1
-   . Row.Cons label (H.Slot query o' slot) _1 SlotType -- TODO: Verify this is safe
+   . Row.Cons label (H.Slot query o' slot) _1 ps
   => IsSymbol label
   => Ord slot
   => SlotToken ps
@@ -201,11 +195,11 @@ queryAll
   -> query a
   -> HookM m (Map slot a)
 queryAll token label q =
-  HookM $ liftF $ ChildQuery token' $ CQ.mkChildQueryBox $
+  HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> map catMapMaybes <<< traverse k <<< Slot.slots label) q identity
   where
-  token' :: SlotToken SlotType
-  token' = unsafeCoerce token
+  box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
+  box = unsafeCoerce
 
   catMapMaybes :: forall k v. Ord k => Map k (Maybe v) -> Map k v
   catMapMaybes = foldrWithIndex (\k v acc -> maybe acc (flip (Map.insert k) acc) v) Map.empty

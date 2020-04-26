@@ -45,11 +45,11 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
+import Halogen.Hooks.Component (component, componentWithTokens)
 import Halogen.Hooks.Hook (Hook, Hooked(..))
-import Halogen.Hooks.Component (component, componentWithQuery)
-import Halogen.Hooks.Types (MemoValues, QueryToken)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
+import Halogen.Hooks.Types (MemoValues, QueryToken, StateToken(..))
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -69,7 +69,7 @@ foreign import data UseState :: Type -> Type -> Type
 -- |       Hooks.put stateTokenA stateA
 -- |       Hooks.modify_ stateTokenB (_ + 10)
 -- | ```
-useState :: forall state ps o m. state -> Hook ps o m (UseState state) (state /\ StateToken state)
+useState :: forall state m. state -> Hook m (UseState state) (state /\ StateToken state)
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
@@ -85,10 +85,7 @@ foreign import data UseEffect :: Type -> Type
 -- | is equivalent to component initializers and finalizers.
 -- |
 -- | If you would like to run your effect after every render, see `useTickEffect`.
-useLifecycleEffect
-  :: forall ps o m
-   . HookM ps o m (Maybe (HookM ps o m Unit))
-  -> Hook ps o m UseEffect Unit
+useLifecycleEffect :: forall m. HookM m (Maybe (HookM m Unit)) -> Hook m UseEffect Unit
 useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 
 -- | A Hook providing the ability to run an effect after every render, which
@@ -113,10 +110,10 @@ useLifecycleEffect fn = Hooked $ Indexed $ liftF $ UseEffect Nothing fn unit
 -- |   ...
 -- | ```
 useTickEffect
-  :: forall ps o m
+  :: forall m
    . MemoValues
-  -> HookM ps o m (Maybe (HookM ps o m Unit))
-  -> Hook ps o m UseEffect Unit
+  -> HookM m (Maybe (HookM m Unit))
+  -> Hook m UseEffect Unit
 useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn unit
 
 foreign import data UseQuery :: Type -> Type
@@ -129,16 +126,16 @@ foreign import data UseQuery :: Type -> Type
 -- | If this Hook is used multiple times in a single component definition, only
 -- | the last use will take effect.
 useQuery
-  :: forall query ps o m
+  :: forall query m
    . QueryToken query
-  -> (forall a. query a -> HookM ps o m (Maybe a))
-  -> Hook ps o m UseQuery Unit
+  -> (forall a. query a -> HookM m (Maybe a))
+  -> Hook m UseQuery Unit
 useQuery token handler = Hooked $ Indexed $ liftF $ UseQuery token' handler' unit
   where
   token' :: QueryToken IT.QueryValue
   token' = unsafeCoerce token
 
-  handler' :: forall a. IT.QueryValue a -> HookM ps o m (Maybe a)
+  handler' :: forall a. IT.QueryValue a -> HookM m (Maybe a)
   handler' = handler <<< IT.fromQueryValue
 
 foreign import data UseMemo :: Type -> Type -> Type
@@ -172,7 +169,7 @@ foreign import data UseMemo :: Type -> Type -> Type
 -- |   useExpensive deps@{ x, y } = Hooks.captures deps $ flip Hooks.useMemo \_ ->
 -- |     expensiveFunction x y
 -- | ```
-useMemo :: forall ps o m a. MemoValues -> (Unit -> a) -> Hook ps o m (UseMemo a) a
+useMemo :: forall m a. MemoValues -> (Unit -> a) -> Hook m (UseMemo a) a
 useMemo memos fn = Hooked $ Indexed $ liftF $ UseMemo memos to from
   where
   to :: Unit -> IT.MemoValue
@@ -202,7 +199,7 @@ foreign import data UseRef :: Type -> Type -> Type
 -- | -- Use the last-read value directly in render code
 -- | Hooks.pure $ HH.text (show value)
 -- | ```
-useRef :: forall ps o m a. a -> Hook ps o m (UseRef a) (a /\ Ref a)
+useRef :: forall m a. a -> Hook m (UseRef a) (a /\ Ref a)
 useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
   where
   initialValue' :: IT.RefValue
@@ -227,10 +224,10 @@ useRef initialValue = Hooked $ Indexed $ liftF $ UseRef initialValue' interface
 -- |   ... -- hook definition goes here
 -- | ```
 wrap
-  :: forall hooks internalHooks wrappedHooks ps o m a
+  :: forall hooks internalHooks wrappedHooks m a
    . Newtype wrappedHooks internalHooks
-  => Hooked ps o m hooks internalHooks a
-  -> Hooked ps o m hooks wrappedHooks a
+  => Hooked m hooks internalHooks a
+  -> Hooked m hooks wrappedHooks a
 wrap hook = ibind hook (Hooked <<< Indexed <<< Applicative.pure)
 
 -- | Used to improve performance for hooks which may be expensive to run on

@@ -9,10 +9,18 @@ import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Types (MemoValue, OutputValue, RefValue, SlotType, StateValue)
-import Halogen.Hooks.Types (MemoValues)
+import Halogen.Hooks.Types (MemoValues, OutputToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 type HalogenM' q i m b a = H.HalogenM (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
+
+toHalogenM
+  :: forall q i ps o m b a
+   . SlotToken ps
+  -> OutputToken o
+  -> HalogenM' q i m b a
+  -> H.HalogenM (HookState q i m b) (HookM m Unit) ps o m a
+toHalogenM slotToken outputToken hm = unsafeCoerce hm
 
 data InterpretHookReason
   = Initialize

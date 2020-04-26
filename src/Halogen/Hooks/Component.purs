@@ -13,8 +13,7 @@ import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
-import Halogen.Hooks.Internal.Eval.Types (HookState(..))
-import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
+import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
 import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -51,16 +50,15 @@ componentWithTokens
   -> H.Component HH.HTML q i o m
 componentWithTokens inputHookFn = do
   let
-    hookFn = inputHookFn
-      { queryToken: unsafeCoerce unit :: QueryToken q
-      , slotToken: unsafeCoerce unit :: SlotToken ps
-      , outputToken: unsafeCoerce unit :: OutputToken o
-      }
+    queryToken = unsafeCoerce unit :: QueryToken q
+    slotToken = unsafeCoerce unit :: SlotToken ps
+    outputToken = unsafeCoerce unit :: OutputToken o
+    hookFn = inputHookFn { queryToken, slotToken, outputToken }
 
   H.mkComponent
     { initialState
     , render: \(HookState { result }) -> result
-    , eval: mkEval evalHookM (interpretUseHookFn evalHookM) hookFn
+    , eval: toHalogenM slotToken outputToken <<< mkEval evalHookM (interpretUseHookFn evalHookM) hookFn
     }
   where
   -- WARNING: If you update this function, make sure to apply the same update

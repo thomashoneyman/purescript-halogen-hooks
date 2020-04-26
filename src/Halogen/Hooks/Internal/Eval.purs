@@ -32,7 +32,7 @@ mkEval
   -> (InterpretHookReason -> (i -> Hooked m Unit h b) -> HalogenM' q i m b b)
   -> (i -> Hooked m Unit h b)
   -> H.HalogenQ q (HookM m Unit) i a
-  -> HalogenM q i m b a
+  -> HalogenM' q i m b a
 mkEval runHookM runHook hookFn = case _ of
   H.Initialize a -> do
     _ <- runHookAndEffects Initialize
@@ -254,9 +254,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
         modifyState_ _ { refCells { index = nextIndex } }
         pure $ reply $ Tuple value ref
 
-evalHookM
-  :: forall q i ps o m a
-   . HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
+evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
 evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
   where
   interpretHalogenHook :: HookF m ~> HalogenM' q i m a
@@ -287,12 +285,10 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
     Lift f ->
       H.HalogenM $ liftF $ H.Lift f
 
-    -- TODO: Is this safe?
-    ChildQuery token box ->
+    ChildQuery box ->
       H.HalogenM $ liftF $ H.ChildQuery box
 
-    -- TODO: Is this safe?
-    Raise token o a ->
+    Raise o a ->
       H.raise o *> pure a
 
     Par (HookAp p) ->
