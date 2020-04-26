@@ -9,7 +9,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.Types (ComponentTokens)
 
 type Slot = H.Slot Query Message
 
@@ -17,7 +16,7 @@ data Query a = IsOn (Boolean -> a)
 
 data Message = Toggled Boolean
 
-type Tokens = ComponentTokens Query () Message
+type Tokens = Hooks.ComponentTokens Query () Message
 
 component :: forall i m. H.Component HH.HTML Query i Message m
 component = Hooks.component \({ queryToken, outputToken } :: Tokens) _ -> Hooks.do
