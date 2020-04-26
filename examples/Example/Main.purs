@@ -51,7 +51,7 @@ examples =
     ]
   where
   index :: forall q i o m. H.Component HH.HTML q i o m
-  index = Hooks.component \_ -> Hooks.pure do
+  index = Hooks.component \_ _ -> Hooks.pure do
     HH.div_
       [ HH.h1_
         [ HH.text "Halogen Hooks" ]

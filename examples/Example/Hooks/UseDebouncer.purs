@@ -30,11 +30,11 @@ type Debouncer =
   }
 
 useDebouncer
-  :: forall slots output m a
+  :: forall m a
    . MonadAff m
   => Milliseconds
-  -> (a -> HookM slots output m Unit)
-  -> Hook slots output m (UseDebouncer a) (a -> HookM slots output m Unit)
+  -> (a -> HookM m Unit)
+  -> Hook m (UseDebouncer a) (a -> HookM m Unit)
 useDebouncer ms fn = Hooks.wrap Hooks.do
   _ /\ debounceRef <- Hooks.useRef Nothing
   _ /\ valRef <- Hooks.useRef Nothing

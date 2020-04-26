@@ -45,11 +45,11 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
-import Halogen.Hooks.Component (component, componentWithTokens)
+import Halogen.Hooks.Component (component)
 import Halogen.Hooks.Hook (Hook, Hooked(..))
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (MemoValues, QueryToken, StateToken(..))
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateToken(..))
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 

@@ -9,6 +9,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
+import Halogen.Hooks.Types (ComponentTokens)
 
 type Slot = H.Slot Query Message
 
@@ -16,8 +17,10 @@ data Query a = IsOn (Boolean -> a)
 
 data Message = Toggled Boolean
 
+type Tokens = ComponentTokens Query () Message
+
 component :: forall i m. H.Component HH.HTML Query i Message m
-component = Hooks.componentWithQuery \queryToken _ -> Hooks.do
+component = Hooks.component \({ queryToken, outputToken } :: Tokens) _ -> Hooks.do
   enabled /\ enabledState <- Hooks.useState false
 
   Hooks.useQuery queryToken case _ of
@@ -30,7 +33,7 @@ component = Hooks.componentWithQuery \queryToken _ -> Hooks.do
 
     handleClick = Just do
       isEnabled <- Hooks.modify enabledState not
-      Hooks.raise (Toggled isEnabled)
+      Hooks.raise outputToken (Toggled isEnabled)
 
   Hooks.pure do
     HH.button

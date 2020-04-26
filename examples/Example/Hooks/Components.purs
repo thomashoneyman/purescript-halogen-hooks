@@ -20,7 +20,7 @@ import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
 
 windowWidth :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-windowWidth = Hooks.component \_ -> Hooks.do
+windowWidth = Hooks.component \_ _ -> Hooks.do
   width <- useWindowWidth
   Hooks.pure do
     HH.div_
@@ -30,7 +30,7 @@ windowWidth = Hooks.component \_ -> Hooks.do
       ]
 
 previousValue :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-previousValue = Hooks.component \_ -> Hooks.do
+previousValue = Hooks.component \_ _ -> Hooks.do
   count /\ countState <- Hooks.useState 0
   prevCount <- usePreviousValue count
 
@@ -47,7 +47,7 @@ previousValue = Hooks.component \_ -> Hooks.do
       ]
 
 localStorage :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-localStorage = Hooks.component \_ -> Hooks.do
+localStorage = Hooks.component \_ _ -> Hooks.do
   value /\ valueState <- useLocalStorage
     { defaultValue: 0
     , fromJson: decodeJson
@@ -77,7 +77,7 @@ localStorage = Hooks.component \_ -> Hooks.do
       ]
 
 debouncer :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-debouncer = Hooks.component \_ -> Hooks.do
+debouncer = Hooks.component \_ _ -> Hooks.do
   text /\ textState <- Hooks.useState ""
   dbText /\ dbTextState <- Hooks.useState ""
 

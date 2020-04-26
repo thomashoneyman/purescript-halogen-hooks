@@ -14,7 +14,7 @@ import Halogen.Hooks as Hooks
 type State = Maybe Number
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
-component = Hooks.component \_ -> Hooks.do
+component = Hooks.component \_ _ -> Hooks.do
   state /\ _state <- Hooks.useState Nothing
 
   let
