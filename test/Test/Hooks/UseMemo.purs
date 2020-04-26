@@ -5,13 +5,14 @@ import Prelude
 import Data.Foldable (fold)
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
+import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (UseMemo, UseState)
+import Halogen.Hooks (HookM(..), UseMemo, UseState, Hook)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval, initDriver)
 import Test.Setup.Log (logShouldBe, readResult, unsafeWriteLog)
-import Test.Setup.Types (Hook', HookM', LogRef, MemoType(..), TestEvent(..))
+import Test.Setup.Types (LogRef, MemoType(..), TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -21,15 +22,15 @@ newtype MemoHook h =
 derive instance newtypeMemoHook :: Newtype (MemoHook h) _
 
 type MemoCount =
-  { incrementA :: HookM' Unit
-  , incrementB :: HookM' Unit
-  , incrementC :: HookM' Unit
+  { incrementA :: HookM Aff Unit
+  , incrementB :: HookM Aff Unit
+  , incrementC :: HookM Aff Unit
   , expensive1 :: Int
   , expensive2 :: Int
   , expensive3 :: Int
   }
 
-useMemoCount :: LogRef -> Hook' MemoHook MemoCount
+useMemoCount :: LogRef -> Hook Aff MemoHook MemoCount
 useMemoCount log = Hooks.wrap Hooks.do
   s1 /\ ts1 <- Hooks.useState 0
   s2 /\ ts2 <- Hooks.useState 0

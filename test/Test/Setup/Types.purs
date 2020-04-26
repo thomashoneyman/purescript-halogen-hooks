@@ -2,7 +2,6 @@ module Test.Setup.Types where
 
 import Prelude
 
-import Data.Const (Const)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Effect.Aff (Aff)
@@ -10,29 +9,13 @@ import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (Hook, HookF, HookM, Hooked)
+import Halogen.Hooks (HookM)
 import Halogen.Hooks.Internal.Eval.Types (HookState, InterpretHookReason)
-import Halogen.Hooks.Internal.UseHookF (UseHookF)
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 
-type HookState' a = HookState (Const Void) LogRef () Void Aff a
+type HalogenF' q i m b a = H.HalogenF (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
 
-type DriverResultState r q a = DriverState HH.HTML r (HookState' a) q (HookM' Unit) () LogRef Void
-
-type Hooked' hookType a = Hooked () Void Aff Unit hookType a
-
-type Hook' hookType a = Hook () Void Aff hookType a
-
-type UseHookF' a = UseHookF () Void Aff a
-
-type HookF' a = HookF () Void Aff a
-
-type HookM' a = HookM () Void Aff a
-
-type HalogenQ' a = H.HalogenQ (Const Void) (HookM' Unit) LogRef a
-
-type HalogenF' b a = H.HalogenF (HookState' b) (HookM' Unit) () Void Aff a
-
-type HalogenM' b a = H.HalogenM (HookState' b) (HookM' Unit) () Void Aff a
+type DriverResultState r q a = DriverState HH.HTML r (HookState q LogRef Aff a) q (HookM Aff Unit) SlotType LogRef OutputValue
 
 type LogRef = Ref Log
 
@@ -64,7 +47,7 @@ derive instance genericHookType :: Generic HookType _
 instance showHookType :: Show HookType where
   show = genericShow
 
-data EffectType = EffectBody | EffectCleanup
+data EffectType = EffectBody Int | EffectCleanup Int
 
 derive instance eqEffectType :: Eq EffectType
 derive instance genericEffectType :: Generic EffectType _
