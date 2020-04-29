@@ -68,7 +68,7 @@ refHook = before initDriver $ describe "useRef" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render ]
+    [ RunHooks Initialize, Render, RunHooks Step, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]

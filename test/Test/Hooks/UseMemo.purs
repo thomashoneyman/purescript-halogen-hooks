@@ -120,7 +120,7 @@ memoHook = before initDriver $ describe "useMemo" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, RunMemo (CalculateMemo 1), RunMemo (CalculateMemo 2), RunMemo (CalculateMemo 3), Render ]
+    [ RunHooks Initialize, RunMemo (CalculateMemo 1), RunMemo (CalculateMemo 2), RunMemo (CalculateMemo 3), Render, RunHooks Step, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]

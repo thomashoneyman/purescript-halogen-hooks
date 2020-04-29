@@ -74,7 +74,7 @@ stateHook = before initDriver $ describe "useState" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render ]
+    [ RunHooks Initialize, Render, RunHooks Step, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]

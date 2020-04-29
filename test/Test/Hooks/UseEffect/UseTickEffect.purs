@@ -89,7 +89,7 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunEffect (EffectBody 0) ]
+    [ RunHooks Initialize, Render, RunEffect (EffectBody 0), RunHooks Step, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render, RunEffect (EffectCleanup 0) ]
