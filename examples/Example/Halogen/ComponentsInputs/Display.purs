@@ -9,7 +9,7 @@ import Halogen.Hooks as Hooks
 type Input = Int
 
 component :: forall q o m. H.Component HH.HTML q Input o m
-component = Hooks.component \input -> Hooks.pure do
+component = Hooks.component \_ input -> Hooks.pure do
   HH.div_
     [ HH.text "My input value is: "
     , HH.strong_ [ HH.text $ show input ]

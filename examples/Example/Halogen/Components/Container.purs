@@ -16,7 +16,7 @@ _button :: SProxy "button"
 _button = SProxy
 
 component :: forall q i o m. H.Component HH.HTML q i o m
-component = Hooks.component \_ -> Hooks.do
+component = Hooks.component \{ slotToken } _ -> Hooks.do
   toggleCount /\ toggleCountState <- Hooks.useState 0
   buttonStatus /\ buttonStatusState <- Hooks.useState Nothing
 
@@ -25,7 +25,7 @@ component = Hooks.component \_ -> Hooks.do
       Hooks.modify_ toggleCountState (_ + 1)
 
     handleClick = Just do
-      Hooks.put buttonStatusState =<< Hooks.query _button unit (H.request Button.IsOn)
+      Hooks.put buttonStatusState =<< Hooks.query slotToken _button unit (H.request Button.IsOn)
 
   Hooks.pure do
     HH.div_

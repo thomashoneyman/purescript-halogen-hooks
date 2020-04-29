@@ -15,9 +15,6 @@ newtype UseInitializer hooks = UseInitializer (UseEffect hooks)
 
 derive instance newtypeUseInitializer :: Newtype (UseInitializer hooks) _
 
-useInitializer
-  :: forall slots output m
-   . HookM slots output m Unit
-  -> Hook slots output m UseInitializer Unit
+useInitializer :: forall m. HookM m Unit -> Hook m UseInitializer Unit
 useInitializer initializer = Hooks.wrap do
   Hooks.useLifecycleEffect (initializer *> pure Nothing)

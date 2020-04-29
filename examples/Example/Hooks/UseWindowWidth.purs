@@ -12,9 +12,8 @@ import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (Hook, HookM, StateToken, UseEffect, UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Hooks.HookM (StateToken)
 import Halogen.Query.EventSource as ES
 import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (EventType(..))
@@ -27,7 +26,7 @@ newtype UseWindowWidth hooks = UseWindowWidth (UseEffect (UseState (Maybe Int) h
 
 derive instance newtypeUseWindowWidth :: Newtype (UseWindowWidth hooks) _
 
-useWindowWidth :: forall slots output m. MonadAff m => Hook slots output m UseWindowWidth (Maybe Int)
+useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap Hooks.do
   width /\ widthState <- Hooks.useState Nothing
 
@@ -37,7 +36,7 @@ useWindowWidth = Hooks.wrap Hooks.do
 
   Hooks.pure width
   where
-  subscribeToWindow :: StateToken (Maybe Int) -> HookM slots output m H.SubscriptionId
+  subscribeToWindow :: StateToken (Maybe Int) -> HookM m H.SubscriptionId
   subscribeToWindow widthState = do
     let readWidth = Hooks.put widthState <<< Just <=< liftEffect <<< Window.innerWidth
 

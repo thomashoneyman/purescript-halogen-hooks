@@ -20,6 +20,16 @@ toQueryValue = unsafeCoerce
 fromQueryValue :: forall q a. QueryValue a -> q a
 fromQueryValue = unsafeCoerce
 
+foreign import data SlotType :: # Type
+
+foreign import data OutputValue :: Type
+
+toOutputValue :: forall output. output -> OutputValue
+toOutputValue = unsafeCoerce
+
+fromOutputValue :: forall output. OutputValue -> output
+fromOutputValue = unsafeCoerce
+
 foreign import data MemoValue :: Type
 
 type MemoValuesImpl =

@@ -13,22 +13,24 @@ import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Halogen (HalogenQ)
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason)
+import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Test.Setup.Log (writeLog)
-import Test.Setup.Types (DriverResultState, HalogenF', HalogenM', HalogenQ', HookF', HookM', Hooked', LogRef, TestEvent(..), UseHookF')
+import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
-evalM :: forall r q a. Ref (DriverResultState r q a) -> HalogenM' a ~> Aff
+evalM :: forall r q b. Ref (DriverResultState r q b) -> HalogenM' q LogRef Aff b ~> Aff
 evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
   where
-  go :: HalogenF' a ~> HalogenM' a
+  go :: HalogenF' q LogRef Aff b ~> HalogenM' q LogRef Aff b
   go = case _ of
     c@(H.State f) -> do
       -- We'll report renders the same way Halogen triggers them: successful
@@ -51,10 +53,10 @@ evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
     c ->
       H.HalogenM $ liftF c
 
-evalHookM :: forall a. HalogenM' a a -> HookM' ~> HalogenM' a
+evalHookM :: forall q a. HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a
 evalHookM runHooks (HookM hm) = foldFree go hm
   where
-  go :: HookF' ~> HalogenM' a
+  go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
     c@(Modify (StateToken token) f reply) -> do
       state <- Hooks.Eval.getState
@@ -72,13 +74,13 @@ evalHookM runHooks (HookM hm) = foldFree go hm
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
 interpretHook
-  :: forall h a
-   . (HalogenM' a a -> HookM' ~> HalogenM' a)
-  -> (InterpretHookReason -> HalogenM' a a)
+  :: forall h q a
+   . (HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a)
+  -> (InterpretHookReason -> HalogenM' q LogRef Aff a a)
   -> InterpretHookReason
-  -> (LogRef -> Hooked' h a)
-  -> UseHookF'
-  ~> HalogenM' a
+  -> (LogRef -> Hooked Aff Unit h a)
+  -> UseHookF Aff
+  ~> HalogenM' q LogRef Aff a
 interpretHook runHookM runHook reason hookFn = case _ of
   {-
     Left here as an example of how to insert logging into this test, but logging
@@ -96,10 +98,18 @@ interpretHook runHookM runHook reason hookFn = case _ of
 
 -- | Hooks.Eval.mkEval, specialized to local evalHookHm and interpretUseHookFn
 -- | functions, and pre-specialized to `Unit` for convenience.
-mkEval :: forall h b. (LogRef -> Hooked' h b) -> (Unit -> HalogenQ' Unit) -> HalogenM' b Unit
+mkEval
+  :: forall h q b
+   . (LogRef -> Hooked Aff Unit h b)
+  -> (Unit -> HalogenQ q (HookM Aff Unit) LogRef Unit)
+  -> HalogenM' q LogRef Aff b Unit
 mkEval h = mkEvalQuery h `compose` H.tell
 
-mkEvalQuery :: forall h b a. (LogRef -> Hooked' h b) -> HalogenQ' a -> HalogenM' b a
+mkEvalQuery
+  :: forall h q b a
+   . (LogRef -> Hooked Aff Unit h b)
+  -> HalogenQ q (HookM Aff Unit) LogRef a
+  -> HalogenM' q LogRef Aff b a
 mkEvalQuery = Hooks.Eval.mkEval evalHookM (interpretUseHookFn evalHookM)
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in

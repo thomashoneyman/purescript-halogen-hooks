@@ -12,48 +12,46 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Types (QueryToken)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
-import Halogen.Hooks.Internal.Eval.Types (HookState(..))
+import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
+import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
 -- |
--- | Components that ought to receive continuous input from a parent component
--- | should be defined as a `Hook` with one argument, the `input` type. The
--- | resulting component will re-render every time new input is received.
+-- | Tokens are provided which enable access to component-only features like
+-- | queries, output messages, and child slots, which don't make sense in a pure
+-- | Hook context.
 -- |
 -- | ```purs
 -- | myComponent :: forall q i o m. H.Component q i o m
--- | myComponent = Hooks.component \input -> Hooks.do
+-- | myComponent = Hooks.component \tokens input -> Hooks.do
+-- |   ... hook implementation
+-- | ```
+-- |
+-- | If you don't need to use tokens or input, you can use underscores to throw
+-- | away those arguments.
+-- |
+-- | ```purs
+-- | myComponent :: forall q i o m. H.Component q i o m
+-- | myComponent = Hooks.component \_ _ -> Hooks.do
 -- |   ... hook implementation
 -- | ```
 component
-  :: forall hooks i ps o m
-   . (i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
-  -> (forall q. H.Component HH.HTML q i o m)
-component hookFn = componentWithQuery (\_ i -> hookFn i)
-
--- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`,
--- | enabling the resulting component to use queries.
--- |
--- | ```purs
--- | myComponent :: forall q i o m. H.Component q i o m
--- | myComponent = Hooks.component \input queryToken -> Hooks.do
--- |   -- the query token can be used with the `useQuery hook`
--- |   Hooks.useQuery queryToken handleQuery
--- |   ... hook implementation
--- | ```
-componentWithQuery
   :: forall hooks q i ps o m
-   . (QueryToken q -> i -> Hooked ps o m Unit hooks (H.ComponentHTML (HookM ps o m Unit) ps m))
+   . (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
   -> H.Component HH.HTML q i o m
-componentWithQuery inputHookFn = do
-  let hookFn = inputHookFn (unsafeCoerce unit :: QueryToken q)
+component inputHookFn = do
+  let
+    queryToken = unsafeCoerce unit :: QueryToken q
+    slotToken = unsafeCoerce unit :: SlotToken ps
+    outputToken = unsafeCoerce unit :: OutputToken o
+    hookFn = inputHookFn { queryToken, slotToken, outputToken }
+
   H.mkComponent
     { initialState
     , render: \(HookState { result }) -> result
-    , eval: mkEval evalHookM (interpretUseHookFn evalHookM) hookFn
+    , eval: toHalogenM slotToken outputToken <<< mkEval evalHookM (interpretUseHookFn evalHookM) hookFn
     }
   where
   -- WARNING: If you update this function, make sure to apply the same update

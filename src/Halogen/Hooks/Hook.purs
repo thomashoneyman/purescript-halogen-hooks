@@ -15,15 +15,15 @@ import Halogen.Hooks.Internal.UseHookF (UseHookF)
 -- |
 -- | Functions of this type should be constructed using the Hooks API exposed
 -- | by `Halogen.Hooks`.
-type Hook ps o m (newHook :: Type -> Type) a
-  = forall hooks. Hooked ps o m hooks (newHook hooks) a
+type Hook m (newHook :: Type -> Type) a
+  = forall hooks. Hooked m hooks (newHook hooks) a
 
 -- | A largely internal type which underlies the `Hook` type. Used when the first
 -- | type variable of the indexed monad, `hooks`, cannot be hidden.
-newtype Hooked ps o m pre post a = Hooked (Indexed (Free (UseHookF ps o m)) pre post a)
+newtype Hooked m pre post a = Hooked (Indexed (Free (UseHookF m)) pre post a)
 
-derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked ps o m)
-derive newtype instance ixApplyIndexed :: IxApply (Hooked ps o m)
-derive newtype instance ixApplicativeIndexed :: IxApplicative (Hooked ps o m)
-derive newtype instance ixBindIndexed :: IxBind (Hooked ps o m)
-derive newtype instance ixMonadIndexed :: IxMonad (Hooked ps o m)
+derive newtype instance ixFunctorIndexed :: IxFunctor (Hooked m)
+derive newtype instance ixApplyIndexed :: IxApply (Hooked m)
+derive newtype instance ixApplicativeIndexed :: IxApplicative (Hooked m)
+derive newtype instance ixBindIndexed :: IxBind (Hooked m)
+derive newtype instance ixMonadIndexed :: IxMonad (Hooked m)

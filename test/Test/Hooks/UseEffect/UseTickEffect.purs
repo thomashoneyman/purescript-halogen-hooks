@@ -7,13 +7,14 @@ import Data.Foldable (fold)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
+import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (UseEffect, UseState)
+import Halogen.Hooks (Hook, HookM(..), UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
 import Test.Setup.Log (logShouldBe, readResult, writeLog)
-import Test.Setup.Types (EffectType(..), Hook', HookM', LogRef, TestEvent(..))
+import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -21,21 +22,21 @@ newtype LogHook h = LogHook (UseEffect (UseState Boolean (UseState Int h)))
 
 derive instance newtypeLogHook :: Newtype (LogHook h) _
 
-useTickEffectLog :: LogRef -> Hook' LogHook { increment :: HookM' Unit, toggle :: HookM' Unit, count :: Int }
+useTickEffectLog :: LogRef -> Hook Aff LogHook { increment :: HookM Aff Unit, toggle :: HookM Aff Unit, count :: Int }
 useTickEffectLog log = Hooks.wrap Hooks.do
   count /\ countState <- Hooks.useState 0
   toggle /\ toggleState <- Hooks.useState false
-  useLogger { count }
+  useLogger { count, id: 0 }
   Hooks.pure
     { count
     , increment: Hooks.modify_ countState (_ + 1)
     , toggle: Hooks.modify_ toggleState not
     }
   where
-  useLogger deps@{ count } = Hooks.captures deps Hooks.useTickEffect do
-    writeLog (RunEffect EffectBody) log
+  useLogger deps@{ count, id } = Hooks.captures deps Hooks.useTickEffect do
+    writeLog (RunEffect (EffectBody id)) log
     pure $ Just do
-      writeLog (RunEffect EffectCleanup) log
+      writeLog (RunEffect (EffectCleanup id)) log
 
 tickEffectHook :: Spec Unit
 tickEffectHook = before initDriver $ describe "useTickEffect" do
@@ -62,8 +63,8 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
           [ ModifyState
           , RunHooks Step
           , Render
-          , RunEffect EffectCleanup
-          , RunEffect EffectBody
+          , RunEffect (EffectCleanup 0)
+          , RunEffect (EffectBody 0)
           ]
       , finalizeSteps
       ]
@@ -88,7 +89,7 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunEffect EffectBody ]
+    [ RunHooks Initialize, Render, RunEffect (EffectBody 0) ]
 
   finalizeSteps =
-    [ RunHooks Finalize, Render, RunEffect EffectCleanup ]
+    [ RunHooks Finalize, Render, RunEffect (EffectCleanup 0) ]

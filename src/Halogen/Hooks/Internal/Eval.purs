@@ -18,20 +18,21 @@ import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.Hook (Hooked)
-import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..), StateToken(..))
-import Halogen.Hooks.Internal.Eval.Types (HookState, InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
+import Halogen.Hooks.Types (StateToken(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
 mkEval
-  :: forall h q i ps o m b a
-   . (H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m b -> HookM ps o m ~> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m)
-  -> (InterpretHookReason -> (i -> Hooked ps o m Unit h b) -> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m b)
-  -> (i -> Hooked ps o m Unit h b)
-  -> H.HalogenQ q (HookM ps o m Unit) i a
-  -> H.HalogenM (HookState q i ps o m b) (HookM ps o m Unit) ps o m a
+  :: forall h q i m b a
+   . (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
+  -> (InterpretHookReason -> (i -> Hooked m Unit h b) -> HalogenM' q i m b b)
+  -> (i -> Hooked m Unit h b)
+  -> H.HalogenQ q (HookM m Unit) i a
+  -> HalogenM' q i m b a
 mkEval runHookM runHook hookFn = case _ of
   H.Initialize a -> do
     _ <- runHookAndEffects Initialize
@@ -68,13 +69,13 @@ mkEval runHookM runHook hookFn = case _ of
     H.gets (_.result <<< unwrap)
 
 interpretHook
-  :: forall hooks q i ps o m a
-   . (H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a -> HookM ps o m ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m)
-  -> (InterpretHookReason -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a)
+  :: forall hooks q i m a
+   . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
+  -> (InterpretHookReason -> HalogenM' q i m a a)
   -> InterpretHookReason
-  -> (i -> Hooked ps o m Unit hooks a)
-  -> UseHookF ps o m
-  ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
+  -> (i -> Hooked m Unit hooks a)
+  -> UseHookF m
+  ~> HalogenM' q i m a
 interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
@@ -103,7 +104,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
     case reason of
       Initialize -> do
         let
-          handler' :: forall res. q res -> HookM ps o m (Maybe res)
+          handler' :: forall b. q b -> HookM m (Maybe b)
           handler' = handler <<< toQueryValue
 
         modifyState_ _ { queryFn = Just (toQueryFn handler') }
@@ -253,16 +254,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
         modifyState_ _ { refCells { index = nextIndex } }
         pure $ reply $ Tuple value ref
 
--- Interpreter
-
-evalHookM
-  :: forall q i ps o m a
-   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m a
-  -> HookM ps o m
-  ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
+evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
 evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
   where
-  interpretHalogenHook :: HookF ps o m ~> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m
+  interpretHalogenHook :: HookF m ~> HalogenM' q i m a
   interpretHalogenHook = case _ of
     Modify (StateToken token) f reply -> do
       state <- getState
@@ -317,36 +312,31 @@ unsafeSetCell :: forall a. Int -> a -> Array a -> Array a
 unsafeSetCell index a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
 
 -- Read the internal Hook state without incurring a `MonadEffect` constraint
-getState
-  :: forall q i ps o m a
-   . H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m a)
+getState :: forall q i m a. HalogenM' q i m a (InternalHookState q i m a)
 getState = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.read stateRef
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState
-  :: forall q i ps o m a
-   . (InternalHookState q i ps o m a -> InternalHookState q i ps o m a)
-  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m (InternalHookState q i ps o m a)
+  :: forall q i m a
+   . (InternalHookState q i m a -> InternalHookState q i m a)
+  -> HalogenM' q i m a (InternalHookState q i m a)
 modifyState fn = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.modify fn stateRef
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState_
-  :: forall q i ps o m a
-   . (InternalHookState q i ps o m a -> InternalHookState q i ps o m a)
-  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+  :: forall q i m a
+   . (InternalHookState q i m a -> InternalHookState q i m a)
+  -> HalogenM' q i m a Unit
 modifyState_ fn = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
 
 -- Overwrite the internal Hook state without incurring a `MonadEffect` constraint
-putState
-  :: forall q i ps o m a
-   . InternalHookState q i ps o m a
-  -> H.HalogenM (HookState q i ps o m a) (HookM ps o m Unit) ps o m Unit
+putState :: forall q i m a. InternalHookState q i m a -> HalogenM' q i m a Unit
 putState s = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.write s stateRef
