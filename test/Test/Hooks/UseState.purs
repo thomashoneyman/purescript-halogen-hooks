@@ -7,7 +7,7 @@ import Data.Foldable (fold)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM(..), UseState)
+import Halogen.Hooks (Hook, HookM, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval, initDriver)
@@ -74,7 +74,7 @@ stateHook = before initDriver $ describe "useState" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunHooks Step, Render ]
+    [ RunHooks Initialize, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]

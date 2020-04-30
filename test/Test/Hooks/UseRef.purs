@@ -8,7 +8,7 @@ import Effect.Aff (Aff)
 import Effect.Ref as Ref
 import Halogen (liftEffect)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM(..), UseRef)
+import Halogen.Hooks (Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -68,7 +68,7 @@ refHook = before initDriver $ describe "useRef" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunHooks Step, Render ]
+    [ RunHooks Initialize, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]
