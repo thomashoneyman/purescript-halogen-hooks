@@ -49,7 +49,7 @@ Halogen Hooks uses an indexed free monad to ensure Hooks are always run in the s
 This code replicates the Halogen basic button example which renders a count that is incremented on click:
 
 ```purs
-myComponent = Hooks.component \input -> Hooks.do
+myComponent = Hooks.component \_ input -> Hooks.do
   count /\ countState <- Hooks.useState 0
 
   Hooks.pure do
