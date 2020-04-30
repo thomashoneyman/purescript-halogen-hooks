@@ -8,7 +8,7 @@ import Effect.Aff (Aff)
 import Effect.Ref as Ref
 import Halogen (liftEffect)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM(..), UseRef)
+import Halogen.Hooks (Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)

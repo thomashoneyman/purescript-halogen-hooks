@@ -64,9 +64,19 @@ mkEval runHookM runHook hookFn = case _ of
   runHookAndEffects reason = do
     _ <- runHook reason hookFn
     { evalQueue } <- getState
-    modifyState_ _ { evalQueue = [] }
-    sequence_ evalQueue
-    H.gets (_.result <<< unwrap)
+
+    if Array.null evalQueue then
+      H.gets (_.result <<< unwrap)
+
+    else do
+      modifyState_ _ { evalQueue = [] }
+      sequence_ evalQueue
+
+      if (reason == Initialize || reason == Step) then
+        runHookAndEffects Step
+
+      else
+        H.gets (_.result <<< unwrap)
 
 interpretHook
   :: forall hooks q i m a
@@ -150,11 +160,11 @@ interpretHook runHookM runHook reason hookFn = case _ of
             if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
               let
                 eval = do
-                  -- run finalizer
-                  void $ runHookM (runHook Queued) finalizer
-
-                  -- rerun effect and get new finalizer (if any)
-                  mbFinalizer <- runHookM (runHook Queued) act
+                  mbFinalizer <- runHookM (runHook Queued) do
+                    -- run the finalizer
+                    finalizer
+                    -- now run the actual effect, which produces mbFinalizer
+                    act
 
                   { effectCells: { queue: queue' } } <- getState
 

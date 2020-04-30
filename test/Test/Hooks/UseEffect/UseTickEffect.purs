@@ -9,7 +9,7 @@ import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM(..), UseEffect, UseState)
+import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -65,6 +65,8 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
           , Render
           , RunEffect (EffectCleanup 0)
           , RunEffect (EffectBody 0)
+          , RunHooks Step
+          , Render
           ]
       , finalizeSteps
       ]
@@ -89,7 +91,7 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunEffect (EffectBody 0) ]
+    [ RunHooks Initialize, Render, RunEffect (EffectBody 0), RunHooks Step, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render, RunEffect (EffectCleanup 0) ]
