@@ -75,17 +75,18 @@ rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterI
     , Render                      -- render
 
     , RunHooks Step               -- rerun hooks in case tick effect updated state
-    , Render
+                                  --   here we enqueue but don't yet run the
+                                  --   tick effect due to the lifecycle effect's
+                                  --   initializer modifying its dependencies
+    , Render                      -- render (because we have to...)
 
-
-    , RunEffect (EffectCleanup 1) -- tick effect is rerun due to lifecycle effect's
-                                  -- initializer modifying its dependencies
-    , RunEffect (EffectBody 1)
+    , RunEffect (EffectCleanup 1) -- rerun enqueued tick effect's initializer
+    , RunEffect (EffectBody 1)    --  and finalizer in one call
     , ModifyState                 -- state2 gets incremented to 3
                                   -- (i.e. 1 + state2's current value: 2)
 
     , RunHooks Queued             -- rerun all non-effect hooks to update state
-                                  --    now the returned `state2` value is 1
+                                  --    now the returned `state2` value is 3
     , Render                      -- render
 
 
