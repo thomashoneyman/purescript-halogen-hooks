@@ -24,7 +24,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
 
-example = Hooks.component \_ -> Hooks.do
+example = Hooks.component \_ _ -> Hooks.do
   -- Declare a new state variable, which we'll call "count"
   count /\ countState <- Hooks.useState 0
 
@@ -48,7 +48,7 @@ The `useState` hook requires an initial state as its only argument. In this exam
 You can use the State Hook more than once in a single component:
 
 ```purs
-manyStates = Hooks.component \_ -> Hooks.do
+manyStates = Hooks.component \_ _ -> Hooks.do
   -- Declare multiple state variables!
   age /\ ageState <- Hooks.useState 42
   fruit /\ fruitState <- Hooks.useState "banana"
@@ -73,7 +73,7 @@ In a Hooks function you write side effects in `HookM`, a monad almost identical 
 For example, this component will log the current count every time the state updates (ie. a render occurs):
 
 ```purs
-example = Hooks.component \_ -> Hooks.do
+example = Hooks.component \_ _ -> Hooks.do
   count /\ countState <- Hooks.useState 0
 
   -- On initialize and each subsequent render, log the current count state to

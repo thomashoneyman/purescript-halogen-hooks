@@ -129,7 +129,7 @@ Hooks.do
 
 ## useQuery
 
-The `useQuery` Hook enables you to write components which can receive and evaluate queries from a parent component. This Hook is only usable in components constructed with the `Hooks.componentWithQuery` function, because the request/response nature of queries means they only make sense within components. Queries don't make sense in arbitrary Hooks, so they're disallowed.
+The `useQuery` Hook enables you to write components which can receive and evaluate queries from a parent component. This Hook is only usable in components constructed with the `Hooks.component` function, because the request/response nature of queries means they only make sense within components. Queries don't make sense in arbitrary Hooks, so they're disallowed.
 
 The resulting component can be queried like any other Halogen component via the `H.query` or `H.queryAll` functions.
 
@@ -139,11 +139,11 @@ If this Hook is used multiple times, then only the last use will take effect.
 data Query a = IsOn (Boolean -> a)
 
 component :: forall i o m. H.Component HH.HTML Query i o m
-component = Hooks.componentWithQuery \queryToken _ -> Hooks.do
+component = Hooks.component \{ queryToken } _ -> Hooks.do
   enabled /\ enabledState <- Hooks.useState false
 
   -- You can only use the useQuery Hook with a token, which must come from the
-  -- `componentWithQuery` function
+  -- `component` function
   Hooks.useQuery queryToken case _ of
     -- You can write a handler the same way you would write `handleQuery` in a
     -- Halogen component

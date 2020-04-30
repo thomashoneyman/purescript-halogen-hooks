@@ -162,11 +162,15 @@ modify token f = HookM $ liftF $ Modify token' f' state
 put :: forall state m. StateToken state -> state -> HookM m Unit
 put token state = modify_ token (const state)
 
--- | Raise an output message for the component.
+-- | Raise an output message for the component. Requires a token carrying the
+-- | output type of the component, which is provided by the `Hooks.component`
+-- | function.
 raise :: forall o m. OutputToken o -> o -> HookM m Unit
 raise _ o = HookM $ liftF $ Raise (toOutputValue o) unit
 
--- | Send a query to a child of a component at the specified slot
+-- | Send a query to a child of a component at the specified slot. Requires a
+-- | token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
 query
   :: forall m label ps query o' slot a _1
    . Row.Cons label (H.Slot query o' slot) _1 ps
@@ -184,7 +188,9 @@ query token label p q =
   box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
   box = unsafeCoerce
 
--- | Sends a query to all children of a component at a given slot label.
+-- | Send a query to all children of a component at the specified slot. Requires
+-- | a token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
 queryAll
   :: forall m label ps query o' slot a _1
    . Row.Cons label (H.Slot query o' slot) _1 ps

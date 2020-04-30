@@ -119,7 +119,7 @@ useTickEffect memos fn = Hooked $ Indexed $ liftF $ UseEffect (Just memos) fn un
 foreign import data UseQuery :: Type -> Type
 
 -- | A Hook providing the ability to receive and evaluate queries from a parent
--- | component. Only usable in components constructed with `componentWithQuery`,
+-- | component. Only usable in components constructed with `component`,
 -- | not in arbitrary hooks; the request/response nature of queries means they
 -- | only make sense in the context of a component.
 -- |

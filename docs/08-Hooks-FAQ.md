@@ -54,7 +54,7 @@ import Halogen as H
 import Halogen.Hooks as Hooks
 import Halogen.HTML as HH
 
-button = Hooks.component \_ -> Hooks.pure do
+button = Hooks.component \_ _ -> Hooks.pure do
   HH.button [] [ HH.text "Click me!" ]
 ```
 
@@ -72,7 +72,7 @@ For example, this Hooks-based component receives an integer as input from its pa
 type Input = Int
 
 example :: forall q o m. H.Component HH.HTML q Input o m
-example = Hooks.component \input -> Hooks.pure do
+example = Hooks.component \_ input -> Hooks.pure do
   HH.div_
     [ HH.text "My input value is: "
     , HH.strong_ [ HH.text $ show input ]
@@ -98,7 +98,7 @@ This model is more convenient than traditional initializers and finalizers becau
 This code demonstrates subscribing to a resource the first time the Hook runs and cleaning up the subscription the last time the Hook runs.
 
 ```purs
-example = Hooks.component \_ -> Hooks.do
+example = Hooks.component \_ _ -> Hooks.do
   Hooks.useLifecycleEffect do
     subscriptionId <- Hooks.subscribe ...
     pure $ Just $ Hooks.unsubscribe subscriptionId
@@ -162,7 +162,7 @@ To rewrite this component we can translate our action into its `HookM` code dire
 
 ```purs
 myComponent :: forall q i o m. Halogen.Component q i o m
-myComponent = Hooks.component \_ -> Hooks.do
+myComponent = Hooks.component \_ _ -> Hooks.do
   let
     handleClick :: HookM m Unit
     handleClick = ...
@@ -180,7 +180,7 @@ handleAction = case _ of
   Click -> ...
 
 myComponent :: forall q i o m. H.Component q i o m
-myComponent = Hooks.component \_ -> Hooks.pure do
+myComponent = Hooks.component \_ _ -> Hooks.pure do
   HH.button [ HE.onClick \_ -> Just $ handleAction Click ] [ HH.text "Click me" ]
 ```
 

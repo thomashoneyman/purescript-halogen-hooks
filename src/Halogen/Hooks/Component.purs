@@ -37,6 +37,17 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | myComponent = Hooks.component \_ _ -> Hooks.do
 -- |   ... hook implementation
 -- | ```
+-- |
+-- | If you are using tokens provided by the `component` function, you will have
+-- | better type inference if you annotate the token type:
+-- |
+-- | ```purs
+-- | type Tokens = ComponentTokens MyQuery MySlots MyOutput
+-- |
+-- | myComponent :: forall i m. H.Component MyQuery i MyOutput m
+-- | myComponent = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
+-- |   ... hook implementation
+-- | ```
 component
   :: forall hooks q i ps o m
    . (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
