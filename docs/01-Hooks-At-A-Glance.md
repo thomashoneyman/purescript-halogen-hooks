@@ -37,7 +37,7 @@ example = Hooks.component \_ -> Hooks.do
       ]
 ```
 
-`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the *current* state value and a token that lets you update it.
+`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the _current_ state value and a token that lets you update it.
 
 You can use this token with state functions available in `HookM`, which is the Hook effect monad. We'll see how to use this monad later in this page, but it also has [its own documentation section](./05-HookM.md) if you're ready for a deep dive. HTML functions in Hooks use `HookM` as their action type.
 

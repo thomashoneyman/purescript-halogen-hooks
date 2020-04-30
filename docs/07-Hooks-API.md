@@ -24,7 +24,7 @@ Hooks.do
   intState /\ intStateToken <- Hooks.useState 0
 
   let
-    update :: HookM _ _ _ Unit
+    update :: HookM _ Unit
     update = do
       -- Use `modify`, `modify_`, or `put` to modify the state, causing the
       -- hooks to all re-run.

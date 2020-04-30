@@ -111,19 +111,28 @@ We didn't have to persist the subscription ID in state because the finalizer eff
 `HookM` supports all functions available in `HalogenM`, including raising messages, forking threads, starting and stopping subscriptions, querying child components, and more. Any function you have used in `HalogenM` before is also available in `HookM` and under the same name:
 
 ```
-HalogenM.subscribe -> Hooks.subscribe
-HalogenM.query     -> Hooks.query
-HalogenM.queryAll  -> Hooks.queryAll
-HalogenM.raise     -> Hooks.raise
+H.fork      -> Hooks.fork
+H.subscribe -> Hooks.subscribe
+...
 ```
 
-The only functions which behave differently are the ones which operate on state. In Hooks you can have multiple independent states, so they must be identified via a token you receive from `useState`. However, the same functions still exist:
+Some functions take an additional argument because they rely on component features which are not carried in the type of `HookM`. They take a token as their first argument, where the token ensures type safety. However, these functions have the same name and otherwise the same arguments as their counterparts in `HalogenM`.
+
+Functions that operate on state must take a token returned from the `useState` hook. That's because Hooks can have multiple independent states, unlike the single unified state of a Halogen component:
 
 ```
 HalogenM.get             -> Hooks.get token
 HalogenM.put state       -> Hooks.put token state
 HalogenM.modify stateFn  -> Hooks.modify token stateFn
 HalogenM.modify_ stateFn -> Hooks.modify_ token stateFn
+```
+
+Functions which send queries or send output messages must take a token returned by the `component` function. That's because these features only make sense in the context of a parent-child component relationship, which doesn't exist in Hooks:
+
+```
+HalogenM.query     -> Hooks.query slotToken
+HalogenM.queryAll  -> Hooks.queryAll slotToken
+HalogenM.raise     -> Hooks.raise outputToken
 ```
 
 ### How do I use actions?
@@ -155,7 +164,7 @@ To rewrite this component we can translate our action into its `HookM` code dire
 myComponent :: forall q i o m. Halogen.Component q i o m
 myComponent = Hooks.component \_ -> Hooks.do
   let
-    handleClick :: HookM _ _ _ Unit
+    handleClick :: HookM m Unit
     handleClick = ...
 
   Hooks.pure $ HH.button [ HE.onClick \_ -> Just handleClick ] [ HH.text "Click me" ]
@@ -166,7 +175,7 @@ However, in components with complex logic you may still want an `Action` type an
 ```purs
 data Action = Click
 
-handleAction :: forall slots output m. Action -> HookM slots output m Unit
+handleAction :: forall m. Action -> HookM m Unit
 handleAction = case _ of
   Click -> ...
 
