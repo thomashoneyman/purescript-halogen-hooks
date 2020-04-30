@@ -9,7 +9,7 @@ import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM(..), UseEffect, UseState)
+import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
