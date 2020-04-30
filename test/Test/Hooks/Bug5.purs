@@ -77,7 +77,6 @@ rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterI
     , RunHooks Step               -- rerun hooks in case tick effect updated state
     , Render
 
-    -- note: a RunHooks Step is missing here...
 
     , RunEffect (EffectCleanup 1) -- tick effect is rerun due to lifecycle effect's
                                   -- initializer modifying its dependencies
