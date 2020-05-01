@@ -110,7 +110,7 @@ mkEvalQuery
    . (LogRef -> Hooked Aff Unit h b)
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
-mkEvalQuery = Hooks.Eval.mkEval evalHookM (interpretUseHookFn evalHookM)
+mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn evalHookM)
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in
   -- sync with the implementation in the main Hooks library. If you change this

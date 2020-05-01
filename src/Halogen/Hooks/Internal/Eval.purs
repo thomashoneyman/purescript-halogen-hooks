@@ -28,12 +28,13 @@ import Unsafe.Reference (unsafeRefEq)
 
 mkEval
   :: forall h q i m b a
-   . (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
+   . (i -> i -> Boolean)
+  -> (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
   -> (InterpretHookReason -> (i -> Hooked m Unit h b) -> HalogenM' q i m b b)
   -> (i -> Hooked m Unit h b)
   -> H.HalogenQ q (HookM m Unit) i a
   -> HalogenM' q i m b a
-mkEval runHookM runHook hookFn = case _ of
+mkEval inputEq runHookM runHook hookFn = case _ of
   H.Initialize a -> do
     _ <- runHookAndEffects Initialize
     pure a
@@ -51,9 +52,13 @@ mkEval runHookM runHook hookFn = case _ of
     runHookM (runHookAndEffects Step) act
     pure a
 
-  H.Receive input a -> do
-    modifyState_ _ { input = input }
-    _ <- runHookAndEffects Step
+  H.Receive nextInput a -> do
+    { input: prevInput } <- getState
+
+    unless (prevInput `inputEq` nextInput) do
+      modifyState_ _ { input = nextInput }
+      void $ runHookAndEffects Step
+
     pure a
 
   H.Finalize a -> do
