@@ -37,6 +37,40 @@ instance showInterpretHookReason :: Show InterpretHookReason where
     Step -> "Step"
     Finalize -> "Finalize"
 
+-- | When we run an effect, the effect may modify state
+-- | If this occurs, we need to rerun the hooks via the `Step` reason,
+-- | so that any `useTickEffect` memos get rechecked. If the state
+-- | modified the `useTickEffect` hooks' memos, we need to finalize
+-- | that hook and reinitialize it. However, this state checking
+-- | should only occur when we run effects, not when hooks are being
+-- | evaluated for other reasons.
+-- |
+-- | Ideally, we would only recheck the memos where one of the values in the
+-- | memos was the state value that got changed. Unfortunately, we cannot know
+-- | which state value an effect modifies when it modifies state.
+-- | We can only know that a state modification occurred.
+-- |
+-- | NotRunningEffects = No effects are being run, so don't track any
+-- |   state modifications.
+-- | RunningEffects = An effect is currently running, so enable the
+-- |   state modification tracking.
+-- | EffectModifiedState = An effect modified state at some point.
+-- |   We no longer need to track state modifications anymore because
+-- |   we know we will need to recheck all `useTickEffect` memos
+-- |   regardless of whether other future effects modify state, too.
+data TrackStateModifications
+  = NotRunningEffects
+  | RunningEffects
+  | EffectModifiedState
+
+derive instance eqTrackStateModfications :: Eq TrackStateModifications
+
+instance showTrackStateModifications :: Show TrackStateModifications where
+  show = case _ of
+    NotRunningEffects -> "NotRunningEffects"
+    RunningEffects -> "RunningEffects"
+    EffectModifiedState -> "EffectModifiedState"
+
 foreign import data QueryFn :: (Type -> Type) -> (Type -> Type) -> Type
 
 toQueryFn :: forall q m. (forall a. q a -> HookM m (Maybe a)) -> QueryFn q m
@@ -60,6 +94,7 @@ type InternalHookState q i m a =
   , effectCells :: QueueState ((Maybe MemoValues) /\ HookM m Unit)
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
+  , recheckMemos :: TrackStateModifications
   }
 
 type QueueState a =

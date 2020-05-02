@@ -13,7 +13,7 @@ import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
+import Halogen.Hooks.Internal.Eval.Types (HookState(..), TrackStateModifications(..), toHalogenM)
 import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -122,5 +122,6 @@ memoComponent eqInput inputHookFn = do
           , memoCells: { queue: [], index: 0 }
           , refCells: { queue: [], index: 0 }
           , evalQueue: []
+          , recheckMemos: NotRunningEffects
           }
       }

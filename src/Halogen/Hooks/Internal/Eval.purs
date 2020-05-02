@@ -19,7 +19,7 @@ import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.Hook (Hooked)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), TrackStateModifications(..), fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateToken(..))
@@ -76,12 +76,13 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     else do
       modifyState_ _ { evalQueue = [] }
       sequence_ evalQueue
+      { recheckMemos } <- getState
 
-      if (reason == Initialize || reason == Step) then
-        runHookAndEffects Step
+      when (recheckMemos == EffectModifiedState) do
+        modifyState_ _ { recheckMemos = NotRunningEffects }
+        void $ runHookAndEffects Step
 
-      else
-        H.gets (_.result <<< unwrap)
+      H.gets (_.result <<< unwrap)
 
 interpretHook
   :: forall hooks q i m a
@@ -133,13 +134,24 @@ interpretHook runHookM runHook reason hookFn = case _ of
       Initialize -> do
         let
           eval = do
+            { recheckMemos: beforeEffects } <- getState
+            when (beforeEffects == NotRunningEffects) do
+              modifyState_ _ { recheckMemos = RunningEffects }
+
             mbFinalizer <- runHookM (runHook Queued) act
+
+            { recheckMemos: afterEffects } <- getState
 
             let
               finalizer = fromMaybe (pure unit) mbFinalizer
               newQueue state = Array.snoc state.effectCells.queue (mbMemos /\ finalizer)
 
-            modifyState_ \st -> st { effectCells { queue = newQueue st } }
+            if afterEffects == RunningEffects then
+              modifyState_ \st -> st { effectCells { queue = newQueue st }
+                                     , recheckMemos = NotRunningEffects
+                                     }
+            else
+              modifyState_ \st -> st { effectCells { queue = newQueue st } }
 
         modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
 
@@ -165,20 +177,29 @@ interpretHook runHookM runHook reason hookFn = case _ of
             if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
               let
                 eval = do
+                  { recheckMemos: beforeEffects } <- getState
+                  when (beforeEffects == NotRunningEffects) do
+                    modifyState_ _ { recheckMemos = RunningEffects }
+
                   mbFinalizer <- runHookM (runHook Queued) do
                     -- run the finalizer
                     finalizer
                     -- now run the actual effect, which produces mbFinalizer
                     act
 
-                  { effectCells: { queue: queue' } } <- getState
+                  { effectCells: { queue: queue' }
+                  , recheckMemos: afterEffects } <- getState
 
                   let
                     newFinalizer = fromMaybe (pure unit) mbFinalizer
                     newValue = mbMemos /\ newFinalizer
                     newQueue = unsafeSetCell index newValue queue'
 
-                  modifyState_ _  { effectCells { queue = newQueue } }
+                  if afterEffects == RunningEffects then
+                    modifyState_ _  { effectCells { queue = newQueue }
+                                    , recheckMemos = NotRunningEffects }
+                  else
+                    modifyState_ _  { effectCells { queue = newQueue } }
 
               modifyState_ \st -> st
                 { evalQueue = Array.snoc st.evalQueue eval
@@ -286,7 +307,12 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
       -- ensure calls to `get` don't trigger evaluations.
       unless (unsafeRefEq current next) do
         let newQueue = unsafeSetCell token next
-        putState $ state { stateCells { queue = newQueue state.stateCells.queue } }
+        if state.recheckMemos == RunningEffects then
+          putState $ state { stateCells { queue = newQueue state.stateCells.queue }
+                           , recheckMemos = EffectModifiedState
+                           }
+        else
+          putState $ state { stateCells { queue = newQueue state.stateCells.queue } }
         void runHooks
 
       pure (reply next)
