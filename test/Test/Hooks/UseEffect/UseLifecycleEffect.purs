@@ -63,7 +63,7 @@ lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, Render, RunEffect (EffectBody 0), RunHooks Step, Render ]
+    [ RunHooks Initialize, Render, RunEffect (EffectBody 0) ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render, RunEffect (EffectCleanup 0) ]
