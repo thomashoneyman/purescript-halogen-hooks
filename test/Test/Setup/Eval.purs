@@ -20,7 +20,7 @@ import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InterpretHookReason, TrackStateModifications(..))
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
@@ -146,6 +146,7 @@ initDriver = liftEffect do
     , memoCells: { queue: [], index: 0 }
     , refCells: { queue: [], index: 0 }
     , evalQueue: []
+    , recheckMemos: NotRunningEffects
     }
 
   lifecycleHandlers <- Ref.new mempty
