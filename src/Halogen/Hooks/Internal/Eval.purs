@@ -76,7 +76,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
       { stateModified } <- getState
 
       let initializeOrStepReason = reason == Initialize || reason == Step
-      when (stateModified && initializeOrStepReason) $
+      when (stateModified && initializeOrStepReason) do
         void $ runHookAndEffects Step
 
     H.gets (_.result <<< unwrap)
