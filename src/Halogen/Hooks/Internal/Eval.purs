@@ -71,12 +71,12 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     { evalQueue } <- getState
 
     when (not (Array.null evalQueue)) do
-      modifyState_ _ { evalQueue = [], stateModified = false }
+      modifyState_ _ { evalQueue = [], stateDirty = false }
       sequence_ evalQueue
-      { stateModified } <- getState
+      { stateDirty } <- getState
 
       let initializeOrStepReason = reason == Initialize || reason == Step
-      when (stateModified && initializeOrStepReason) do
+      when (stateDirty && initializeOrStepReason) do
         void $ runHookAndEffects Step
 
     H.gets (_.result <<< unwrap)
@@ -286,7 +286,7 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
         let newQueue = unsafeSetCell token next
         putState $ state
           { stateCells { queue = newQueue state.stateCells.queue }
-          , stateModified = true
+          , stateDirty = true
           }
         void runHooks
 
