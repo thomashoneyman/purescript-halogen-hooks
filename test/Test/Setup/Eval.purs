@@ -146,6 +146,7 @@ initDriver = liftEffect do
     , memoCells: { queue: [], index: 0 }
     , refCells: { queue: [], index: 0 }
     , evalQueue: []
+    , stateDirty: false
     }
 
   lifecycleHandlers <- Ref.new mempty

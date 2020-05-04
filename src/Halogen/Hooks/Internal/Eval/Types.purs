@@ -60,6 +60,7 @@ type InternalHookState q i m a =
   , effectCells :: QueueState ((Maybe MemoValues) /\ HookM m Unit)
   , memoCells :: QueueState (MemoValues /\ MemoValue)
   , refCells :: QueueState (Ref RefValue)
+  , stateDirty :: Boolean
   }
 
 type QueueState a =
