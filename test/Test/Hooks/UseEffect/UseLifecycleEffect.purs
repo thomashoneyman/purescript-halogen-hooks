@@ -25,14 +25,14 @@ useLifecycleEffectLog :: LogRef -> Hook Aff LogHook { tick :: HookM Aff Unit }
 useLifecycleEffectLog log = Hooks.wrap Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
   -- because lifecycle effects run only once.
-  count /\ countState <- Hooks.useState 0
+  state /\ modifyState <- Hooks.useState 0
 
   Hooks.useLifecycleEffect do
     writeLog (RunEffect (EffectBody 0)) log
     pure $ Just do
       writeLog (RunEffect (EffectCleanup 0)) log
 
-  Hooks.pure { tick: Hooks.modify_ countState (_ + 1) }
+  Hooks.pure { tick: modifyState (_ + 1) }
 
 lifecycleEffectHook :: Spec Unit
 lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do

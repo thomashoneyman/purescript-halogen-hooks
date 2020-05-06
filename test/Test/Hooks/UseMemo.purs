@@ -32,34 +32,34 @@ type MemoCount =
 
 useMemoCount :: LogRef -> Hook Aff MemoHook MemoCount
 useMemoCount log = Hooks.wrap Hooks.do
-  s1 /\ ts1 <- Hooks.useState 0
-  s2 /\ ts2 <- Hooks.useState 0
-  s3 /\ ts3 <- Hooks.useState 0
+  state1 /\ modifyState1 <- Hooks.useState 0
+  state2 /\ modifyState2 <- Hooks.useState 0
+  state3 /\ modifyState3 <- Hooks.useState 0
 
-  expensive1 <- memoize1 { s1 }
-  expensive2 <- memoize2 { s2 }
-  expensive3 <- memoize3 { s1, s2 }
+  expensive1 <- memoize1 { state1 }
+  expensive2 <- memoize2 { state2 }
+  expensive3 <- memoize3 { state1, state2 }
 
   Hooks.pure
-    { incrementA: Hooks.modify_ ts1 (_ + 1) -- recomputes 1 and 3
-    , incrementB: Hooks.modify_ ts2 (_ + 1) -- recomputes 2 and 3
-    , incrementC: Hooks.modify_ ts3 (_ + 1) -- recomputes nothing
+    { incrementA: modifyState1 (_ + 1) -- recomputes 1 and 3
+    , incrementB: modifyState2 (_ + 1) -- recomputes 2 and 3
+    , incrementC: modifyState3 (_ + 1) -- recomputes nothing
     , expensive1
     , expensive2
     , expensive3
     }
   where
-  memoize1 deps@{ s1 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
+  memoize1 deps@{ state1 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 1)) log
-    s1 + 5
+    state1 + 5
 
-  memoize2 deps@{ s2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
+  memoize2 deps@{ state2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 2)) log
-    s2 + 5
+    state2 + 5
 
-  memoize3 deps@{ s1, s2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
+  memoize3 deps@{ state1, state2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 3)) log
-    s1 + s2 + 5
+    state1 + state2 + 5
 
 memoHook :: Spec Unit
 memoHook = before initDriver $ describe "useMemo" do

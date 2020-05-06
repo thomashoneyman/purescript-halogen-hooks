@@ -19,17 +19,15 @@ import Test.Spec.Assertions (shouldEqual)
 type StateCount =
   { count :: Int
   , increment :: HookM Aff Unit
-  , getState :: HookM Aff Int
   }
 
 useStateCount :: LogRef -> Hook Aff (UseState Int) StateCount
 useStateCount ref = Hooks.do
-  count /\ countState <- Hooks.useState 0
+  count /\ modifyCount <- Hooks.useState 0
 
   Hooks.pure
     { count
-    , increment: Hooks.modify_ countState (_ + 1)
-    , getState: Hooks.get countState
+    , increment: modifyCount (_ + 1)
     }
 
 stateHook :: Spec Unit
@@ -60,17 +58,6 @@ stateHook = before initDriver $ describe "useState" do
       , fold $ replicate 2 [ ModifyState, RunHooks Step, Render ]
       , finalizeSteps
       ]
-
-  it "does not evaluate on calls to get state, only modifications" \ref -> do
-    evalM ref do
-      eval H.Initialize
-
-      { getState } <- readResult ref
-      eval (H.Action (getState *> pure unit))
-
-    -- There should be no calls to `ModifyState` or any hook evaluations except
-    -- for the initializer
-    logShouldBe ref initializeSteps
 
   where
   initializeSteps =

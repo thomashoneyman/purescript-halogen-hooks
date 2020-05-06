@@ -50,7 +50,7 @@ import Halogen.Hooks.Component (component)
 import Halogen.Hooks.Hook (Hook, Hooked(..))
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateToken(..))
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken)
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -69,7 +69,10 @@ foreign import data UseState :: Type -> Type -> Type
 -- |     update =
 -- |       modifyState \st -> st + 10
 -- | ```
-useState :: forall state m. state -> Hook m (UseState state) (state /\ ((state -> state) -> HookM m Unit))
+useState
+  :: forall state m
+   . state
+  -> Hook m (UseState state) (state /\ ((state -> state) -> HookM m Unit))
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue

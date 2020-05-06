@@ -1,11 +1,8 @@
 -- | A replacement for `Halogen.Query.HalogenM` which supports a near-identical
--- | API, but adjusted for compatibility with hooks. All functions typically
+-- | API, but adjusted for compatibility with hooks. Most functions typically
 -- | available in `HalogenM` are still available here, but some have modified
--- | behavior (for example, the state functions `get`, `put`, and `modify` require
--- | an additional `StateToken` argument when used in Hooks).
--- |
--- | If you need to use a function usually available in HalogenM which is not
--- | available here, please file an issue.
+-- | behavior (for example, the state functions `get`, `put`, and `modify` don't
+-- | exist; instead, the `useState` hook returns a `modify` function you can use).
 module Halogen.Hooks.HookM where
 
 import Prelude
@@ -38,7 +35,7 @@ import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
 
--- | A DSL fully compatible with HalogenM which is used to write effectful code
+-- | A DSL compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
 data HookF m a
   = Modify (StateToken StateValue) (StateValue -> StateValue) a
@@ -54,9 +51,9 @@ data HookF m a
 
 derive instance functorHookF :: Functor m => Functor (HookF m)
 
--- | The Hook effect monad, used to write effectful code in Hooks functions. This
--- | monad is fully compatible with `HalogenM`, meaning all functions available for
--- | `HalogenM` are available in `HookM`.
+-- | The Hook effect monad, used to write effectful code in Hooks functions.
+-- | This monad is fully compatible with `HalogenM`. meaning all functionality
+-- | available for `HalogenM` is available in `HookM`.
 newtype HookM m a = HookM (Free (HookF m) a)
 
 derive newtype instance functorHookM :: Functor (HookM m)

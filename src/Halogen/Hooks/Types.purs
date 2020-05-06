@@ -42,5 +42,3 @@ foreign import data OutputToken :: Type -> Type
 -- |
 -- | This type is provided by the `captures` and `capturesWith` functions.
 foreign import data MemoValues :: Type
-
-newtype StateToken state = StateToken Int
