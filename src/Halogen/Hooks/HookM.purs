@@ -28,8 +28,8 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.Data.Slot as Slot
-import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
-import Halogen.Hooks.Types (OutputToken, SlotToken, StateToken)
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateToken, StateValue, toOutputValue)
+import Halogen.Hooks.Types (OutputToken, SlotToken)
 import Halogen.Query.ChildQuery as CQ
 import Halogen.Query.EventSource as ES
 import Prim.Row as Row
@@ -41,7 +41,7 @@ import Web.HTML.HTMLElement as HTMLElement
 -- | A DSL fully compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
 data HookF m a
-  = Modify (StateToken StateValue) (StateValue -> StateValue) (StateValue -> a)
+  = Modify (StateToken StateValue) (StateValue -> StateValue) a
   | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
@@ -101,66 +101,6 @@ derive newtype instance applicativeHookAp :: Applicative (HookAp m)
 instance parallelHookM :: Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
   sequential = HookM <<< liftF <<< Par
-
--- | Get a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     count :: Int <- get countState
--- |     ...
--- | ```
-get :: forall state m. StateToken state -> HookM m state
-get token = modify token identity
-
--- | Modify a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     modify_ countState (_ + 10)
--- | ```
-modify_ :: forall state m. StateToken state -> (state -> state) -> HookM m Unit
-modify_ token = map (const unit) <<< modify token
-
--- | Modify a piece of state using a token received from the `useState` hook,
--- | returning the new state.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     count :: Int <- modify countState (_ + 10)
--- |     ...
--- | ```
-modify :: forall state m. StateToken state -> (state -> state) -> HookM m state
-modify token f = HookM $ liftF $ Modify token' f' state
-  where
-  token' :: StateToken StateValue
-  token' = unsafeCoerce token
-
-  f' :: StateValue -> StateValue
-  f' = toStateValue <<< f <<< fromStateValue
-
-  state :: StateValue -> state
-  state = fromStateValue
-
--- | Overwrite a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     put countState 10
--- | ```
-put :: forall state m. StateToken state -> state -> HookM m Unit
-put token state = modify_ token (const state)
 
 -- | Raise an output message for the component. Requires a token carrying the
 -- | output type of the component, which is provided by the `Hooks.component`
