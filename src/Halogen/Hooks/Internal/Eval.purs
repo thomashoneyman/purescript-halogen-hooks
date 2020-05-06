@@ -112,18 +112,13 @@ interpretHook runHookM runHook reason hookFn = case _ of
         modifyState_ _ { stateCells { index = nextIndex } }
         pure $ reply $ Tuple value (modifyWithToken token)
 
-  UseQuery _ handler a ->
-    case reason of
-      Initialize -> do
-        let
-          handler' :: forall b. q b -> HookM m (Maybe b)
-          handler' = handler <<< toQueryValue
+  UseQuery _ handler a -> do
+    let
+      handler' :: forall b. q b -> HookM m (Maybe b)
+      handler' = handler <<< toQueryValue
 
-        modifyState_ _ { queryFn = Just (toQueryFn handler') }
-        pure a
-
-      _ ->
-        pure a
+    modifyState_ _ { queryFn = Just (toQueryFn handler') }
+    pure a
 
   UseEffect mbMemos act a -> do
     case reason of

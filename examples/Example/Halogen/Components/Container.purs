@@ -17,21 +17,22 @@ _button = SProxy
 
 component :: forall q i o m. H.Component HH.HTML q i o m
 component = Hooks.component \{ slotToken } _ -> Hooks.do
-  toggleCount /\ toggleCountState <- Hooks.useState 0
-  buttonStatus /\ buttonStatusState <- Hooks.useState Nothing
+  count /\ modifyCount <- Hooks.useState 0
+  buttonStatus /\ modifyButtonStatus <- Hooks.useState Nothing
 
   let
     handleButton (Button.Toggled _) = Just do
-      Hooks.modify_ toggleCountState (_ + 1)
+      modifyCount (_ + 1)
 
     handleClick = Just do
-      Hooks.put buttonStatusState =<< Hooks.query slotToken _button unit (H.request Button.IsOn)
+      status <- Hooks.query slotToken _button unit (H.request Button.IsOn)
+      modifyButtonStatus \_ -> status
 
   Hooks.pure do
     HH.div_
       [ HH.slot _button unit Button.component unit handleButton
       , HH.p_
-          [ HH.text $ "Button has been toggled " <> show toggleCount <> " time(s)" ]
+          [ HH.text $ "Button has been toggled " <> show count <> " time(s)" ]
       , HH.p_
           [ HH.text $ fold
               [ "Last time I checked, the button was: "

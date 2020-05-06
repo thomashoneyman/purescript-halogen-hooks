@@ -19,20 +19,19 @@ data Message = Toggled Boolean
 type Tokens = Hooks.ComponentTokens Query () Message
 
 component :: forall i m. H.Component HH.HTML Query i Message m
-component = Hooks.component \({ queryToken, outputToken } :: Tokens) _ -> Hooks.do
-  enabled /\ enabledState <- Hooks.useState false
+component = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
+  enabled /\ modifyEnabled <- Hooks.useState false
 
-  Hooks.useQuery queryToken case _ of
+  Hooks.useQuery tokens.queryToken case _ of
     IsOn reply -> do
-      isEnabled <- Hooks.get enabledState
-      pure (Just (reply isEnabled))
+      pure (Just (reply enabled))
 
   let
     label = if enabled then "On" else "Off"
 
     handleClick = Just do
-      isEnabled <- Hooks.modify enabledState not
-      Hooks.raise outputToken (Toggled isEnabled)
+      modifyEnabled not
+      Hooks.raise tokens.outputToken (Toggled enabled)
 
   Hooks.pure do
     HH.button
