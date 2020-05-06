@@ -58,7 +58,7 @@ Hooks.do
   Hooks.useLifecycleEffect do
     -- This code will all be run after the first render, which is akin to
     -- component initialization.
-    let readWidth = Hooks.modifyWidth <<< const <<< Just <=< liftEffect <<< Window.innerWidth
+    let readWidth = modifyWidth <<< const <<< Just <=< liftEffect <<< Window.innerWidth
 
     window <- liftEffect HTML.window
     subscriptionId <- Hooks.subscribe do
