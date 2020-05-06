@@ -26,8 +26,8 @@ Hooks.do
   let
     update :: HookM _ Unit
     update = do
-      -- Use the mody function to update the state, which will cause all hooks to
-      -- run again and a new render to occur.
+      -- Use the modify function to update the state, which will cause all hooks
+      -- to run again and a new render to occur.
       modifyCount (_ + 10)
       -- ...
 
