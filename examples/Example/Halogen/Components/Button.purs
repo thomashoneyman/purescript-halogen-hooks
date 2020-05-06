@@ -4,6 +4,7 @@ import Prelude
 
 import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
+import Effect.Class (class MonadEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -18,7 +19,7 @@ data Message = Toggled Boolean
 
 type Tokens = Hooks.ComponentTokens Query () Message
 
-component :: forall i m. H.Component HH.HTML Query i Message m
+component :: forall i m. MonadEffect m => H.Component HH.HTML Query i Message m
 component = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
   enabled /\ modifyEnabled <- Hooks.useState false
 
@@ -30,8 +31,9 @@ component = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
     label = if enabled then "On" else "Off"
 
     handleClick = Just do
-      modifyEnabled not
-      Hooks.raise tokens.outputToken (Toggled enabled)
+      let enabled' = not enabled
+      modifyEnabled (const enabled')
+      Hooks.raise tokens.outputToken (Toggled enabled')
 
   Hooks.pure do
     HH.button

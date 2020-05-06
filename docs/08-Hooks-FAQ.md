@@ -100,9 +100,9 @@ Hooks don't use the ordinary Halogen state functions because Hooks can have mult
 
 If you define a function in one Hooks evaluation which is going to be run during or after another Hooks evaluation, and this function refers to an `input` value or a value returned by `useState`, then the function will probably see a stale value when it runs. That's because `input` and values returned by `useState` are not mutable references; when your function runs, it will still be pointing at the value that existed when it was defined.
 
-This situation most often occurs when defining effect cleanup functions, as they will be run at the soonest the evaluation _after_ the one in which they were defined.
+This situation most often occurs when defining effect cleanup functions, as they will be run at the soonest the evaluation _after_ the one in which they were defined. However, it can also occur if you need to modify state and then use the new state afterwards to do something else.
 
-You can remedy the situation by copying the parts of state or input that your asynchronous function needs into a mutable reference. Then, the values can be read from the reference when the function runs, ensuring they are up to date. The `useGet` Hook in the [Hooks examples](../examples/Example/Hooks) offers a convenient way to do this:
+You can remedy the situation by copying the parts of state or input that your function needs into a mutable reference. Then, the values can be read from the reference when the function runs, ensuring they are up to date. The `useGet` Hook in the [Hooks examples](../examples/Example/Hooks) offers a convenient way to do this:
 
 ```purs
 myComponent :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
