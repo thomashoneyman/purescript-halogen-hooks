@@ -16,11 +16,11 @@ _display = SProxy :: SProxy "display"
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
 component = Hooks.component \_ _ -> Hooks.do
-  count /\ countState <- Hooks.useState 1
+  count /\ modifyCount <- Hooks.useState 1
 
   let
-    decrement = Hooks.modify_ countState (_ - 1)
-    increment = Hooks.modify_ countState (_ + 1)
+    decrement = modifyCount (_ - 1)
+    increment = modifyCount (_ + 1)
 
   Hooks.pure do
     HH.div_

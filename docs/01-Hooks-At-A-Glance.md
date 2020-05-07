@@ -26,20 +26,20 @@ import Halogen.Hooks as Hooks
 
 example = Hooks.component \_ _ -> Hooks.do
   -- Declare a new state variable, which we'll call "count"
-  count /\ countState <- Hooks.useState 0
+  count /\ modifyCount <- Hooks.useState 0
 
   Hooks.pure do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ Hooks.modify_ countState (_ + 1) ]
+          [ HE.onClick \_ -> Just $ modifyCount (_ + 1) ]
           [ HH.text "Click me" ]
       ]
 ```
 
-`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the _current_ state value and a token that lets you update it.
+`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the _current_ state value and a function that lets you update it.
 
-You can use this token with state functions available in `HookM`, which is the Hook effect monad. We'll see how to use this monad later in this page, but it also has [its own documentation section](./05-HookM.md) if you're ready for a deep dive. HTML functions in Hooks use `HookM` as their action type.
+The update function runs in the `HookM` monad, which is also the action type that all HTML functions in Hooks use. That means you can use this update function directly in your HTML, or combine it with any other `HookM` code. We'll see how to use this monad later in this page, but it also has [its own documentation section](./05-HookM.md) if you're ready for a deep dive.
 
 The `useState` hook requires an initial state as its only argument. In this example, the initial state starts our counter at `0`. The initial state argument is only used on the first render.
 
@@ -50,13 +50,13 @@ You can use the State Hook more than once in a single component:
 ```purs
 manyStates = Hooks.component \_ _ -> Hooks.do
   -- Declare multiple state variables!
-  age /\ ageState <- Hooks.useState 42
-  fruit /\ fruitState <- Hooks.useState "banana"
-  todos /\ todosState <- Hooks.useState [ { text: "Learn Hooks" } ]
+  age /\ modifyAge <- Hooks.useState 42
+  fruit /\ modifyFruit <- Hooks.useState "banana"
+  todos /\ modifyTodos <- Hooks.useState [ { text: "Learn Hooks" } ]
   -- ...
 ```
 
-We're destructuring the tuple that `useState` returns using the tuple operator `(/\)`, which allows us to name our state value and state token whatever we want.
+We're destructuring the tuple that `useState` returns using the tuple operator `(/\)`, which allows us to name our state value and modify function whatever we want.
 
 ### What is a Hook?
 
@@ -74,18 +74,22 @@ For example, this component will log the current count every time the state upda
 
 ```purs
 example = Hooks.component \_ _ -> Hooks.do
-  count /\ countState <- Hooks.useState 0
+  count /\ modifyCount <- Hooks.useState 0
 
   -- On initialize and each subsequent render, log the current count state to
   -- the console.
-  Hooks.useTickEffect [] do
+  Hooks.captures {} Hooks.useTickEffect do
     Console.logShow count
+    -- Before each run of the effect we can perform some cleanup (for example:
+    -- ending a subscription, or cleaning up an event handler). Here, we don't
+    -- need to, so we return `Nothing`.
+    pure Nothing
 
   Hooks.pure do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ Hooks.modify_ countState (_ + 1) ]
+          [ HE.onClick \_ -> Just $ modifyCount (_ + 1) ]
       ]
 ```
 
@@ -93,8 +97,6 @@ The two implementations of this Hook differ in important ways:
 
 - `useLifecycleEffect` will run after the first render (initialization) and can return an effect to run when the component is finalizing. It won't be run for subsequent renders in between these two. That means it directly replaces initializers and finalizers in regular components.
 - `useTickEffect` will run after every render, including initialization. Some effects, like subscriptions to a data source provided as input or in state, need to update any time that source changes, not just at component initialization.
-
-- Crash course in hooks: how to create state, run effects in EvalHookM, use Halogen features like `raise` and `query`, follow rules of hooks (enforced by indexed monad), create your own hooks, link to other library hooks for things like refs, memoization, etc.
 
 ## Building Your Own Hooks
 

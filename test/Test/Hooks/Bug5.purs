@@ -22,24 +22,27 @@ derive instance newtypeRunTickAfterInitialEffectsHook :: Newtype (RunTickAfterIn
 
 rerunTickAfterInitialEffects :: LogRef -> Hook Aff RunTickAfterInitialEffectsHook { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do
-  count /\ countToken <- Hooks.useState 0
-  state1 /\ stateToken1 <- Hooks.useState 1
+  count /\ modifyCount <- Hooks.useState 0
+
+  state1 /\ modifyState1 <- Hooks.useState 1
+
   Hooks.useLifecycleEffect do
     writeLog (RunEffect (EffectBody 0)) log
-    Hooks.modify_ stateToken1 (_ + 1)
+    modifyState1 (_ + 1)
     pure $ Just do
       writeLog (RunEffect (EffectCleanup 0)) log
 
-  state2 /\ stateToken2 <- Hooks.useState 0
-  useMyEffect stateToken2 { state1 }
-  Hooks.pure { count, state1, state2 }
+  state2 /\ modifyState2 <- Hooks.useState 0
 
+  useMyEffect modifyState2 { state1 }
+
+  Hooks.pure { count, state1, state2 }
   where
-    useMyEffect stateToken2 deps@{ state1 : state1' } = Hooks.captures deps Hooks.useTickEffect do
-      writeLog (RunEffect (EffectBody 1)) log
-      Hooks.modify_ stateToken2 (_ + state1')
-      pure $ Just do
-        writeLog (RunEffect (EffectCleanup 1)) log
+  useMyEffect modifyState2 deps@{ state1 } = Hooks.captures deps Hooks.useTickEffect do
+    writeLog (RunEffect (EffectBody 1)) log
+    modifyState2 (_ + state1)
+    pure $ Just do
+      writeLog (RunEffect (EffectCleanup 1)) log
 
 rerunTickAfterInitialEffectsHook :: Spec Unit
 rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterInitialEffects" do
@@ -88,7 +91,6 @@ rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterI
     , RunHooks Queued             -- rerun all non-effect hooks to update state
                                   --    now the returned `state2` value is 3
     , Render                      -- render
-
 
     , RunHooks Step               -- rerun hooks in case tick effect updated state
     , Render

@@ -17,7 +17,7 @@ import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Class (class MonadEffect, liftEffect)
 import Example.Hooks.UseInitializer (UseInitializer, useInitializer)
-import Halogen.Hooks (Hook, StateToken, UseEffect, UseState)
+import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Web.HTML (window)
 import Web.HTML.Window (localStorage)
@@ -45,23 +45,25 @@ useLocalStorage
    . MonadEffect m
   => Eq a
   => StorageInterface a
-  -> Hook m (UseLocalStorage a) (Either String a /\ StateToken (Either String a))
+  -> Hook m (UseLocalStorage a) (Either String a /\ ((Either String a -> Either String a) -> HookM m Unit))
 useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap Hooks.do
-  value /\ valueState <- Hooks.useState (Right defaultValue)
+  state /\ modifyState <- Hooks.useState (Right defaultValue)
 
   let Key k = key
 
   useInitializer do
     storage <- liftEffect (localStorage =<< window)
-    mbItem <- liftEffect (getItem k =<< localStorage =<< window)
+    mbItem <- liftEffect (getItem k storage)
     mbItem # maybe
       (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
-      (\item -> Hooks.put valueState $ jsonParser item >>= fromJson)
+      (\item -> modifyState \_ -> jsonParser item >>= fromJson)
 
-  Hooks.captures { key, value } Hooks.useTickEffect do
-    value' <- Hooks.get valueState
-    storage <- liftEffect (localStorage =<< window)
-    for_ value' \v -> liftEffect $ setItem k (stringify (toJson v)) storage
+  useWriteStorage { value: state, key: k }
+
+  Hooks.pure (Tuple state modifyState)
+  where
+  useWriteStorage deps = Hooks.captures deps Hooks.useTickEffect do
+    liftEffect do
+      storage <- localStorage =<< window
+      for_ deps.value \v -> setItem deps.key (stringify (toJson v)) storage
     pure Nothing
-
-  Hooks.pure (Tuple value valueState)

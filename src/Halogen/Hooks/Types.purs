@@ -42,10 +42,3 @@ foreign import data OutputToken :: Type -> Type
 -- |
 -- | This type is provided by the `captures` and `capturesWith` functions.
 foreign import data MemoValues :: Type
-
--- | A token which carries the type of state maintained by a particular `useState`
--- | Hook. Halogen components can have only one state, but Hooks can have many;
--- | this token serves to disambiguate multiple states internally.
--- |
--- | This token is provided by the `useState` function.
-newtype StateToken state = StateToken Int

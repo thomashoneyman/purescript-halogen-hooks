@@ -18,9 +18,10 @@ import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (HookF(..), HookM(..), Hooked(..), StateToken(..))
+import Halogen.Hooks (HookF(..), HookM(..), Hooked(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.Types (StateToken(..))
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')

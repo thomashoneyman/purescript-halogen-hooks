@@ -1,11 +1,8 @@
 -- | A replacement for `Halogen.Query.HalogenM` which supports a near-identical
--- | API, but adjusted for compatibility with hooks. All functions typically
+-- | API, but adjusted for compatibility with hooks. Most functions typically
 -- | available in `HalogenM` are still available here, but some have modified
--- | behavior (for example, the state functions `get`, `put`, and `modify` require
--- | an additional `StateToken` argument when used in Hooks).
--- |
--- | If you need to use a function usually available in HalogenM which is not
--- | available here, please file an issue.
+-- | behavior (for example, the state functions `get`, `put`, and `modify` don't
+-- | exist; instead, the `useState` hook returns a `modify` function you can use).
 module Halogen.Hooks.HookM where
 
 import Prelude
@@ -28,8 +25,8 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.Data.Slot as Slot
-import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
-import Halogen.Hooks.Types (OutputToken, SlotToken, StateToken)
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateToken, StateValue, toOutputValue)
+import Halogen.Hooks.Types (OutputToken, SlotToken)
 import Halogen.Query.ChildQuery as CQ
 import Halogen.Query.EventSource as ES
 import Prim.Row as Row
@@ -38,10 +35,10 @@ import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
 
--- | A DSL fully compatible with HalogenM which is used to write effectful code
+-- | A DSL compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
 data HookF m a
-  = Modify (StateToken StateValue) (StateValue -> StateValue) (StateValue -> a)
+  = Modify (StateToken StateValue) (StateValue -> StateValue) a
   | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
@@ -54,9 +51,9 @@ data HookF m a
 
 derive instance functorHookF :: Functor m => Functor (HookF m)
 
--- | The Hook effect monad, used to write effectful code in Hooks functions. This
--- | monad is fully compatible with `HalogenM`, meaning all functions available for
--- | `HalogenM` are available in `HookM`.
+-- | The Hook effect monad, used to write effectful code in Hooks functions.
+-- | This monad is fully compatible with `HalogenM`. meaning all functionality
+-- | available for `HalogenM` is available in `HookM`.
 newtype HookM m a = HookM (Free (HookF m) a)
 
 derive newtype instance functorHookM :: Functor (HookM m)
@@ -101,66 +98,6 @@ derive newtype instance applicativeHookAp :: Applicative (HookAp m)
 instance parallelHookM :: Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
   sequential = HookM <<< liftF <<< Par
-
--- | Get a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     count :: Int <- get countState
--- |     ...
--- | ```
-get :: forall state m. StateToken state -> HookM m state
-get token = modify token identity
-
--- | Modify a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     modify_ countState (_ + 10)
--- | ```
-modify_ :: forall state m. StateToken state -> (state -> state) -> HookM m Unit
-modify_ token = map (const unit) <<< modify token
-
--- | Modify a piece of state using a token received from the `useState` hook,
--- | returning the new state.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     count :: Int <- modify countState (_ + 10)
--- |     ...
--- | ```
-modify :: forall state m. StateToken state -> (state -> state) -> HookM m state
-modify token f = HookM $ liftF $ Modify token' f' state
-  where
-  token' :: StateToken StateValue
-  token' = unsafeCoerce token
-
-  f' :: StateValue -> StateValue
-  f' = toStateValue <<< f <<< fromStateValue
-
-  state :: StateValue -> state
-  state = fromStateValue
-
--- | Overwrite a piece of state using a token received from the `useState` hook.
--- |
--- | ```purs
--- | _ /\ countState :: StateToken Int <- useState 0
--- |
--- | let
--- |   onClick = do
--- |     put countState 10
--- | ```
-put :: forall state m. StateToken state -> state -> HookM m Unit
-put token state = modify_ token (const state)
 
 -- | Raise an output message for the component. Requires a token carrying the
 -- | output type of the component, which is provided by the `Hooks.component`

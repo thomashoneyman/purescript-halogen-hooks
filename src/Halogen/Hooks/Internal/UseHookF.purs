@@ -6,14 +6,14 @@ import Data.Maybe (Maybe)
 import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Types (MemoValues, QueryToken, StateToken)
+import Halogen.Hooks.Types (MemoValues, QueryToken)
 import Halogen.Hooks.Internal.Types (MemoValue, QueryValue, RefValue, StateValue)
 
 -- | The Hook API: a set of primitive building blocks for writing stateful logic
 -- | in Halogen. These should not be used directly; the hook functions supplied
 -- | in `Hooks` should be used instead.
 data UseHookF m a
-  = UseState StateValue ((StateValue /\ StateToken StateValue) -> a)
+  = UseState StateValue (StateValue /\ ((StateValue -> StateValue) -> HookM m Unit) -> a)
   | UseEffect (Maybe MemoValues) (HookM m (Maybe (HookM m Unit))) a
   | UseQuery (QueryToken QueryValue) (forall b. QueryValue b -> HookM m (Maybe b)) a
   | UseMemo MemoValues (Unit -> MemoValue) (MemoValue -> a)

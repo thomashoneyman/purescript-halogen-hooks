@@ -12,11 +12,11 @@ import Halogen.Hooks as Hooks
 
 component :: forall q i o m. H.Component HH.HTML q i o m
 component = Hooks.component \_ _ -> Hooks.do
-  enabled /\ enabledState <- Hooks.useState false
+  enabled /\ modifyEnabled <- Hooks.useState false
 
   let
     label = if enabled then "On" else "Off"
-    handleClick = Hooks.modify_ enabledState not
+    handleClick = modifyEnabled not
 
   Hooks.pure do
     HH.button

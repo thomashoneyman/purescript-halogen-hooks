@@ -24,13 +24,13 @@ derive instance newtypeLogHook :: Newtype (LogHook h) _
 
 useTickEffectLog :: LogRef -> Hook Aff LogHook { increment :: HookM Aff Unit, toggle :: HookM Aff Unit, count :: Int }
 useTickEffectLog log = Hooks.wrap Hooks.do
-  count /\ countState <- Hooks.useState 0
-  toggle /\ toggleState <- Hooks.useState false
+  count /\ modifyCount <- Hooks.useState 0
+  toggle /\ modifyToggle <- Hooks.useState false
   useLogger { count, id: 0 }
   Hooks.pure
     { count
-    , increment: Hooks.modify_ countState (_ + 1)
-    , toggle: Hooks.modify_ toggleState not
+    , increment: modifyCount (_ + 1)
+    , toggle: modifyToggle not
     }
   where
   useLogger deps@{ count, id } = Hooks.captures deps Hooks.useTickEffect do
