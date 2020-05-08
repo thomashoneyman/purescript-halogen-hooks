@@ -1,4 +1,4 @@
-module Test.Hooks.UseEffect.UseLifecycleEffect where
+module Test.Hooks.Primitive.UseEffect.UseLifecycleEffect where
 
 import Prelude
 
