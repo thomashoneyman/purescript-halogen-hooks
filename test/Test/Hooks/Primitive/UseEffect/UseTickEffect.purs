@@ -1,4 +1,4 @@
-module Test.Hooks.UseEffect.UseTickEffect where
+module Test.Hooks.Primitive.UseEffect.UseTickEffect where
 
 import Prelude
 

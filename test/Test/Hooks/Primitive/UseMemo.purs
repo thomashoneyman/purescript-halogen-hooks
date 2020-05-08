@@ -1,4 +1,4 @@
-module Test.Hooks.UseMemo where
+module Test.Hooks.Primitive.UseMemo where
 
 import Prelude
 

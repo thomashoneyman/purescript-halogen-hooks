@@ -1,4 +1,4 @@
-module Test.Hooks.UseRef where
+module Test.Hooks.Primitive.UseRef where
 
 import Prelude
 

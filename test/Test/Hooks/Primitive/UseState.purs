@@ -1,4 +1,4 @@
-module Test.Hooks.UseState where
+module Test.Hooks.Primitive.UseState where
 
 import Prelude
 
