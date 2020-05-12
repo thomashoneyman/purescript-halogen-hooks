@@ -8,7 +8,6 @@ import Prelude
 
 import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Fiber, Milliseconds, delay, error, forkAff, killFiber)
 import Effect.Aff.AVar (AVar)
@@ -16,13 +15,14 @@ import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hooks (HookM, Hook, UseRef)
+import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 
-newtype UseDebouncer a hooks =
-  UseDebouncer (UseRef (Maybe a) (UseRef (Maybe Debouncer) hooks))
+foreign import data UseDebouncer :: Type -> Hooks.HookType
 
-derive instance newtypeUseDebouncer :: Newtype (UseDebouncer a hooks) _
+type UseDebouncer' a = UseRef (Maybe Debouncer) <> UseRef (Maybe a) <> Hooks.Nil
+
+instance newtypeUseDebouncer :: HookEquals x (UseDebouncer' a) => HookNewtype (UseDebouncer a) x
 
 type Debouncer =
   { var :: AVar Unit

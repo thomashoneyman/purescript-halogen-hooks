@@ -12,21 +12,27 @@ import Data.Argonaut (Json, jsonParser, stringify)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe)
-import Data.Newtype (class Newtype)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Class (class MonadEffect, liftEffect)
 import Example.Hooks.UseInitializer (UseInitializer, useInitializer)
-import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Web.HTML (window)
 import Web.HTML.Window (localStorage)
 import Web.Storage.Storage (getItem, setItem)
 
-newtype UseLocalStorage a hooks =
-  UseLocalStorage (UseEffect (UseInitializer (UseState (Either String a) hooks)))
+foreign import data UseLocalStorage :: Type -> Hooks.HookType
 
-derive instance newtypeUseLocalStorage :: Newtype (UseLocalStorage a hooks) _
+type UseLocalStorage' a =
+  UseState (Either String a)
+    <> UseInitializer
+    <> UseEffect
+    <> Hooks.Nil
+
+instance newtypeUseLocalStorage
+  :: HookEquals x (UseLocalStorage' a)
+  => HookNewtype (UseLocalStorage a) x
 
 type StorageInterface a =
   { key :: Key

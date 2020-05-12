@@ -7,22 +7,17 @@ module Example.Hooks.UseGet
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hooks (Hook, HookM, UseEffect, UseRef)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseEffect, UseRef)
 import Halogen.Hooks as Hooks
 
-newtype UseGet a hooks = UseGet (UseEffect (UseRef a hooks))
+foreign import data UseGet :: Type -> Hooks.HookType
 
-derive instance newtypeUseGet :: Newtype (UseGet a hooks) _
+instance newtypeUseGet :: HookNewtype (UseGet a) (UseRef a <> UseEffect <> Hooks.Nil)
 
-useGet
-  :: forall m a
-   . MonadEffect m
-  => a
-  -> Hook m (UseGet a) (HookM m a)
+useGet :: forall m a. MonadEffect m => a -> Hook m (UseGet a) (HookM m a)
 useGet latest = Hooks.wrap Hooks.do
   _ /\ ref <- Hooks.useRef latest
 

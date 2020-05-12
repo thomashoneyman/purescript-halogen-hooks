@@ -5,7 +5,6 @@ module Test.Setup.Eval where
 import Prelude
 
 import Control.Monad.Free (foldFree, liftF)
-import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
@@ -18,7 +17,7 @@ import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (HookF(..), HookM(..), Hooked(..))
+import Halogen.Hooks (Hook(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
 import Halogen.Hooks.Internal.Types (StateToken(..))
@@ -79,7 +78,7 @@ interpretHook
    . (HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a)
   -> (InterpretHookReason -> HalogenM' q LogRef Aff a a)
   -> InterpretHookReason
-  -> (LogRef -> Hooked Aff Unit h a)
+  -> (LogRef -> Hook Aff h a)
   -> UseHookF Aff
   ~> HalogenM' q LogRef Aff a
 interpretHook runHookM runHook reason hookFn = case _ of
@@ -101,14 +100,14 @@ interpretHook runHookM runHook reason hookFn = case _ of
 -- | functions, and pre-specialized to `Unit` for convenience.
 mkEval
   :: forall h q b
-   . (LogRef -> Hooked Aff Unit h b)
+   . (LogRef -> Hook Aff h b)
   -> (Unit -> HalogenQ q (HookM Aff Unit) LogRef Unit)
   -> HalogenM' q LogRef Aff b Unit
 mkEval h = mkEvalQuery h `compose` H.tell
 
 mkEvalQuery
   :: forall h q b a
-   . (LogRef -> Hooked Aff Unit h b)
+   . (LogRef -> Hook Aff h b)
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
 mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn evalHookM)
@@ -118,7 +117,7 @@ mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn ev
   -- function, also check the main library function.
   interpretUseHookFn runHookM reason hookFn = do
     { input } <- Hooks.Eval.getState
-    let Hooked (Indexed hookF) = hookFn input
+    let Hook hookF = hookFn input
 
     writeLog (RunHooks reason) input
     a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF

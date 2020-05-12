@@ -3,14 +3,13 @@ module Halogen.Hooks.Component where
 import Prelude
 
 import Control.Monad.Free (foldFree)
-import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.Hooks.Hook (Hooked(..))
+import Halogen.Hooks.Hook (Hook(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
@@ -52,7 +51,7 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | ```
 component
   :: forall hooks q i ps o m
-   . (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
+   . (ComponentTokens q ps o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) ps m))
   -> H.Component HH.HTML q i o m
 component = memoComponent (\_ _ -> false)
 
@@ -86,7 +85,7 @@ component = memoComponent (\_ _ -> false)
 memoComponent
   :: forall hooks q i ps o m
    . (i -> i -> Boolean)
-  -> (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
+  -> (ComponentTokens q ps o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) ps m))
   -> H.Component HH.HTML q i o m
 memoComponent eqInput inputHookFn = do
   let
@@ -106,7 +105,7 @@ memoComponent eqInput inputHookFn = do
   -- should be identical, except with the addition of logging.
   interpretUseHookFn runHookM reason hookFn = do
     { input } <- getState
-    let Hooked (Indexed hookF) = hookFn input
+    let Hook hookF = hookFn input
     a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a

@@ -7,12 +7,11 @@ module Example.Hooks.UseWindowWidth
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Query.EventSource as ES
 import Unsafe.Coerce (unsafeCoerce)
@@ -22,9 +21,10 @@ import Web.Event.EventTarget (EventTarget)
 import Web.HTML as HTML
 import Web.HTML.Window as Window
 
-newtype UseWindowWidth hooks = UseWindowWidth (UseEffect (UseState (Maybe Int) hooks))
+foreign import data UseWindowWidth :: Hooks.HookType
 
-derive instance newtypeUseWindowWidth :: Newtype (UseWindowWidth hooks) _
+instance newtypeUseWindowWidth
+  :: HookNewtype UseWindowWidth (UseState (Maybe Int) <> UseEffect <> Hooks.Nil)
 
 useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap Hooks.do

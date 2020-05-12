@@ -7,7 +7,7 @@ import Data.Foldable (fold)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseState)
+import Halogen.Hooks (type (<>), Hook, HookM, Nil, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval, initDriver)
@@ -21,7 +21,9 @@ type StateCount =
   , increment :: HookM Aff Unit
   }
 
-useStateCount :: LogRef -> Hook Aff (UseState Int) StateCount
+type UseStateCount = UseState Int <> Nil
+
+useStateCount :: LogRef -> Hook Aff UseStateCount StateCount
 useStateCount ref = Hooks.do
   count /\ modifyCount <- Hooks.useState 0
 

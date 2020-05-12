@@ -3,11 +3,10 @@ module Test.Hooks.Complex.Bug5 where
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, UseEffect, UseState)
+import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -16,11 +15,15 @@ import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (fail)
 
-newtype RunTickAfterInitialEffectsHook h = LogHook (UseEffect (UseState Int (UseEffect (UseState Int (UseState Int h)))))
+foreign import data UseTickAfterInitialize :: Hooks.HookType
 
-derive instance newtypeRunTickAfterInitialEffectsHook :: Newtype (RunTickAfterInitialEffectsHook h) _
+type UseTickAfterInitialize' =
+  UseState Int <> UseState Int <> UseEffect <> UseState Int <> UseEffect <> Hooks.Nil
 
-rerunTickAfterInitialEffects :: LogRef -> Hook Aff RunTickAfterInitialEffectsHook { count :: Int, state1 :: Int, state2 :: Int }
+instance newtypeUseTickAfterInitialize
+  :: HookEquals x UseTickAfterInitialize' => HookNewtype UseTickAfterInitialize x
+
+rerunTickAfterInitialEffects :: LogRef -> Hook Aff UseTickAfterInitialize { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do
   count /\ modifyCount <- Hooks.useState 0
 

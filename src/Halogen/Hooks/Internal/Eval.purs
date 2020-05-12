@@ -17,7 +17,7 @@ import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
 import Halogen as H
-import Halogen.Hooks.Hook (Hooked)
+import Halogen.Hooks.Hook (Hook)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, StateValue, fromMemoValue, fromMemoValues, toQueryValue, StateToken(..))
@@ -29,8 +29,8 @@ mkEval
   :: forall h q i m b a
    . (i -> i -> Boolean)
   -> (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
-  -> (InterpretHookReason -> (i -> Hooked m Unit h b) -> HalogenM' q i m b b)
-  -> (i -> Hooked m Unit h b)
+  -> (InterpretHookReason -> (i -> Hook m h b) -> HalogenM' q i m b b)
+  -> (i -> Hook m h b)
   -> H.HalogenQ q (HookM m Unit) i a
   -> HalogenM' q i m b a
 mkEval inputEq runHookM runHook hookFn = case _ of
@@ -85,7 +85,7 @@ interpretHook
    . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
   -> (InterpretHookReason -> HalogenM' q i m a a)
   -> InterpretHookReason
-  -> (i -> Hooked m Unit hooks a)
+  -> (i -> Hook m hooks a)
   -> UseHookF m
   ~> HalogenM' q i m a
 interpretHook runHookM runHook reason hookFn = case _ of
