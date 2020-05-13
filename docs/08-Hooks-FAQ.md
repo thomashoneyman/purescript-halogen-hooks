@@ -118,12 +118,19 @@ Otherwise, you can use the `state` value returned by `useState` or the `input` v
 If you do find yourself with stale inputo or state, then you have two solutions:
 
 - Use the `Hooks.get` function with your state identifier within your effect cleanup or forked effect to retrieve fresh state at the time the function executes.
-- Use the `Hooks.getInput` function to retrieve fresh input at the time the function executes.
+- Copy the relevant portion of input into a `Ref` to retrieve fresh input at the time the function executes
 
 ```purs
 myComponent :: forall q o m. MonadAff m => H.Component HH.HTML q Int o m
 myComponent = Hooks.component \_ input -> Hooks.do
   state /\ stateId <- Hooks.useState 0
+  _ /\ inputRef <- Hooks.useRef input
+
+  -- Every time the value of `input` changes, we'll write the value to the input
+  -- ref so it can be read by asynchronous functions / effect cleanup.
+  Hooks.captures { input } Hooks.useTickEffect do
+    liftEffect $ Ref.write input ref
+    pure Nothing
 
   Hooks.captures {} Hooks.useTickEffect do
     -- These references are up to date because this effect body runs immediately
@@ -133,10 +140,10 @@ myComponent = Hooks.component \_ input -> Hooks.do
     pure $ Just $ do
       -- The effect cleanup, however, will not run after the Hook evaluation in
       -- which it is defined. For that reason we cannot use `state` or `input`
-      -- directly, and should instead call `get <stateId>` and `getInput` to read
-      -- the current value at the time the function executes.
+      -- directly, and should instead call `get <stateId>` and read the input ref
+      -- to get the current value at the time the function executes.
       state' <- Hooks.get stateId
-      input' <- Hooks.getInput
+      input' <- liftEffect $ Ref.read inputRef
       logShow state'
       logShow input'
 ```
