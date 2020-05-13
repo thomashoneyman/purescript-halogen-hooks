@@ -86,43 +86,59 @@ In the Hooks model you don't copy your input into your component state. It's pur
 
 ### How do I update state?
 
-In Halogen components you update state using functions available in the `HalogenM` monad, namely `get`, `put`, `modify`, and `modify_`. In Hooks, when you use the `useState` hook, you are returned a state value and a function to modify the state. This function is equivalent to the Halogen `modify_` function.
+In Halogen components you update state using functions available in the `HalogenM` monad, namely `get`, `put`, `modify`, and `modify_`. In Hooks, when you use the `useState` hook, you are returned a state value and a unique identifier for that state which you can use with `get`, `put`, `modify`, and `modify_`. You receive an identifier because Hooks can have multiple independent states instead of a single unified state like an ordinary Halogen component.
 
 ```purs
-(state :: Int) /\ (modifyState :: ((Int -> Int) -> HookM m Unit)) <- useState 0
+(state :: Int) /\ (stateId :: StateId Int) <- useState 0
 ```
 
-You can call `modifyState` anywhere you can use `HookM`, which includes actions in your `ComponentHTML` and effects in hooks like `useLifecycleEffect`.
+You can use the state functions with the identifier anywhere you can use `HookM`, which includes actions in your `ComponentHTML` and effects in hooks like `useLifecycleEffect`.
 
-Hooks don't use the ordinary Halogen state functions because Hooks can have multiple independent states. Halogen components, in contrast, can only have one unified state.
+If you prefer your `useState` hook to return a modify function directly, you can use the `Functor` instance to apply the state function you want to the identifier for the hook to return. For example:
+
+```purs
+useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
+useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+
+state /\ (setState :: Int -> HookM m Unit) <- useStateFn Hooks.put 0
+state /\ (modifyState :: ((Int -> Int) -> HookM m Unit) <- useStateFn Hooks.modify_ 0
+```
 
 ### Why am I seeing stale input or state?
 
 If you define a function in one Hooks evaluation which is going to be run during or after another Hooks evaluation, and this function refers to an `input` value or a value returned by `useState`, then the function will probably see a stale value when it runs. That's because `input` and values returned by `useState` are not mutable references; when your function runs, it will still be pointing at the value that existed when it was defined.
 
-This situation most often occurs when defining effect cleanup functions, as they will be run at the soonest the evaluation _after_ the one in which they were defined. However, it can also occur if you need to modify state and then use the new state afterwards to do something else.
+The only times you need to worry about this are when:
 
-You can remedy the situation by copying the parts of state or input that your function needs into a mutable reference. Then, the values can be read from the reference when the function runs, ensuring they are up to date. The `useGet` Hook in the [Hooks examples](../examples/Example/Hooks) offers a convenient way to do this:
+- You are defining an effect cleanup, and it relies on the current state
+- You are defining a forked computation that may run at any time, and it relies on the current state
+
+Otherwise, you can use the `state` value returned by `useState` or the `input` value directly.
+
+If you do find yourself with stale inputo or state, then you have two solutions:
+
+- Use the `Hooks.get` function with your state identifier within your effect cleanup or forked effect to retrieve fresh state at the time the function executes.
+- Use the `Hooks.getInput` function to retrieve fresh input at the time the function executes.
 
 ```purs
-myComponent :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-myComponent = Hooks.component \_ _ -> Hooks.do
-  state /\ modifyState <- Hooks.useState 0
-
-  -- This returns a function to get the latest state; can also be used with other
-  -- values, like `input`.
-  getState <- useGet state
+myComponent :: forall q o m. MonadAff m => H.Component HH.HTML q Int o m
+myComponent = Hooks.component \_ input -> Hooks.do
+  state /\ stateId <- Hooks.useState 0
 
   Hooks.captures {} Hooks.useTickEffect do
-    -- This state reference is up to date because this effect body runs immediately
+    -- These references are up to date because this effect body runs immediately
     -- after the Hook evaluation in which it is defined.
     logShow state
+    logShow input
     pure $ Just $ do
       -- The effect cleanup, however, will not run after the Hook evaluation in
-      -- which it is defined. For that reason we cannot use `state` directly, and
-      -- instead need to call `getState` to read the most recent value.
-      st <- getState
-      logShow st
+      -- which it is defined. For that reason we cannot use `state` or `input`
+      -- directly, and should instead call `get <stateId>` and `getInput` to read
+      -- the current value at the time the function executes.
+      state' <- Hooks.get stateId
+      input' <- Hooks.getInput
+      logShow state'
+      logShow input'
 ```
 
 ### How do I use initializers and finalizers?
@@ -152,17 +168,20 @@ H.subscribe -> Hooks.subscribe
 ...
 ```
 
-The `HalogenM` state functions only allow a single state, but Hooks allow multiple independent states. For that reason, the state Hook returns a function that can be used to modify state values.
+The `HalogenM` state functions only allow a single state, but Hooks allow multiple independent states. For that reason, the `useState` hook returns a state and a state identifier. The state identifier can be used with the `put`, `modify`, `modify_`, and `get` functions -- the same ones from `HalogenM`, just with the identifier as an extra argument.
 
-This replaces the `put`, `modify`, and `modify_` functions from `HalogenM`. And because the returned state value is updated every Hooks evaluation, there's no need for `get` except for in asynchronous functions (effect cleanups, mostly). To avoid stale state in asynchronous functions, see the [Why am I seeing stale input or state?](#why-am-i-seeing-stale-input-or-state) entry.
+Because the returned state value is updated every Hooks evaluation, you only need to call `get` in asynchronous functions (effect cleanups and forked functions, typically). To avoid stale state in asynchronous functions, see the [Why am I seeing stale input or state?](#why-am-i-seeing-stale-input-or-state) entry.
 
-```text
-HalogenM.put, HalogenM.modify, HalogenM.modify_    -> _ /\ modifyState <- useState initialState
+```purs
+HalogenM.put      -> Hooks.put <id>
+HalogenM.modify   -> Hooks.modify <id>
+HalogenM.modify_  -> Hooks.modify_ <id>
+HalogenM.get      -> Hooks.get <id>
 ```
 
 Functions which send queries or send output messages are the same as they are in `HalogenM`, but they take a token returned by the `component` function as an additional argument. That's because these features only make sense in the context of a parent-child component relationship, which doesn't exist in Hooks:
 
-```text
+```purs
 HalogenM.query     -> Hooks.query slotToken
 HalogenM.queryAll  -> Hooks.queryAll slotToken
 HalogenM.raise     -> Hooks.raise outputToken

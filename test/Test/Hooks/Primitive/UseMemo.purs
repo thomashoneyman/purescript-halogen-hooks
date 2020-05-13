@@ -32,18 +32,18 @@ type MemoCount =
 
 useMemoCount :: LogRef -> Hook Aff MemoHook MemoCount
 useMemoCount log = Hooks.wrap Hooks.do
-  state1 /\ modifyState1 <- Hooks.useState 0
-  state2 /\ modifyState2 <- Hooks.useState 0
-  state3 /\ modifyState3 <- Hooks.useState 0
+  state1 /\ state1Id <- Hooks.useState 0
+  state2 /\ state2Id <- Hooks.useState 0
+  state3 /\ state3Id <- Hooks.useState 0
 
   expensive1 <- memoize1 { state1 }
   expensive2 <- memoize2 { state2 }
   expensive3 <- memoize3 { state1, state2 }
 
   Hooks.pure
-    { incrementA: modifyState1 (_ + 1) -- recomputes 1 and 3
-    , incrementB: modifyState2 (_ + 1) -- recomputes 2 and 3
-    , incrementC: modifyState3 (_ + 1) -- recomputes nothing
+    { incrementA: Hooks.modify_ state1Id (_ + 1) -- recomputes 1 and 3
+    , incrementB: Hooks.modify_ state2Id (_ + 1) -- recomputes 2 and 3
+    , incrementC: Hooks.modify_ state3Id (_ + 1) -- recomputes nothing
     , expensive1
     , expensive2
     , expensive3

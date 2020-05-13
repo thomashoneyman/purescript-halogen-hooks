@@ -26,18 +26,18 @@ import Halogen.Hooks as Hooks
 
 example = Hooks.component \_ _ -> Hooks.do
   -- Declare a new state variable, which we'll call "count"
-  count /\ modifyCount <- Hooks.useState 0
+  count /\ countId <- Hooks.useState 0
 
   Hooks.pure do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ modifyCount (_ + 1) ]
+          [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
           [ HH.text "Click me" ]
       ]
 ```
 
-`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the _current_ state value and a function that lets you update it.
+`useState` is a Hook. We call it inside a Hooks function to add some local state to it. Halogen will preserve this state between re-renders. `useState` returns a tuple: the _current_ state value and a unique identifier you can use with state update functions including `get`, `put`, `modify_`, and `modify`.
 
 The update function runs in the `HookM` monad, which is also the action type that all HTML functions in Hooks use. That means you can use this update function directly in your HTML, or combine it with any other `HookM` code. We'll see how to use this monad later in this page, but it also has [its own documentation section](./05-HookM.md) if you're ready for a deep dive.
 
@@ -48,15 +48,38 @@ The `useState` hook requires an initial state as its only argument. In this exam
 You can use the State Hook more than once in a single component:
 
 ```purs
-manyStates = Hooks.component \_ _ -> Hooks.do
+manyStates = Hooks.do
   -- Declare multiple state variables!
-  age /\ modifyAge <- Hooks.useState 42
-  fruit /\ modifyFruit <- Hooks.useState "banana"
-  todos /\ modifyTodos <- Hooks.useState [ { text: "Learn Hooks" } ]
+  age /\ ageId <- Hooks.useState 42
+  fruit /\ fruitId <- Hooks.useState "banana"
+  todos /\ todosId <- Hooks.useState [ { text: "Learn Hooks" } ]
   -- ...
 ```
 
-We're destructuring the tuple that `useState` returns using the tuple operator `(/\)`, which allows us to name our state value and modify function whatever we want.
+We're destructuring the tuple that `useState` returns using the tuple operator `(/\)`, which allows us to name our state value and identifier whatever we want.
+
+### Using a modify function instead of an identifier
+
+If you prefer your `useState` Hook to return a modify function directly, instead of an identifier, you can use the `Functor` instance for Hooks to apply a state function to the identifier returned by the hook.
+
+```purs
+-- You can provide any of the Hooks state functions to this function.
+useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
+useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+
+manyStates = Hooks.do
+  -- Return a modify function instead of an identifier!
+  age /\ modifyAge <- useStateFn H.modify_ 42
+  fruit /\ setFruit <- useStateFn H.put "banana"
+
+  let
+    handler :: HookM _ Unit
+    handler = do
+      -- instead of H.modify_ ageId \n -> n + 10
+      modifyAge \n -> n + 10
+      -- instead of H.put fruitId "strawberry"
+      setFruit "strawberry"
+```
 
 ### What is a Hook?
 
@@ -74,7 +97,7 @@ For example, this component will log the current count every time the state upda
 
 ```purs
 example = Hooks.component \_ _ -> Hooks.do
-  count /\ modifyCount <- Hooks.useState 0
+  count /\ countId <- Hooks.useState 0
 
   -- On initialize and each subsequent render, log the current count state to
   -- the console.
@@ -89,7 +112,7 @@ example = Hooks.component \_ _ -> Hooks.do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ modifyCount (_ + 1) ]
+          [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
       ]
 ```
 

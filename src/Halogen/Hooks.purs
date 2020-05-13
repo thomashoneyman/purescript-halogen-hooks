@@ -50,7 +50,7 @@ import Halogen.Hooks.Component (component)
 import Halogen.Hooks.Hook (Hook, Hooked(..))
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken)
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId(..))
 import Prelude (Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -72,17 +72,14 @@ foreign import data UseState :: Type -> Type -> Type
 useState
   :: forall state m
    . state
-  -> Hook m (UseState state) (state /\ ((state -> state) -> HookM m Unit))
+  -> Hook m (UseState state) (state /\ StateId state)
 useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
   initialState' = IT.toStateValue initialState
 
-  interface
-    :: Tuple IT.StateValue ((IT.StateValue -> IT.StateValue) -> HookM m Unit)
-    -> Tuple state ((state -> state) -> HookM m Unit)
-  interface (Tuple value f) =
-    IT.fromStateValue value /\ f <<< (\fn -> IT.toStateValue <<< fn <<< IT.fromStateValue)
+  interface :: Tuple IT.StateValue (StateId IT.StateValue) -> Tuple state (StateId state)
+  interface (Tuple value token) = Tuple (IT.fromStateValue value) (unsafeCoerce token)
 
 foreign import data UseEffect :: Type -> Type
 

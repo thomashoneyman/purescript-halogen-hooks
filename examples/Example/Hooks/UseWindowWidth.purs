@@ -28,10 +28,10 @@ derive instance newtypeUseWindowWidth :: Newtype (UseWindowWidth hooks) _
 
 useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap Hooks.do
-  width /\ modifyWidth <- Hooks.useState Nothing
+  width /\ widthId <- Hooks.useState Nothing
 
   Hooks.useLifecycleEffect do
-    subscription <- subscribeToWindow (modifyWidth <<< const)
+    subscription <- subscribeToWindow (Hooks.put widthId)
     pure $ Just $ Hooks.unsubscribe subscription
 
   Hooks.pure width

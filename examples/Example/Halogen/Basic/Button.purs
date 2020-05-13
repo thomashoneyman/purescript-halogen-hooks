@@ -2,21 +2,31 @@ module Example.Halogen.Basic.Button where
 
 import Prelude
 
+import Data.Functor.Indexed (imap)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple)
 import Data.Tuple.Nested ((/\))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Hooks (Hook, StateId, UseState)
 import Halogen.Hooks as Hooks
+
+useStateFn
+  :: forall state m a
+   . (StateId state -> a)
+   -> state
+   -> Hook m (UseState state) (Tuple state a)
+useStateFn fn initial = imap (map fn) (Hooks.useState initial)
 
 component :: forall q i o m. H.Component HH.HTML q i o m
 component = Hooks.component \_ _ -> Hooks.do
-  enabled /\ modifyEnabled <- Hooks.useState false
+  enabled /\ enabledId <- Hooks.useState false
 
   let
     label = if enabled then "On" else "Off"
-    handleClick = modifyEnabled not
+    handleClick = Hooks.modify_ enabledId not
 
   Hooks.pure do
     HH.button

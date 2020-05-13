@@ -15,24 +15,26 @@ This chapter is still a work in progress, but it contains enough information on 
 
 ## useState
 
-The `useState` Hook allows you to create an independent state. It requires the initial state as an argument, and it returns the current value of that state and a function to update that state.
+The `useState` Hook allows you to create an independent state. It requires the initial state as an argument, and it returns the current value of that state and a unique identifier you can use with function to update that state.
 
 ```purs
 Hooks.do
-  -- Create one or more states with `useState`
-  state /\ modifyState <- Hooks.useState initialState
-  count /\ modifyCount <- Hooks.useState 0
+  -- Create one or more states with `useState`. On each render the hook will
+  -- return the current state and a unique identifier you can use to update
+  -- the state.
+  state /\ stateId <- Hooks.useState initialState
+  count /\ countId <- Hooks.useState 0
 
   let
     update :: HookM _ Unit
     update = do
       -- Use the modify function to update the state, which will cause all hooks
       -- to run again and a new render to occur.
-      modifyCount (_ + 10)
+      Hooks.modify_ countId (_ + 10)
       -- ...
 
   Hooks.useLifecycleEffect do
-    modifyCount (_ + 10)
+    Hooks.modify_ countId (_ + 10)
     pure Nothing
 
   Hooks.pure do
@@ -42,6 +44,26 @@ Hooks.do
 ```
 
 In a regular Halogen component, any time your state updates your component will re-render. Hooks operate in a similar fashion: any time one of your state cells updates, your Hooks will re-run.
+
+Most of the time you only need the `modify_` function for your state. If you prefer the `useState` hook to just return the modify function directly, you can do so like this:
+
+```purs
+-- To allow using any state function
+useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
+useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+
+-- To specifically use `modify_`
+useState :: forall s m. s -> Hook m (UseState s) (s /\ ((s -> s) -> HookM m Unit)
+useState = useStateFn Hooks.modify_
+
+Hooks.do
+  state /\ modifyState <- useState initialState
+
+  let
+    handler :: HookM _ Unit
+    handler = do
+      modifyState \st -> ...
+```
 
 ## useLifecycleEffect
 

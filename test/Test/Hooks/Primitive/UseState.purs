@@ -23,11 +23,11 @@ type StateCount =
 
 useStateCount :: LogRef -> Hook Aff (UseState Int) StateCount
 useStateCount ref = Hooks.do
-  count /\ modifyCount <- Hooks.useState 0
+  count /\ countId <- Hooks.useState 0
 
   Hooks.pure
     { count
-    , increment: modifyCount (_ + 1)
+    , increment: Hooks.modify_ countId (_ + 1)
     }
 
 stateHook :: Spec Unit

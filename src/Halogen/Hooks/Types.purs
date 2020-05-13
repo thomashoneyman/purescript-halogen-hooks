@@ -1,5 +1,19 @@
 module Halogen.Hooks.Types where
 
+-- | A unique identifier for a state produced by `useState`, which can be passed
+-- | to the state functions `get`, `put`, `modify`, and `modify_` to get or
+-- | modify the state.
+-- |
+-- | This token should NOT be modified.
+-- |
+-- | ```purs
+-- | state /\ stateId <- useState 0
+-- |
+-- | let
+-- |   handler = Hooks.modify_ stateId (_ + 10)
+-- | ```
+newtype StateId state = StateId Int
+
 -- | The set of tokens enabling queries, child slots, and output messages when
 -- | running a Hook as a component. This set of tokens is provided by the
 -- | `Hooks.component` function.
