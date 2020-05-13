@@ -115,11 +115,11 @@ get identifier = modify identifier identity
 -- | Modify a piece of state using a identifier received from the `useState` hook.
 -- |
 -- | ```purs
--- | _ /\ countState :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     modify_ countState (_ + 10)
+-- |     modify_ countId (_ + 10)
 -- | ```
 modify_ :: forall state m. StateId state -> (state -> state) -> HookM m Unit
 modify_ identifier = map (const unit) <<< modify identifier
@@ -128,11 +128,11 @@ modify_ identifier = map (const unit) <<< modify identifier
 -- | returning the new state.
 -- |
 -- | ```purs
--- | _ /\ countState :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     count :: Int <- modify countState (_ + 10)
+-- |     count :: Int <- modify countId (_ + 10)
 -- |     ...
 -- | ```
 modify :: forall state m. StateId state -> (state -> state) -> HookM m state
@@ -150,11 +150,11 @@ modify identifier f = HookM $ liftF $ Modify token' f' state
 -- | Overwrite a piece of state using a identifier received from the `useState` hook.
 -- |
 -- | ```purs
--- | _ /\ countState :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     put countState 10
+-- |     put countId 10
 -- | ```
 put :: forall state m. StateId state -> state -> HookM m Unit
 put identifier state = modify_ identifier (const state)
