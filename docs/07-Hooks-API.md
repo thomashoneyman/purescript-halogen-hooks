@@ -15,7 +15,7 @@ This chapter is still a work in progress, but it contains enough information on 
 
 ## useState
 
-The `useState` Hook allows you to create an independent state. It requires the initial state as an argument, and it returns the current value of that state and a unique identifier you can use with function to update that state.
+The `useState` Hook allows you to create an independent state. It requires the initial state as an argument, and it returns the current value of that state and a unique identifier you can use with state functions to update that state.
 
 ```purs
 Hooks.do
