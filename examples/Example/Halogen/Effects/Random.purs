@@ -15,14 +15,14 @@ type State = Maybe Number
 
 component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
 component = Hooks.component \_ _ -> Hooks.do
-  state /\ modifyState <- Hooks.useState Nothing
+  state /\ stateId <- Hooks.useState Nothing
 
   let
     value = maybe "No number generated yet" show state
 
     handleClick = Just do
       newNumber <- H.liftEffect random
-      modifyState \_ -> Just newNumber
+      Hooks.put stateId (Just newNumber)
 
   Hooks.pure do
     HH.div_

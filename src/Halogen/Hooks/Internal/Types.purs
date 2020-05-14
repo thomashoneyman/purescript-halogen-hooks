@@ -4,8 +4,6 @@ import Halogen.Hooks.Types
 import Foreign.Object (Object)
 import Unsafe.Coerce (unsafeCoerce)
 
-newtype StateToken state = StateToken Int
-
 foreign import data StateValue :: Type
 
 toStateValue :: forall state. state -> StateValue

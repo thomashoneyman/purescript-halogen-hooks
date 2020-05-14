@@ -38,39 +38,34 @@ import Halogen.Hooks.Component (component)
 import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), Hooked, Nil, bind, discard, pure, wrap, kind HookType)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken)
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId(..))
 import Prelude (class Eq, Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data UseState :: Type -> HookType
 
--- | A Hook providing an independent state and a token usable to modify that state.
+-- | A Hook providing an independent state and a unique identifier usable with
+-- | the state functions `get`, `put`, `modify`, and `modify_` to update the state.
 -- |
 -- | ```purs
 -- | Hooks.do
 -- |   -- Create a new state with `useState`
--- |   state /\ modifyState <- Hooks.useState 0
+-- |   state /\ stateId <- Hooks.useState 0
 -- |
--- |   -- Perform state updates in `HookM` with the `modifyState` function
+-- |   -- Perform state updates in `HookM`
 -- |   let
 -- |     update :: HookM m Unit
 -- |     update =
--- |       modifyState \st -> st + 10
+-- |       Hooks.modify_ stateId \st -> st + 10
 -- | ```
-useState
-  :: forall state m
-   . state
-  -> Hook m (UseState state) (state /\ ((state -> state) -> HookM m Unit))
+useState :: forall state m. state -> Hook m (UseState state) (state /\ StateId state)
 useState initialState = Hook $ liftF $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
   initialState' = IT.toStateValue initialState
 
-  interface
-    :: Tuple IT.StateValue ((IT.StateValue -> IT.StateValue) -> HookM m Unit)
-    -> Tuple state ((state -> state) -> HookM m Unit)
-  interface (Tuple value f) =
-    IT.fromStateValue value /\ f <<< (\fn -> IT.toStateValue <<< fn <<< IT.fromStateValue)
+  interface :: Tuple IT.StateValue (StateId IT.StateValue) -> Tuple state (StateId state)
+  interface (Tuple value id) = Tuple (IT.fromStateValue value) (unsafeCoerce id)
 
 foreign import data UseEffect :: HookType
 

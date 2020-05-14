@@ -21,13 +21,13 @@ type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Nil
 
 useTickEffectLog :: LogRef -> Hook Aff UseLogHook { increment :: HookM Aff Unit, toggle :: HookM Aff Unit, count :: Int }
 useTickEffectLog log = Hooks.do
-  count /\ modifyCount <- Hooks.useState 0
-  toggle /\ modifyToggle <- Hooks.useState false
+  count /\ countId <- Hooks.useState 0
+  toggle /\ toggleId <- Hooks.useState false
   useLogger { count, id: 0 }
   Hooks.pure
     { count
-    , increment: modifyCount (_ + 1)
-    , toggle: modifyToggle not
+    , increment: Hooks.modify_ countId (_ + 1)
+    , toggle: Hooks.modify_ toggleId not
     }
   where
   useLogger deps@{ count, id } = Hooks.captures deps Hooks.useTickEffect do

@@ -25,19 +25,19 @@ instance newtypeUseTickAfterInitialize
 
 rerunTickAfterInitialEffects :: LogRef -> Hook Aff UseTickAfterInitialize { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do
-  count /\ modifyCount <- Hooks.useState 0
+  count /\ countId <- Hooks.useState 0
 
-  state1 /\ modifyState1 <- Hooks.useState 1
+  state1 /\ state1Id <- Hooks.useState 1
 
   Hooks.useLifecycleEffect do
     writeLog (RunEffect (EffectBody 0)) log
-    modifyState1 (_ + 1)
+    Hooks.modify_ state1Id (_ + 1)
     pure $ Just do
       writeLog (RunEffect (EffectCleanup 0)) log
 
-  state2 /\ modifyState2 <- Hooks.useState 0
+  state2 /\ state2Id <- Hooks.useState 0
 
-  useMyEffect modifyState2 { state1 }
+  useMyEffect (Hooks.modify_ state2Id) { state1 }
 
   Hooks.pure { count, state1, state2 }
   where

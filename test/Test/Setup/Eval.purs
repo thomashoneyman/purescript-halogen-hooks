@@ -20,8 +20,8 @@ import Halogen.HTML as HH
 import Halogen.Hooks (Hook(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
-import Halogen.Hooks.Internal.Types (StateToken(..))
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
+import Halogen.Hooks.Types (StateId(..))
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
@@ -58,7 +58,7 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
-    c@(Modify (StateToken token) f reply) -> do
+    c@(Modify (StateId token) f reply) -> do
       state <- Hooks.Eval.getState
       let v = Hooks.Eval.unsafeGetCell token state.stateCells.queue
 

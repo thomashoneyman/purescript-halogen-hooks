@@ -13,7 +13,9 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |
 -- | Functions of this type should be constructed using the Hooks API exposed
 -- | by `Halogen.Hooks`.
-newtype Hook m (hooks :: HookType) a = Hook (Free (UseHookF m) a)
+newtype Hook m (h :: HookType) a = Hook (Free (UseHookF m) a)
+
+derive newtype instance functorHook :: Functor (Hook m h)
 
 -- | The kind of types used in Hooks; primitive Hooks already have this kind,
 -- | and Hooks of your own should be foreign imported data types that are also
@@ -30,10 +32,10 @@ foreign import kind HookType
 -- | ```purs`
 -- | import Halogen.Hooks (type (<>))
 -- |
--- | type UseStateffect = UseState Int <> UseEffect <> Nil
+-- | type UseStateEffect = UseState Int <> UseEffect <> Nil
 -- |
 -- | -- equivalent to
--- | type UseStateffect = Hooked (UseState Int) (Hooked UseEffect Nil)
+-- | type UseStateEffect = Hooked (UseState Int) (Hooked UseEffect Nil)
 -- | ```
 foreign import data Hooked :: HookType -> HookType -> HookType
 

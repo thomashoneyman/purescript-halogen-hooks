@@ -20,8 +20,9 @@ import Halogen as H
 import Halogen.Hooks.Hook (Hook)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
-import Halogen.Hooks.Internal.Types (MemoValuesImpl, StateValue, fromMemoValue, fromMemoValues, toQueryValue, StateToken(..))
+import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
+import Halogen.Hooks.Types (StateId(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -96,10 +97,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
 
         let
           newQueue = Array.snoc queue initial
-          token = StateToken (Array.length newQueue - 1)
+          identifier = StateId (Array.length newQueue - 1)
 
         modifyState_ _ { stateCells { queue = newQueue } }
-        pure $ reply $ Tuple initial (modifyWithToken token)
+        pure $ reply $ Tuple initial identifier
 
       _ -> do
         { stateCells: { index, queue } } <- getState
@@ -107,10 +108,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
         let
           value = unsafeGetCell index queue
           nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          token = StateToken index
+          identifier = StateId index
 
         modifyState_ _ { stateCells { index = nextIndex } }
-        pure $ reply $ Tuple value (modifyWithToken token)
+        pure $ reply $ Tuple value identifier
 
   UseQuery _ handler a -> do
     let
@@ -266,7 +267,7 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
   where
   interpretHalogenHook :: HookF m ~> HalogenM' q i m a
   interpretHalogenHook = case _ of
-    Modify (StateToken token) f a -> do
+    Modify (StateId token) f reply -> do
       state <- getState
 
       let
@@ -284,7 +285,7 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
           }
         void runHooks
 
-      pure a
+      pure (reply next)
 
     Subscribe eventSource reply ->
       H.HalogenM $ liftF $ H.Subscribe eventSource reply
@@ -350,6 +351,3 @@ putState :: forall q i m a. InternalHookState q i m a -> HalogenM' q i m a Unit
 putState s = do
   { stateRef } <- H.gets unwrap
   pure $ unsafePerformEffect $ Ref.write s stateRef
-
-modifyWithToken :: forall m. StateToken StateValue -> (StateValue -> StateValue) -> HookM m Unit
-modifyWithToken token f = HookM $ liftF $ Modify token f unit
