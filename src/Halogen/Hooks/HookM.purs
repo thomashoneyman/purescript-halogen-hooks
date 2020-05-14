@@ -102,11 +102,11 @@ instance parallelHookM :: Parallel (HookAp m) (HookM m) where
 -- | Get a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
--- | _ /\ countState :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     count :: Int <- get countState
+-- |     count :: Int <- Hooks.get countId
 -- |     ...
 -- | ```
 get :: forall state m. StateId state -> HookM m state
@@ -115,11 +115,11 @@ get identifier = modify identifier identity
 -- | Modify a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
--- | _ /\ countId :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     modify_ countId (_ + 10)
+-- |     Hooks.modify_ countId (_ + 10)
 -- | ```
 modify_ :: forall state m. StateId state -> (state -> state) -> HookM m Unit
 modify_ identifier = map (const unit) <<< modify identifier
@@ -128,11 +128,11 @@ modify_ identifier = map (const unit) <<< modify identifier
 -- | returning the new state.
 -- |
 -- | ```purs
--- | _ /\ countId :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     count :: Int <- modify countId (_ + 10)
+-- |     count :: Int <- Hooks.modify countId (_ + 10)
 -- |     ...
 -- | ```
 modify :: forall state m. StateId state -> (state -> state) -> HookM m state
@@ -150,11 +150,11 @@ modify identifier f = HookM $ liftF $ Modify identifier' f' state
 -- | Overwrite a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
--- | _ /\ countId :: StateId Int <- useState 0
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
 -- |
 -- | let
 -- |   onClick = do
--- |     put countId 10
+-- |     Hooks.put countId 10
 -- | ```
 put :: forall state m. StateId state -> state -> HookM m Unit
 put identifier state = modify_ identifier (const state)
