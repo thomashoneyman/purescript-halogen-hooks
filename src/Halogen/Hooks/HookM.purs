@@ -136,10 +136,10 @@ modify_ identifier = map (const unit) <<< modify identifier
 -- |     ...
 -- | ```
 modify :: forall state m. StateId state -> (state -> state) -> HookM m state
-modify identifier f = HookM $ liftF $ Modify token' f' state
+modify identifier f = HookM $ liftF $ Modify identifier' f' state
   where
-  token' :: StateId StateValue
-  token' = unsafeCoerce identifier
+  identifier' :: StateId StateValue
+  identifier' = unsafeCoerce identifier
 
   f' :: StateValue -> StateValue
   f' = toStateValue <<< f <<< fromStateValue
