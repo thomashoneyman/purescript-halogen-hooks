@@ -99,7 +99,7 @@ instance parallelHookM :: Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
   sequential = HookM <<< liftF <<< Par
 
--- | Get a piece of state using a identifier received from the `useState` hook.
+-- | Get a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
 -- | _ /\ countState :: StateId Int <- useState 0
@@ -112,7 +112,7 @@ instance parallelHookM :: Parallel (HookAp m) (HookM m) where
 get :: forall state m. StateId state -> HookM m state
 get identifier = modify identifier identity
 
--- | Modify a piece of state using a identifier received from the `useState` hook.
+-- | Modify a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
 -- | _ /\ countId :: StateId Int <- useState 0
@@ -124,7 +124,7 @@ get identifier = modify identifier identity
 modify_ :: forall state m. StateId state -> (state -> state) -> HookM m Unit
 modify_ identifier = map (const unit) <<< modify identifier
 
--- | Modify a piece of state using a identifier received from the `useState` hook,
+-- | Modify a piece of state using an identifier received from the `useState` hook,
 -- | returning the new state.
 -- |
 -- | ```purs
@@ -147,7 +147,7 @@ modify identifier f = HookM $ liftF $ Modify token' f' state
   state :: StateValue -> state
   state = fromStateValue
 
--- | Overwrite a piece of state using a identifier received from the `useState` hook.
+-- | Overwrite a piece of state using an identifier received from the `useState` hook.
 -- |
 -- | ```purs
 -- | _ /\ countId :: StateId Int <- useState 0
@@ -159,14 +159,14 @@ modify identifier f = HookM $ liftF $ Modify token' f' state
 put :: forall state m. StateId state -> state -> HookM m Unit
 put identifier state = modify_ identifier (const state)
 
--- | Raise an output message for the component. Requires a identifier carrying the
+-- | Raise an output message for the component. Requires a token carrying the
 -- | output type of the component, which is provided by the `Hooks.component`
 -- | function.
 raise :: forall o m. OutputToken o -> o -> HookM m Unit
 raise _ o = HookM $ liftF $ Raise (toOutputValue o) unit
 
 -- | Send a query to a child of a component at the specified slot. Requires a
--- | identifier carrying the slot type of the component, which is provided by the
+-- | token carrying the slot type of the component, which is provided by the
 -- | `Hooks.component` function.
 query
   :: forall m label ps query o' slot a _1
@@ -186,7 +186,7 @@ query identifier label p q =
   box = unsafeCoerce
 
 -- | Send a query to all children of a component at the specified slot. Requires
--- | a identifier carrying the slot type of the component, which is provided by the
+-- | a token carrying the slot type of the component, which is provided by the
 -- | `Hooks.component` function.
 queryAll
   :: forall m label ps query o' slot a _1
