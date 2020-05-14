@@ -65,7 +65,7 @@ If you prefer your `useState` Hook to return a modify function directly, instead
 ```purs
 -- You can provide any of the Hooks state functions to this function.
 useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
-useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+useStateFn fn initial = map (map fn) (Hooks.useState initial)
 
 manyStates = Hooks.do
   -- Return a modify function instead of an identifier!

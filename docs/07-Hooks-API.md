@@ -50,7 +50,7 @@ Most of the time you only need the `modify_` function for your state. If you pre
 ```purs
 -- To allow using any state function
 useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
-useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+useStateFn fn initial = map (map fn) (Hooks.useState initial)
 
 -- To specifically use `modify_`
 useState :: forall s m. s -> Hook m (UseState s) (s /\ ((s -> s) -> HookM m Unit)

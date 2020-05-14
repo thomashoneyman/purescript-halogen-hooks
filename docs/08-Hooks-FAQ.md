@@ -98,7 +98,7 @@ If you prefer your `useState` hook to return a modify function directly, you can
 
 ```purs
 useStateFn :: forall s m a. (StateId s -> a) -> s -> Hook m (UseState s) (s /\ a)
-useStateFn fn initial = imap (map fn) (Hooks.useState initial)
+useStateFn fn initial = map (map fn) (Hooks.useState initial)
 
 state /\ (setState :: Int -> HookM m Unit) <- useStateFn Hooks.put 0
 state /\ (modifyState :: ((Int -> Int) -> HookM m Unit) <- useStateFn Hooks.modify_ 0
