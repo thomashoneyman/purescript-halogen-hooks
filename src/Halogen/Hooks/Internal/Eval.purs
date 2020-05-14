@@ -97,10 +97,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
 
         let
           newQueue = Array.snoc queue initial
-          token = StateId (Array.length newQueue - 1)
+          identifier = StateId (Array.length newQueue - 1)
 
         modifyState_ _ { stateCells { queue = newQueue } }
-        pure $ reply $ Tuple initial token
+        pure $ reply $ Tuple initial identifier
 
       _ -> do
         { stateCells: { index, queue } } <- getState
@@ -108,10 +108,10 @@ interpretHook runHookM runHook reason hookFn = case _ of
         let
           value = unsafeGetCell index queue
           nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          token = StateId index
+          identifier = StateId index
 
         modifyState_ _ { stateCells { index = nextIndex } }
-        pure $ reply $ Tuple value token
+        pure $ reply $ Tuple value identifier
 
   UseQuery _ handler a -> do
     let
