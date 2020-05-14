@@ -38,7 +38,7 @@ import Halogen.Hooks.Component (component)
 import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), Hooked, Nil, bind, discard, pure, wrap, kind HookType)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId(..))
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId) -- only export StateId constructor
 import Prelude (class Eq, Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 

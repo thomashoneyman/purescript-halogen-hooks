@@ -7,10 +7,10 @@ module Example.Hooks.UseInitializer
 import Prelude
 
 import Data.Maybe (Maybe(..))
-import Halogen.Hooks (class HookNewtype, Hook, HookM, UseEffect, kind HookType)
+import Halogen.Hooks (class HookNewtype, Hook, HookM, UseEffect)
 import Halogen.Hooks as Hooks
 
-foreign import data UseInitializer :: HookType
+foreign import data UseInitializer :: Hooks.HookType
 
 instance hookUseInitializer :: HookNewtype UseInitializer UseEffect
 

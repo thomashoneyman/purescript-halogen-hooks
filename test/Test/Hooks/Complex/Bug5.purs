@@ -18,10 +18,15 @@ import Test.Spec.Assertions (fail)
 foreign import data UseTickAfterInitialize :: Hooks.HookType
 
 type UseTickAfterInitialize' =
-  UseState Int <> UseState Int <> UseEffect <> UseState Int <> UseEffect <> Hooks.Nil
+  UseState Int
+    <> UseState Int
+    <> UseEffect
+    <> UseState Int
+    <> UseEffect
+    <> Hooks.Nil
 
 instance newtypeUseTickAfterInitialize
-  :: HookEquals x UseTickAfterInitialize' => HookNewtype UseTickAfterInitialize x
+  :: HookEquals h UseTickAfterInitialize' => HookNewtype UseTickAfterInitialize h
 
 rerunTickAfterInitialEffects :: LogRef -> Hook Aff UseTickAfterInitialize { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do

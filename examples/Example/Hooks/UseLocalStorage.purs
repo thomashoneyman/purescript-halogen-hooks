@@ -31,8 +31,7 @@ type UseLocalStorage' a =
     <> Hooks.Nil
 
 instance newtypeUseLocalStorage
-  :: HookEquals x (UseLocalStorage' a)
-  => HookNewtype (UseLocalStorage a) x
+  :: HookEquals h (UseLocalStorage' a) => HookNewtype (UseLocalStorage a) h
 
 type StorageInterface a =
   { key :: Key

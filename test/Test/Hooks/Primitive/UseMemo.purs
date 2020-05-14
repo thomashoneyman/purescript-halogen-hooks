@@ -26,7 +26,8 @@ type UseMemoCount' =
     <> UseMemo Int
     <> Hooks.Nil
 
-instance newtypeUseMemoCount :: HookEquals x UseMemoCount' => HookNewtype UseMemoCount x
+instance newtypeUseMemoCount
+  :: HookEquals h UseMemoCount' => HookNewtype UseMemoCount h
 
 type MemoCount =
   { incrementA :: HookM Aff Unit

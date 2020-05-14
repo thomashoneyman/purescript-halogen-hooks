@@ -72,7 +72,7 @@ class HookNewtype (a :: HookType) (b :: HookType) | a -> b
 -- |
 -- | type UseX' = UseState Int <> UseEffect <> Nil
 -- |
--- | instance newtypeUseX :: HookEquals x UseX' => HookNewtype UseX x
+-- | instance newtypeUseX :: HookEquals h UseX' => HookNewtype UseX h
 -- | ```
 -- |
 -- | This is especially useful with large stacks of hooks or with hooks that
