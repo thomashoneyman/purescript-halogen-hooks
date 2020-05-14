@@ -178,7 +178,7 @@ query
   -> slot
   -> query a
   -> HookM m (Maybe a)
-query identifier label p q =
+query _ label p q =
   HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> maybe (pure Nothing) k <<< Slot.lookup label p) q identity
   where
@@ -197,7 +197,7 @@ queryAll
   -> SProxy label
   -> query a
   -> HookM m (Map slot a)
-queryAll identifier label q =
+queryAll _ label q =
   HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> map catMapMaybes <<< traverse k <<< Slot.slots label) q identity
   where
