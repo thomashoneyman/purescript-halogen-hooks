@@ -50,11 +50,11 @@ This code replicates the Halogen basic button example which renders a count that
 
 ```purs
 myComponent = Hooks.component \_ input -> Hooks.do
-  count /\ modifyCount <- Hooks.useState 0
+  count /\ countId <- Hooks.useState 0
 
   Hooks.pure do
     HH.button
-      [ HE.onClick \_ -> Just $ modifyCount (_ + 1) ]
+      [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
       [ HH.text $ show count ]
 ```
 

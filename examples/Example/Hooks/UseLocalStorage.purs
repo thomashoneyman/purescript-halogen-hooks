@@ -47,7 +47,7 @@ useLocalStorage
   => StorageInterface a
   -> Hook m (UseLocalStorage a) (Either String a /\ ((Either String a -> Either String a) -> HookM m Unit))
 useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap Hooks.do
-  state /\ modifyState <- Hooks.useState (Right defaultValue)
+  state /\ stateId <- Hooks.useState (Right defaultValue)
 
   let Key k = key
 
@@ -56,11 +56,11 @@ useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap Hooks.do
     mbItem <- liftEffect (getItem k storage)
     mbItem # maybe
       (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
-      (\item -> modifyState \_ -> jsonParser item >>= fromJson)
+      (\item -> Hooks.modify_ stateId \_ -> jsonParser item >>= fromJson)
 
   useWriteStorage { value: state, key: k }
 
-  Hooks.pure (Tuple state modifyState)
+  Hooks.pure (Tuple state (Hooks.modify_ stateId))
   where
   useWriteStorage deps = Hooks.captures deps Hooks.useTickEffect do
     liftEffect do

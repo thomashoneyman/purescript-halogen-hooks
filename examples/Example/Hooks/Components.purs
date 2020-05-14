@@ -10,11 +10,10 @@ import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import Effect.Class.Console (log)
 import Example.Hooks.UseDebouncer (useDebouncer)
-import Example.Hooks.UseGet (useGet)
 import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
 import Example.Hooks.UsePreviousValue (usePreviousValue)
+import Example.Hooks.UseStateFn (useStateFn)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
 import Halogen as H
 import Halogen.HTML as HH
@@ -31,36 +30,9 @@ windowWidth = Hooks.component \_ _ -> Hooks.do
       , HH.text $ "Current width: " <> maybe "" show width
       ]
 
-get :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-get = Hooks.component \_ _ -> Hooks.do
-  state /\ modifyState <- Hooks.useState 0
-
-  getState <- useGet state
-
-  Hooks.captures {} Hooks.useTickEffect do
-    log $ "useState in effect body: " <> show state
-    st <- getState
-    log $ "getState in effect body: " <> show st
-    pure $ Just $ do
-      log $ "useState in effect cleanup: " <> show state
-      st' <- getState
-      log $ "getState in effect cleanup: " <> show st'
-
-  Hooks.pure do
-    HH.div_
-      [ HH.h4_ [ HH.text "Get" ]
-      , HH.p_ [ HH.text "This example demonstrates a hook providing a function to keep a value in a reference so that async callbacks are always up to date." ]
-      , HH.p_ [ HH.text "For example, if you define an effect cleanup with useTickEffect or useLifecycleEffect and refer to state or input, by the time the cleanup runs the state or input will be stale. Instead, you can store the value in a reference and retrieve the current value when the cleanup runs." ]
-      , HH.p_ [ HH.text "Open the console to see the difference between useState and getState in the effect." ]
-      , HH.br_
-      , HH.button
-          [ HE.onClick \_ -> Just (modifyState (_ + 1)) ]
-          [ HH.text $ "Increment (" <> show state <> ")" ]
-      ]
-
 previousValue :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
 previousValue = Hooks.component \_ _ -> Hooks.do
-  state /\ modifyState <- Hooks.useState 0
+  state /\ modifyState <- useStateFn Hooks.modify_ 0
   prevState <- usePreviousValue state
 
   Hooks.pure do
@@ -107,16 +79,16 @@ localStorage = Hooks.component \_ _ -> Hooks.do
 
 debouncer :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
 debouncer = Hooks.component \_ _ -> Hooks.do
-  text /\ modifyText <- Hooks.useState ""
-  debouncedText /\ modifyDebouncedText <- Hooks.useState ""
+  text /\ setText <- useStateFn Hooks.put ""
+  debouncedText /\ setDebouncedText <- useStateFn Hooks.put ""
 
   debouncedHandleInput <-
-    useDebouncer (Milliseconds 300.0) modifyDebouncedText
+    useDebouncer (Milliseconds 300.0) setDebouncedText
 
   let
     handleInput str = Just do
-      modifyText \_ -> str
-      debouncedHandleInput \_ -> str
+      setText str
+      debouncedHandleInput str
 
   Hooks.pure do
     HH.div_

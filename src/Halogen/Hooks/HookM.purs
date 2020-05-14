@@ -1,8 +1,8 @@
 -- | A replacement for `Halogen.Query.HalogenM` which supports a near-identical
--- | API, but adjusted for compatibility with hooks. Most functions typically
--- | available in `HalogenM` are still available here, but some have modified
--- | behavior (for example, the state functions `get`, `put`, and `modify` don't
--- | exist; instead, the `useState` hook returns a `modify` function you can use).
+-- | API, but adjusted for compatibility with hooks. All functions available in
+-- | `HalogenM` are still available here, but some have modified behavior (for
+-- | example, the state functions `get`, `put`, and `modify` take a state
+-- | identifier as their first argument).
 module Halogen.Hooks.HookM where
 
 import Prelude
@@ -25,8 +25,8 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Halogen as H
 import Halogen.Data.Slot as Slot
-import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateToken, StateValue, toOutputValue)
-import Halogen.Hooks.Types (OutputToken, SlotToken)
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
+import Halogen.Hooks.Types (OutputToken, SlotToken, StateId)
 import Halogen.Query.ChildQuery as CQ
 import Halogen.Query.EventSource as ES
 import Prim.Row as Row
@@ -38,7 +38,7 @@ import Web.HTML.HTMLElement as HTMLElement
 -- | A DSL compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
 data HookF m a
-  = Modify (StateToken StateValue) (StateValue -> StateValue) a
+  = Modify (StateId StateValue) (StateValue -> StateValue) (StateValue -> a)
   | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
@@ -52,7 +52,7 @@ data HookF m a
 derive instance functorHookF :: Functor m => Functor (HookF m)
 
 -- | The Hook effect monad, used to write effectful code in Hooks functions.
--- | This monad is fully compatible with `HalogenM`. meaning all functionality
+-- | This monad is fully compatible with `HalogenM`, meaning all functionality
 -- | available for `HalogenM` is available in `HookM`.
 newtype HookM m a = HookM (Free (HookF m) a)
 
@@ -99,6 +99,66 @@ instance parallelHookM :: Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
   sequential = HookM <<< liftF <<< Par
 
+-- | Get a piece of state using an identifier received from the `useState` hook.
+-- |
+-- | ```purs
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
+-- |
+-- | let
+-- |   onClick = do
+-- |     count :: Int <- Hooks.get countId
+-- |     ...
+-- | ```
+get :: forall state m. StateId state -> HookM m state
+get identifier = modify identifier identity
+
+-- | Modify a piece of state using an identifier received from the `useState` hook.
+-- |
+-- | ```purs
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
+-- |
+-- | let
+-- |   onClick = do
+-- |     Hooks.modify_ countId (_ + 10)
+-- | ```
+modify_ :: forall state m. StateId state -> (state -> state) -> HookM m Unit
+modify_ identifier = map (const unit) <<< modify identifier
+
+-- | Modify a piece of state using an identifier received from the `useState` hook,
+-- | returning the new state.
+-- |
+-- | ```purs
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
+-- |
+-- | let
+-- |   onClick = do
+-- |     count :: Int <- Hooks.modify countId (_ + 10)
+-- |     ...
+-- | ```
+modify :: forall state m. StateId state -> (state -> state) -> HookM m state
+modify identifier f = HookM $ liftF $ Modify identifier' f' state
+  where
+  identifier' :: StateId StateValue
+  identifier' = unsafeCoerce identifier
+
+  f' :: StateValue -> StateValue
+  f' = toStateValue <<< f <<< fromStateValue
+
+  state :: StateValue -> state
+  state = fromStateValue
+
+-- | Overwrite a piece of state using an identifier received from the `useState` hook.
+-- |
+-- | ```purs
+-- | _ /\ countId :: StateId Int <- Hooks.useState 0
+-- |
+-- | let
+-- |   onClick = do
+-- |     Hooks.put countId 10
+-- | ```
+put :: forall state m. StateId state -> state -> HookM m Unit
+put identifier state = modify_ identifier (const state)
+
 -- | Raise an output message for the component. Requires a token carrying the
 -- | output type of the component, which is provided by the `Hooks.component`
 -- | function.
@@ -118,7 +178,7 @@ query
   -> slot
   -> query a
   -> HookM m (Maybe a)
-query token label p q =
+query _ label p q =
   HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> maybe (pure Nothing) k <<< Slot.lookup label p) q identity
   where
@@ -137,7 +197,7 @@ queryAll
   -> SProxy label
   -> query a
   -> HookM m (Map slot a)
-queryAll token label q =
+queryAll _ label q =
   HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> map catMapMaybes <<< traverse k <<< Slot.slots label) q identity
   where

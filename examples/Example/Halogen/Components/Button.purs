@@ -21,7 +21,7 @@ type Tokens = Hooks.ComponentTokens Query () Message
 
 component :: forall i m. MonadEffect m => H.Component HH.HTML Query i Message m
 component = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
-  enabled /\ modifyEnabled <- Hooks.useState false
+  enabled /\ enabledId <- Hooks.useState false
 
   Hooks.useQuery tokens.queryToken case _ of
     IsOn reply -> do
@@ -31,8 +31,7 @@ component = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
     label = if enabled then "On" else "Off"
 
     handleClick = Just do
-      let enabled' = not enabled
-      modifyEnabled (const enabled')
+      enabled' <- Hooks.modify enabledId not
       Hooks.raise tokens.outputToken (Toggled enabled')
 
   Hooks.pure do
