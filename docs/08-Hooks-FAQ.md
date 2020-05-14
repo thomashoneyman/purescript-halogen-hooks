@@ -115,7 +115,7 @@ The only times you need to worry about this are when:
 
 Otherwise, you can use the `state` value returned by `useState` or the `input` value directly.
 
-If you do find yourself with stale inputo or state, then you have two solutions:
+If you do find yourself with stale input or state then you have two solutions:
 
 - Use the `Hooks.get` function with your state identifier within your effect cleanup or forked effect to retrieve fresh state at the time the function executes.
 - Copy the relevant portion of input into a `Ref` to retrieve fresh input at the time the function executes
