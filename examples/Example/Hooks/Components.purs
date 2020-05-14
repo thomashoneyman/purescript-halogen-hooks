@@ -10,10 +10,10 @@ import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
-import Example.Halogen.Basic.Button (useStateFn)
 import Example.Hooks.UseDebouncer (useDebouncer)
 import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
 import Example.Hooks.UsePreviousValue (usePreviousValue)
+import Example.Hooks.UseStateFn (useStateFn)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
 import Halogen as H
 import Halogen.HTML as HH
