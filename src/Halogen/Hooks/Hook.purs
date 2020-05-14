@@ -26,23 +26,25 @@ derive newtype instance functorHook :: Functor (Hook m h)
 -- | ```
 foreign import kind HookType
 
--- | A type for listing several `HookType`s in order. Typically used via the
--- | type-level operator (<>):
+-- | A type for listing several Hook types in order, terminated with `Hooks.Nil`.
+-- | Typically this is used via the operator `<>`.
 -- |
 -- | ```purs`
 -- | import Halogen.Hooks (type (<>))
 -- |
 -- | type UseStateEffect = UseState Int <> UseEffect <> Nil
 -- |
--- | -- equivalent to
+-- | -- using  to the
 -- | type UseStateEffect = Hooked (UseState Int) (Hooked UseEffect Nil)
 -- | ```
 foreign import data Hooked :: HookType -> HookType -> HookType
 
+-- | `Hooked` as an infix operator
 infixr 1 type Hooked as <>
 
 -- | A `HookType` that can be used to end a list of `HookType`s produced using
--- | `Hooked`:
+-- | `Hooked`. If `<>` can be thought of as append, `Nil` can be thought of as
+-- | `mempty`.
 -- |
 -- | ```purs`
 -- | type UseX = UseState Int <> UseEffect <> Nil

@@ -31,7 +31,8 @@ type UseLocalStorage' a =
     <> Hooks.Nil
 
 instance newtypeUseLocalStorage
-  :: HookEquals h (UseLocalStorage' a) => HookNewtype (UseLocalStorage a) h
+  :: HookEquals (UseLocalStorage' a) h
+  => HookNewtype (UseLocalStorage a) h
 
 type StorageInterface a =
   { key :: Key
@@ -51,24 +52,27 @@ useLocalStorage
   => Eq a
   => StorageInterface a
   -> Hook m (UseLocalStorage a) (Either String a /\ ((Either String a -> Either String a) -> HookM m Unit))
-useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap Hooks.do
-  state /\ stateId <- Hooks.useState (Right defaultValue)
-
-  let Key k = key
-
-  useInitializer do
-    storage <- liftEffect (localStorage =<< window)
-    mbItem <- liftEffect (getItem k storage)
-    mbItem # maybe
-      (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
-      (\item -> Hooks.modify_ stateId \_ -> jsonParser item >>= fromJson)
-
-  useWriteStorage { value: state, key: k }
-
-  Hooks.pure (Tuple state (Hooks.modify_ stateId))
+useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap hook
   where
-  useWriteStorage deps = Hooks.captures deps Hooks.useTickEffect do
-    liftEffect do
-      storage <- localStorage =<< window
-      for_ deps.value \v -> setItem deps.key (stringify (toJson v)) storage
-    pure Nothing
+  hook :: Hook m (UseLocalStorage' a) _
+  hook = Hooks.do
+    state /\ stateId <- Hooks.useState (Right defaultValue)
+
+    let Key k = key
+
+    useInitializer do
+      storage <- liftEffect (localStorage =<< window)
+      mbItem <- liftEffect (getItem k storage)
+      mbItem # maybe
+        (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
+        (\item -> Hooks.modify_ stateId \_ -> jsonParser item >>= fromJson)
+
+    useWriteStorage { value: state, key: k }
+
+    Hooks.pure (Tuple state (Hooks.modify_ stateId))
+    where
+    useWriteStorage deps = Hooks.captures deps Hooks.useTickEffect do
+      liftEffect do
+        storage <- localStorage =<< window
+        for_ deps.value \v -> setItem deps.key (stringify (toJson v)) storage
+      pure Nothing

@@ -26,12 +26,10 @@ type UseDebouncer' a =
     <> Hooks.Nil
 
 instance newtypeUseDebouncer
-  :: HookEquals h (UseDebouncer' a) => HookNewtype (UseDebouncer a) h
+  :: HookEquals (UseDebouncer' a) h
+  => HookNewtype (UseDebouncer a) h
 
-type Debouncer =
-  { var :: AVar Unit
-  , fiber :: Fiber Unit
-  }
+type Debouncer = { var :: AVar Unit, fiber :: Fiber Unit }
 
 useDebouncer
   :: forall m a
@@ -39,41 +37,44 @@ useDebouncer
   => Milliseconds
   -> (a -> HookM m Unit)
   -> Hook m (UseDebouncer a) (a -> HookM m Unit)
-useDebouncer ms fn = Hooks.wrap Hooks.do
-  _ /\ debounceRef <- Hooks.useRef Nothing
-  _ /\ valRef <- Hooks.useRef Nothing
+useDebouncer ms fn = Hooks.wrap hook
+  where
+  hook :: Hook m (UseDebouncer' a) (a -> HookM m Unit)
+  hook = Hooks.do
+    _ /\ debounceRef <- Hooks.useRef Nothing
+    _ /\ valRef <- Hooks.useRef Nothing
 
-  let
-    debounceFn x = do
-      debouncer <- liftEffect do
-        Ref.write (Just x) valRef
-        Ref.read debounceRef
+    let
+      debounceFn x = do
+        debouncer <- liftEffect do
+          Ref.write (Just x) valRef
+          Ref.read debounceRef
 
-      case debouncer of
-        Nothing -> do
-          var <- liftAff AVar.empty
-          fiber <- liftAff $ forkAff do
-            delay ms
-            AVar.put unit var
-
-          _ <- Hooks.fork do
-            _ <- liftAff $ AVar.take var
-            val <- liftEffect do
-              Ref.write Nothing debounceRef
-              Ref.read valRef
-            traverse_ fn val
-
-          liftEffect do
-            Ref.write (Just { var, fiber }) debounceRef
-
-        Just db -> do
-          let var = db.var
-          fiber <- liftAff do
-            killFiber (error "Time's up!") db.fiber
-            forkAff do
+        case debouncer of
+          Nothing -> do
+            var <- liftAff AVar.empty
+            fiber <- liftAff $ forkAff do
               delay ms
               AVar.put unit var
 
-          liftEffect $ Ref.write (Just { var, fiber }) debounceRef
+            _ <- Hooks.fork do
+              _ <- liftAff $ AVar.take var
+              val <- liftEffect do
+                Ref.write Nothing debounceRef
+                Ref.read valRef
+              traverse_ fn val
 
-  Hooks.pure debounceFn
+            liftEffect do
+              Ref.write (Just { var, fiber }) debounceRef
+
+          Just db -> do
+            let var = db.var
+            fiber <- liftAff do
+              killFiber (error "Time's up!") db.fiber
+              forkAff do
+                delay ms
+                AVar.put unit var
+
+            liftEffect $ Ref.write (Just { var, fiber }) debounceRef
+
+    Hooks.pure debounceFn

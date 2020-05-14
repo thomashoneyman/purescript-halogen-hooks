@@ -15,5 +15,7 @@ foreign import data UseInitializer :: Hooks.HookType
 instance hookUseInitializer :: HookNewtype UseInitializer UseEffect
 
 useInitializer :: forall m. HookM m Unit -> Hook m UseInitializer Unit
-useInitializer initializer = Hooks.wrap do
-  Hooks.useLifecycleEffect (initializer *> pure Nothing)
+useInitializer initializer = Hooks.wrap hook
+  where
+  hook :: Hook m UseEffect Unit
+  hook = Hooks.useLifecycleEffect (initializer *> pure Nothing)
