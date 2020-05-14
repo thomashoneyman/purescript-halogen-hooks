@@ -56,18 +56,19 @@ import Unsafe.Coerce (unsafeCoerce)
 
 foreign import data UseState :: Type -> Type -> Type
 
--- | A Hook providing an independent state and a token usable to modify that state.
+-- | A Hook providing an independent state and a unique identifier usable with
+-- | the state functions `get`, `put`, `modify`, and `modify_` to update the state.
 -- |
 -- | ```purs
 -- | Hooks.do
 -- |   -- Create a new state with `useState`
--- |   state /\ modifyState <- Hooks.useState 0
+-- |   state /\ stateId <- Hooks.useState 0
 -- |
--- |   -- Perform state updates in `HookM` with the `modifyState` function
+-- |   -- Perform state updates in `HookM`
 -- |   let
 -- |     update :: HookM m Unit
 -- |     update =
--- |       modifyState \st -> st + 10
+-- |       Hooks.modify_ stateId \st -> st + 10
 -- | ```
 useState
   :: forall state m
@@ -79,7 +80,7 @@ useState initialState = Hooked $ Indexed $ liftF $ UseState initialState' interf
   initialState' = IT.toStateValue initialState
 
   interface :: Tuple IT.StateValue (StateId IT.StateValue) -> Tuple state (StateId state)
-  interface (Tuple value token) = Tuple (IT.fromStateValue value) (unsafeCoerce token)
+  interface (Tuple value id) = Tuple (IT.fromStateValue value) (unsafeCoerce id)
 
 foreign import data UseEffect :: Type -> Type
 
