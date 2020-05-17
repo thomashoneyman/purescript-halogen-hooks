@@ -2,11 +2,10 @@ module Halogen.Hooks.Internal.Eval where
 
 import Prelude
 
-import Control.Applicative.Free (hoistFreeAp, retractFreeAp)
-import Control.Monad.Free (foldFree, liftF)
+import Control.Applicative.Free (hoistFreeAp, liftFreeAp, retractFreeAp)
+import Control.Monad.Free (Free, liftF, substFree)
 import Control.Monad.ST.Class (liftST)
 import Control.Monad.ST.Global (Global)
-import Control.Parallel (parallel, sequential)
 import Data.Array as Array
 import Data.Array.ST (STArray)
 import Data.Array.ST as Array.ST
@@ -23,12 +22,13 @@ import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.Hook (Hooked)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', InterpretHookReason(..), State, fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Eval.Types as EH
 import Halogen.Hooks.Internal.Eval.Types as ET
-import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
+import Halogen.Hooks.Internal.Types (MemoValuesImpl, OutputValue, SlotType, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateId(..))
+import Halogen.Query.HalogenM (HalogenAp(..))
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -46,7 +46,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Query q reply -> do
-    queryFn <- ET.getInternalField ET._queryFn
+    queryFn <- H.HalogenM $ ET.getInternalField ET._queryFn
     case queryFn of
       Nothing ->
         pure (reply unit)
@@ -59,10 +59,10 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Receive nextInput a -> do
-    prevInput <- ET.getInternalField ET._input
+    prevInput <- H.HalogenM $ ET.getInternalField ET._input
 
     unless (prevInput `inputEq` nextInput) do
-      ET.modifyInternalField ET._input (const nextInput)
+      H.HalogenM $ ET.modifyInternalField ET._input (const nextInput)
       void $ runHookAndEffects Step
 
     pure a
@@ -75,7 +75,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
   runHookAndEffects reason = do
     _ <- runHook reason hookFn
 
-    evalQueueST <- ET.getInternalField ET._evalQueue
+    evalQueueST <- H.HalogenM $ ET.getInternalField ET._evalQueue
 
     -- STArray Global == Array
     let
@@ -83,10 +83,10 @@ mkEval inputEq runHookM runHook hookFn = case _ of
       newQueue = unsafeCoerce []
 
     when (not Array.null evalQueue) do
-      ET.modifyInternalField ET._evalQueue (const newQueue)
-      ET.modifyInternalField ET._stateDirty (const false)
+      H.HalogenM $ ET.modifyInternalField ET._evalQueue (const newQueue)
+      H.HalogenM $ ET.modifyInternalField ET._stateDirty (const false)
       sequence_ evalQueue
-      stateDirty <- ET.getInternalField ET._stateDirty
+      stateDirty <- H.HalogenM $ ET.getInternalField ET._stateDirty
 
       let initializeOrStepReason = reason == Initialize || reason == Step
       when (stateDirty && initializeOrStepReason) do
@@ -101,7 +101,7 @@ interpretHook
   -> InterpretHookReason
   -> (i -> Hooked m Unit hooks a)
   -> UseHookF m
-  ~> HalogenM' q i m a
+  ~> Free (H.HalogenF (State q i m a) (HookM m Unit) SlotType OutputValue m)
 interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
@@ -143,7 +143,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
           eval = do
             mbFinalizer <- runHookM (runHook Queued) act
             let finalizer = fromMaybe (pure unit) mbFinalizer
-            ET.pushField ET._effectCells (mbMemos /\ finalizer)
+            H.HalogenM $ ET.pushField ET._effectCells (mbMemos /\ finalizer)
 
         ET.pushField ET._evalQueue eval
 
@@ -181,7 +181,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
                     newFinalizer = fromMaybe (pure unit) mbFinalizer
                     newValue = mbMemos /\ newFinalizer
 
-                  ET.unsafeSetCell effectIndex newValue effectCells
+                  H.HalogenM $ ET.unsafeSetCell effectIndex newValue effectCells
 
               ET.modifyInternalField ET._effectIndex (const nextIndex)
               ET.pushField ET._evalQueue eval
@@ -268,9 +268,11 @@ interpretHook runHookM runHook reason hookFn = case _ of
         pure $ reply $ Tuple value ref
 
 evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
-evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
+evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) = H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where
-  interpretHalogenHook :: HookF m ~> HalogenM' q i m a
+  interpretHalogenHook
+    :: HookF m
+    ~> Free (H.HalogenF (State q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
     Modify (StateId token) f reply -> do
       stateCells <- ET.getInternalField ET._stateCells
@@ -291,31 +293,31 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
       pure (reply next)
 
     Subscribe eventSource reply ->
-      H.HalogenM $ liftF $ H.Subscribe eventSource reply
+      liftF $ H.Subscribe eventSource reply
 
     Unsubscribe sid a ->
-      H.HalogenM $ liftF $ H.Unsubscribe sid a
+      liftF $ H.Unsubscribe sid a
 
     Lift f ->
-      H.HalogenM $ liftF $ H.Lift f
+      liftF $ H.Lift f
 
     ChildQuery box ->
-      H.HalogenM $ liftF $ H.ChildQuery box
+      liftF $ H.ChildQuery box
 
     Raise o a ->
-      H.raise o *> pure a
+      liftF $ H.Raise o a
 
     Par (HookAp p) ->
-      sequential $ retractFreeAp $ hoistFreeAp (parallel <<< evalHookM runHooks) p
+      liftF $ H.Par $ retractFreeAp $ hoistFreeAp (HalogenAp <<< liftFreeAp <<< evalHookM (H.HalogenM runHooks)) p
 
     Fork hmu reply ->
-      H.HalogenM $ liftF $ H.Fork (evalHookM runHooks hmu) reply
+      liftF $ H.Fork (evalHookM (H.HalogenM runHooks) hmu) reply
 
     Kill fid a ->
-      H.HalogenM $ liftF $ H.Kill fid a
+      liftF $ H.Kill fid a
 
     GetRef p reply ->
-      H.HalogenM $ liftF $ H.GetRef p reply
+      liftF $ H.GetRef p reply
 
 stepIndex :: forall a. STArray Global a -> Int -> Int
 stepIndex cells index = do

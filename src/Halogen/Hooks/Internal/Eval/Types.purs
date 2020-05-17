@@ -2,6 +2,7 @@ module Halogen.Hooks.Internal.Eval.Types where
 
 import Prelude
 
+import Control.Monad.Free (Free, liftF)
 import Control.Monad.ST.Class (liftST)
 import Control.Monad.ST.Global (Global)
 import Data.Array.ST (STArray)
@@ -10,6 +11,7 @@ import Data.Array.ST.Partial as Array.ST.Partial
 import Data.Maybe (Maybe)
 import Data.Newtype (class Newtype)
 import Data.Symbol (class IsSymbol, SProxy(..))
+import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested (type (/\))
 import Effect.Ref (Ref)
 import Effect.Unsafe (unsafePerformEffect)
@@ -102,9 +104,9 @@ getInternalField
    . Row.Cons l a r (InternalState q i m b)
   => IsSymbol l
   => SProxy l
-  -> HalogenM' q i m b a
+  -> Free (H.HalogenF (State q i m b) (HookM m Unit) SlotType OutputValue m) a
 getInternalField field = do
-  State { internal } <- H.get
+  State { internal } <- liftF $ H.State \s -> Tuple s s
   pure $ unsafePerformEffect $ liftST $ Record.ST.peek field internal
 
 -- | Modify a field in the internal state, without creating an immutable copy
@@ -114,9 +116,9 @@ modifyInternalField
   => IsSymbol l
   => SProxy l
   -> (a -> a)
-  -> HalogenM' q i m b Unit
+  -> Free (H.HalogenF (State q i m b) (HookM m Unit) SlotType OutputValue m) Unit
 modifyInternalField field fn = do
-  State { internal } <- H.get
+  State { internal } <- liftF $ H.State \s -> Tuple s s
   pure $ unsafePerformEffect $ liftST $ Record.ST.modify field fn internal
 
 pushField
@@ -125,16 +127,17 @@ pushField
   => IsSymbol l
   => SProxy l
   -> a
-  -> HalogenM' q i m b Unit
+  -> Free (H.HalogenF (State q i m b) (HookM m Unit) SlotType OutputValue m) Unit
 pushField l a = do
   array <- getInternalField l
   let _ = unsafePerformEffect $ liftST $ Array.ST.push a array
   pure unit
 
-unwrapSTArray :: forall a. STArray Global a -> Array a
-unwrapSTArray = unsafePerformEffect <<< liftST <<< Array.ST.freeze
-
-unsafeGetCell :: forall q i m b a. Int -> STArray Global a -> HalogenM' q i m b a
+unsafeGetCell
+  :: forall q i m b a
+   . Int
+  -> STArray Global a
+  -> Free (H.HalogenF (State q i m b) (HookM m Unit) SlotType OutputValue m) a
 unsafeGetCell ix arr =
   pure
     $ unsafePerformEffect
@@ -142,7 +145,12 @@ unsafeGetCell ix arr =
     $ unsafePartial
     $ Array.ST.Partial.peek ix arr
 
-unsafeSetCell :: forall q i m b a. Int -> a -> STArray Global a -> HalogenM' q i m b Unit
+unsafeSetCell
+  :: forall q i m b a
+   . Int
+  -> a
+  -> STArray Global a
+  -> Free (H.HalogenF (State q i m b) (HookM m Unit) SlotType OutputValue m) Unit
 unsafeSetCell ix a arr =
   pure
     $ unsafePerformEffect

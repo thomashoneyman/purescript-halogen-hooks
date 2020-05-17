@@ -4,7 +4,7 @@ module Test.Setup.Eval where
 
 import Prelude
 
-import Control.Monad.Free (foldFree, liftF)
+import Control.Monad.Free (Free, foldFree, liftF, substFree)
 import Control.Monad.ST.Class (liftST)
 import Data.Array.ST as Array.ST
 import Data.Indexed (Indexed(..))
@@ -24,6 +24,7 @@ import Halogen.Hooks (HookF(..), HookM(..), Hooked(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (State(..), InterpretHookReason, HalogenM')
 import Halogen.Hooks.Internal.Eval.Types as ET
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Halogen.Hooks.Types (StateId(..))
 import Record.ST as Record.ST
@@ -50,7 +51,7 @@ evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
           | otherwise -> do
               -- Halogen has determined a state update has occurred and will now
               -- render again.
-              input <- ET.getInternalField ET._input
+              input <- H.HalogenM $ ET.getInternalField ET._input
               writeLog Render input
 
       H.HalogenM $ liftF c
@@ -64,9 +65,9 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
     c@(Modify (StateId token) f reply) -> do
-      input <- ET.getInternalField ET._input
-      stateCells <- ET.getInternalField ET._stateCells
-      v <- ET.unsafeGetCell token stateCells
+      input <- H.HalogenM $ ET.getInternalField ET._input
+      stateCells <- H.HalogenM $ ET.getInternalField ET._stateCells
+      v <- H.HalogenM $ ET.unsafeGetCell token stateCells
 
       -- Calls to `get` should not trigger evaluation. This matches with the
       -- underlying implementation of `evalHookM` and Halogen's `evalM`.
@@ -86,7 +87,8 @@ interpretHook
   -> InterpretHookReason
   -> (LogRef -> Hooked Aff Unit h a)
   -> UseHookF Aff
-  ~> HalogenM' q LogRef Aff a
+  -- Fully expanded because type synonyms can't be partially applied
+  ~> Free (H.HalogenF (State q LogRef Aff a) (HookM Aff Unit) SlotType OutputValue Aff)
 interpretHook runHookM runHook reason hookFn = case _ of
   {-
     Left here as an example of how to insert logging into this test, but logging
@@ -122,11 +124,11 @@ mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn ev
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
   interpretUseHookFn runHookM reason hookFn = do
-    input <- ET.getInternalField ET._input
+    input <- H.HalogenM $ ET.getInternalField ET._input
     let Hooked (Indexed hookF) = hookFn input
 
     writeLog (RunHooks reason) input
-    a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over State _ { result = a })
     pure a
 
