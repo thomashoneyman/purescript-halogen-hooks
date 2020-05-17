@@ -2,7 +2,7 @@ module Halogen.Hooks.Component where
 
 import Prelude
 
-import Control.Monad.Free (foldFree)
+import Control.Monad.Free (substFree)
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over)
@@ -105,9 +105,9 @@ memoComponent eqInput inputHookFn = do
   -- to the tests, which use their own version of this function. The test function
   -- should be identical, except with the addition of logging.
   interpretUseHookFn runHookM reason hookFn = do
-    { input } <- getState
+    { input } <- H.HalogenM getState
     let Hooked (Indexed hookF) = hookFn input
-    a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a
 
