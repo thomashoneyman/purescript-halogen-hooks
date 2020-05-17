@@ -5,9 +5,11 @@ module Test.Setup.Eval where
 import Prelude
 
 import Control.Monad.Free (foldFree, liftF)
+import Control.Monad.ST.Class (liftST)
+import Data.Array.ST as Array.ST
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
-import Data.Newtype (over, unwrap)
+import Data.Newtype (over)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
@@ -20,9 +22,11 @@ import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (HookF(..), HookM(..), Hooked(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.Eval.Types (State(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.Eval.Types as ET
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Halogen.Hooks.Types (StateId(..))
+import Record.ST as Record.ST
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
@@ -46,7 +50,7 @@ evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
           | otherwise -> do
               -- Halogen has determined a state update has occurred and will now
               -- render again.
-              { input } <- liftEffect $ Ref.read (unwrap state).stateRef
+              input <- ET.getInternalField ET._input
               writeLog Render input
 
       H.HalogenM $ liftF c
@@ -60,13 +64,14 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
     c@(Modify (StateId token) f reply) -> do
-      state <- Hooks.Eval.getState
-      let v = Hooks.Eval.unsafeGetCell token state.stateCells.queue
+      input <- ET.getInternalField ET._input
+      stateCells <- ET.getInternalField ET._stateCells
+      v <- ET.unsafeGetCell token stateCells
 
       -- Calls to `get` should not trigger evaluation. This matches with the
       -- underlying implementation of `evalHookM` and Halogen's `evalM`.
       unless (unsafeRefEq v (f v)) do
-        writeLog ModifyState state.input
+        writeLog ModifyState input
 
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
@@ -117,12 +122,12 @@ mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn ev
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
   interpretUseHookFn runHookM reason hookFn = do
-    { input } <- Hooks.Eval.getState
+    input <- ET.getInternalField ET._input
     let Hooked (Indexed hookF) = hookFn input
 
     writeLog (RunHooks reason) input
     a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
-    H.modify_ (over HookState _ { result = a })
+    H.modify_ (over State _ { result = a })
     pure a
 
 -- | Create a new DriverState, which can be used to evaluate multiple calls to
@@ -139,22 +144,32 @@ initDriver :: forall m r q a. MonadEffect m => m (Ref (DriverResultState r q a))
 initDriver = liftEffect do
   logRef <- Ref.new []
 
-  stateRef <- Ref.new
+  evalQueue <- liftST Array.ST.empty
+  stateCells <- liftST Array.ST.empty
+  effectCells <- liftST Array.ST.empty
+  memoCells <- liftST Array.ST.empty
+  refCells <- liftST Array.ST.empty
+
+  internal <- liftST $ Record.ST.thaw
     { input: logRef
+    , evalQueue
     , queryFn: Nothing
-    , stateCells: { queue: [], index: 0 }
-    , effectCells: { queue: [], index: 0 }
-    , memoCells: { queue: [], index: 0 }
-    , refCells: { queue: [], index: 0 }
-    , evalQueue: []
     , stateDirty: false
+    , stateCells
+    , stateIndex: 0
+    , effectCells
+    , effectIndex: 0
+    , memoCells
+    , memoIndex: 0
+    , refCells
+    , refIndex: 0
     }
 
   lifecycleHandlers <- Ref.new mempty
 
   map unDriverStateXRef do
     initDriverState
-      { initialState: \_ -> HookState { result: unit, stateRef }
+      { initialState: \_ -> State { result: unit, internal }
       , render: \_ -> HH.text ""
       , eval: H.mkEval H.defaultEval
       }

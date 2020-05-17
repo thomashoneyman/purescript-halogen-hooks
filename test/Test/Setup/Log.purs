@@ -2,14 +2,17 @@ module Test.Setup.Log where
 
 import Prelude
 
+import Control.Monad.ST.Class (liftST)
 import Data.Array as Array
 import Data.Newtype (unwrap)
+import Data.Symbol (SProxy(..))
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Halogen.Aff.Driver.State (DriverState(..))
+import Record.ST as Record.ST
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent, Log)
 import Test.Spec.Assertions (shouldEqual)
 
@@ -29,14 +32,14 @@ writeLog event ref = liftEffect do
 readLog :: forall m r q a. MonadEffect m => Ref (DriverResultState r q a) -> m Log
 readLog ref = liftEffect do
   DriverState driver <- Ref.read ref
-  state <- Ref.read (unwrap driver.state).stateRef
-  Ref.read state.input
+  logRef <- liftST $ Record.ST.peek (SProxy :: SProxy "input") (unwrap driver.state).internal
+  Ref.read logRef
 
 clearLog :: forall m r q a. MonadEffect m => Ref (DriverResultState r q a) -> m Unit
 clearLog ref = liftEffect do
   DriverState driver <- Ref.read ref
-  state <- Ref.read (unwrap driver.state).stateRef
-  Ref.write [] state.input
+  logRef <- liftST $ Record.ST.peek (SProxy :: SProxy "input") (unwrap driver.state).internal
+  Ref.write [] logRef
 
 -- | Useful for logging result state outside of hook evaluation. For example, in
 -- | this block we can only access `count` once the actions are completed, but

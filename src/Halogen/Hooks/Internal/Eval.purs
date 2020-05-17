@@ -4,12 +4,16 @@ import Prelude
 
 import Control.Applicative.Free (hoistFreeAp, retractFreeAp)
 import Control.Monad.Free (foldFree, liftF)
+import Control.Monad.ST.Class (liftST)
+import Control.Monad.ST.Global (Global)
 import Control.Parallel (parallel, sequential)
 import Data.Array as Array
+import Data.Array.ST (STArray)
+import Data.Array.ST as Array.ST
 import Data.Bifunctor (bimap)
 import Data.Coyoneda (unCoyoneda)
 import Data.Foldable (sequence_)
-import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
@@ -19,11 +23,13 @@ import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.Hook (Hooked)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types as EH
+import Halogen.Hooks.Internal.Eval.Types as ET
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateId(..))
-import Partial.Unsafe (unsafePartial)
+import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
 mkEval
@@ -40,7 +46,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Query q reply -> do
-    { queryFn } <- getState
+    queryFn <- ET.getInternalField ET._queryFn
     case queryFn of
       Nothing ->
         pure (reply unit)
@@ -53,10 +59,10 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Receive nextInput a -> do
-    { input: prevInput } <- getState
+    prevInput <- ET.getInternalField ET._input
 
     unless (prevInput `inputEq` nextInput) do
-      modifyState_ _ { input = nextInput }
+      ET.modifyInternalField ET._input (const nextInput)
       void $ runHookAndEffects Step
 
     pure a
@@ -68,12 +74,19 @@ mkEval inputEq runHookM runHook hookFn = case _ of
   where
   runHookAndEffects reason = do
     _ <- runHook reason hookFn
-    { evalQueue } <- getState
 
-    when (not (Array.null evalQueue)) do
-      modifyState_ _ { evalQueue = [], stateDirty = false }
+    evalQueueST <- ET.getInternalField ET._evalQueue
+
+    -- STArray Global == Array
+    let
+      evalQueue = unsafeCoerce evalQueueST
+      newQueue = unsafeCoerce []
+
+    when (not Array.null evalQueue) do
+      ET.modifyInternalField ET._evalQueue (const newQueue)
+      ET.modifyInternalField ET._stateDirty (const false)
       sequence_ evalQueue
-      { stateDirty } <- getState
+      stateDirty <- ET.getInternalField ET._stateDirty
 
       let initializeOrStepReason = reason == Initialize || reason == Step
       when (stateDirty && initializeOrStepReason) do
@@ -93,24 +106,26 @@ interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
       Initialize -> do
-        { stateCells: { queue } } <- getState
+        stateCells <- ET.getInternalField ET._stateCells
 
         let
-          newQueue = Array.snoc queue initial
-          identifier = StateId (Array.length newQueue - 1)
+          -- push returns the length of the modified array
+          totalCells = unsafePerformEffect $ liftST $ Array.ST.push initial stateCells
+          identifier = StateId (totalCells - 1)
 
-        modifyState_ _ { stateCells { queue = newQueue } }
         pure $ reply $ Tuple initial identifier
 
       _ -> do
-        { stateCells: { index, queue } } <- getState
+        stateCells <- ET.getInternalField ET._stateCells
+        stateIndex <- ET.getInternalField ET._stateIndex
+
+        value <- ET.unsafeGetCell stateIndex stateCells
 
         let
-          value = unsafeGetCell index queue
-          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          identifier = StateId index
+          nextIndex = stepIndex stateCells stateIndex
+          identifier = StateId stateIndex
 
-        modifyState_ _ { stateCells { index = nextIndex } }
+        ET.modifyInternalField ET._stateIndex (const nextIndex)
         pure $ reply $ Tuple value identifier
 
   UseQuery _ handler a -> do
@@ -118,7 +133,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
       handler' :: forall b. q b -> HookM m (Maybe b)
       handler' = handler <<< toQueryValue
 
-    modifyState_ _ { queryFn = Just (toQueryFn handler') }
+    ET.modifyInternalField ET._queryFn (const (Just (toQueryFn handler')))
     pure a
 
   UseEffect mbMemos act a -> do
@@ -127,24 +142,22 @@ interpretHook runHookM runHook reason hookFn = case _ of
         let
           eval = do
             mbFinalizer <- runHookM (runHook Queued) act
+            let finalizer = fromMaybe (pure unit) mbFinalizer
+            ET.pushField ET._effectCells (mbMemos /\ finalizer)
 
-            let
-              finalizer = fromMaybe (pure unit) mbFinalizer
-              newQueue state = Array.snoc state.effectCells.queue (mbMemos /\ finalizer)
-
-            modifyState_ \st -> st { effectCells { queue = newQueue st } }
-
-        modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
+        ET.pushField ET._evalQueue eval
 
       Queued ->
         pure unit
 
       Step -> do
-        { effectCells: { index, queue } } <- getState
+        effectCells <- ET.getInternalField ET._effectCells
+        effectIndex <- ET.getInternalField ET._effectIndex
+
+        mbOldMemos /\ finalizer <- ET.unsafeGetCell effectIndex effectCells
 
         let
-          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          mbOldMemos /\ finalizer = unsafeGetCell index queue
+          nextIndex = stepIndex effectCells effectIndex
 
         case mbMemos, mbOldMemos of
           Just newMemos, Just oldMemos -> do
@@ -164,102 +177,94 @@ interpretHook runHookM runHook reason hookFn = case _ of
                     -- now run the actual effect, which produces mbFinalizer
                     act
 
-                  { effectCells: { queue: queue' } } <- getState
-
                   let
                     newFinalizer = fromMaybe (pure unit) mbFinalizer
                     newValue = mbMemos /\ newFinalizer
-                    newQueue = unsafeSetCell index newValue queue'
 
-                  modifyState_ _  { effectCells { queue = newQueue } }
+                  ET.unsafeSetCell effectIndex newValue effectCells
 
-              modifyState_ \st -> st
-                { evalQueue = Array.snoc st.evalQueue eval
-                , effectCells { index = nextIndex }
-                }
+              ET.modifyInternalField ET._effectIndex (const nextIndex)
+              ET.pushField ET._evalQueue eval
 
             else do
-              modifyState_ _ { effectCells { index = nextIndex } }
+              ET.modifyInternalField ET._effectIndex (const nextIndex)
 
           _, _ -> do
             -- this branch is useLifecycleEffect, so just update the index
-            modifyState_ _ { effectCells { index = nextIndex } }
+            ET.modifyInternalField ET._effectIndex (const nextIndex)
 
       Finalize -> do
-        { effectCells: { index, queue } } <- getState
+        effectCells <- ET.getInternalField ET._effectCells
+        effectIndex <- ET.getInternalField ET._effectIndex
+
+        _ /\ finalizer <- ET.unsafeGetCell effectIndex effectCells
 
         let
-          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          _ /\ finalizer = unsafeGetCell index queue
+          nextIndex = stepIndex effectCells effectIndex
           finalizeHook = runHookM (runHook Queued) finalizer
 
-        modifyState_ \st -> st
-          { evalQueue = Array.snoc st.evalQueue finalizeHook
-          , effectCells { index = nextIndex }
-          }
+        ET.modifyInternalField ET._effectIndex (const nextIndex)
+        ET.pushField ET._evalQueue finalizeHook
 
     pure a
 
-  UseMemo memos memoFn reply -> do
+  UseMemo memoValues memoFn reply -> do
     case reason of
       Initialize -> do
-        { memoCells: { queue } } <- getState
-
-        let
-          newValue = memoFn unit
-
-        modifyState_ _ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }
+        let newValue = memoFn unit
+        ET.pushField ET._memoCells (memoValues /\ newValue)
         pure $ reply newValue
 
       _ -> do
-        { memoCells: { index, queue } } <- getState
+        memoCells <- ET.getInternalField ET._memoCells
+        memoIndex <- ET.getInternalField ET._memoIndex
 
         let
-          m = do
-            let
-              oldMemos /\ oldValue = bimap fromMemoValues fromMemoValue (unsafeGetCell index queue)
-              newMemos = fromMemoValues memos
+          nextIndex = stepIndex memoCells memoIndex
 
+        m <- do
+          oldMemos /\ oldValue <- map (bimap fromMemoValues fromMemoValue) $ ET.unsafeGetCell memoIndex memoCells
+
+          let
+            newMemos = fromMemoValues memoValues
+
+          pure
             { eq: newMemos.eq
             , old: oldMemos.memos
             , new: newMemos.memos
             , value: oldValue
             }
 
-          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-
         if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then do
           let
             newValue = memoFn unit
-            newQueue = unsafeSetCell index (memos /\ newValue) queue
 
-          modifyState_ _ { memoCells = { index: nextIndex, queue: newQueue } }
+          _ <- ET.unsafeSetCell memoIndex (memoValues /\ newValue) memoCells
+          ET.modifyInternalField ET._memoIndex (const nextIndex)
           pure $ reply newValue
 
         else do
-          modifyState_ _ { memoCells { index = nextIndex } }
+          ET.modifyInternalField ET._memoIndex (const nextIndex)
           pure $ reply m.value
 
   UseRef initial reply ->
     case reason of
       Initialize -> do
-        { refCells: { queue } } <- getState
-
-        let
-          ref = unsafePerformEffect $ Ref.new initial
-
-        modifyState_ _ { refCells { queue = Array.snoc queue ref } }
+        let ref = unsafePerformEffect $ Ref.new initial
+        ET.pushField ET._refCells ref
         pure $ reply $ Tuple initial ref
 
       _ -> do
-        { refCells: { index, queue } } <- getState
+        refCells <- ET.getInternalField ET._refCells
+        refIndex <- ET.getInternalField ET._refIndex
+
+        ref <- ET.unsafeGetCell refIndex refCells
 
         let
-          ref = unsafeGetCell index queue
-          nextIndex = if index + 1 < Array.length queue then index + 1 else 0
+          nextIndex = stepIndex refCells refIndex
           value = unsafePerformEffect $ Ref.read ref
 
-        modifyState_ _ { refCells { index = nextIndex } }
+        EH.modifyInternalField ET._refIndex (const nextIndex)
         pure $ reply $ Tuple value ref
 
 evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
@@ -268,21 +273,19 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
   interpretHalogenHook :: HookF m ~> HalogenM' q i m a
   interpretHalogenHook = case _ of
     Modify (StateId token) f reply -> do
-      state <- getState
+      stateCells <- ET.getInternalField ET._stateCells
+
+      current <- ET.unsafeGetCell token stateCells
 
       let
-        current = unsafeGetCell token state.stateCells.queue
         next = f current
 
       -- Like Halogen's implementation, `Modify` covers both get and set
       -- calls to state. We can use the same `unsafeRefEq` technique to
       -- ensure calls to `get` don't trigger evaluations.
       unless (unsafeRefEq current next) do
-        let newQueue = unsafeSetCell token next
-        putState $ state
-          { stateCells { queue = newQueue state.stateCells.queue }
-          , stateDirty = true
-          }
+        ET.unsafeSetCell token next stateCells
+        ET.modifyInternalField ET._stateDirty (const true)
         void runHooks
 
       pure (reply next)
@@ -314,40 +317,14 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
     GetRef p reply ->
       H.HalogenM $ liftF $ H.GetRef p reply
 
--- Read a cell for a hook
-unsafeGetCell :: forall a. Int -> Array a -> a
-unsafeGetCell index array = unsafePartial (Array.unsafeIndex array index)
+stepIndex :: forall a. STArray Global a -> Int -> Int
+stepIndex cells index = do
+  let
+    -- the runtime representation is the same
+    array :: Array a
+    array = unsafeCoerce cells
 
--- Write a cell for a hook
-unsafeSetCell :: forall a. Int -> a -> Array a -> Array a
-unsafeSetCell index a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
-
--- Read the internal Hook state without incurring a `MonadEffect` constraint
-getState :: forall q i m a. HalogenM' q i m a (InternalHookState q i m a)
-getState = do
-  { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ Ref.read stateRef
-
--- Modify the internal Hook state without incurring a `MonadEffect` constraint
-modifyState
-  :: forall q i m a
-   . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> HalogenM' q i m a (InternalHookState q i m a)
-modifyState fn = do
-  { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ Ref.modify fn stateRef
-
--- Modify the internal Hook state without incurring a `MonadEffect` constraint
-modifyState_
-  :: forall q i m a
-   . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> HalogenM' q i m a Unit
-modifyState_ fn = do
-  { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
-
--- Overwrite the internal Hook state without incurring a `MonadEffect` constraint
-putState :: forall q i m a. InternalHookState q i m a -> HalogenM' q i m a Unit
-putState s = do
-  { stateRef } <- H.gets unwrap
-  pure $ unsafePerformEffect $ Ref.write s stateRef
+  if index + 1 < Array.length array then
+    index + 1
+  else
+    0

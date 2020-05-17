@@ -3,18 +3,21 @@ module Halogen.Hooks.Component where
 import Prelude
 
 import Control.Monad.Free (foldFree)
+import Control.Monad.ST.Class (liftST)
+import Data.Array.ST as Array.ST
 import Data.Indexed (Indexed(..))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over)
-import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
+import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval)
+import Halogen.Hooks.Internal.Eval.Types (State(..), toHalogenM)
+import Halogen.Hooks.Internal.Eval.Types as ET
 import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
+import Record.ST as Record.ST
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
@@ -97,7 +100,7 @@ memoComponent eqInput inputHookFn = do
 
   H.mkComponent
     { initialState
-    , render: \(HookState { result }) -> result
+    , render: \(State { result }) -> result
     , eval: toHalogenM slotToken outputToken <<< mkEval eqInput evalHookM (interpretUseHookFn evalHookM) hookFn
     }
   where
@@ -105,23 +108,27 @@ memoComponent eqInput inputHookFn = do
   -- to the tests, which use their own version of this function. The test function
   -- should be identical, except with the addition of logging.
   interpretUseHookFn runHookM reason hookFn = do
-    { input } <- getState
+    input <- ET.getInternalField ET._input
     let Hooked (Indexed hookF) = hookFn input
     a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
-    H.modify_ (over HookState _ { result = a })
+    H.modify_ (over State _ { result = a })
     pure a
 
   initialState input =
-    HookState
+    State
       { result: HH.text ""
-      , stateRef: unsafePerformEffect $ Ref.new
+      , internal: unsafePerformEffect $ liftST $ Record.ST.thaw
           { input
           , queryFn: Nothing
-          , stateCells: { queue: [], index: 0 }
-          , effectCells: { queue: [], index: 0 }
-          , memoCells: { queue: [], index: 0 }
-          , refCells: { queue: [], index: 0 }
-          , evalQueue: []
+          , evalQueue: unsafePerformEffect $ liftST Array.ST.empty
           , stateDirty: false
+          , stateCells: unsafePerformEffect $ liftST Array.ST.empty
+          , stateIndex: 0
+          , effectCells: unsafePerformEffect $ liftST Array.ST.empty
+          , effectIndex: 0
+          , memoCells: unsafePerformEffect $ liftST Array.ST.empty
+          , memoIndex: 0
+          , refCells: unsafePerformEffect $ liftST Array.ST.empty
+          , refIndex: 0
           }
       }
