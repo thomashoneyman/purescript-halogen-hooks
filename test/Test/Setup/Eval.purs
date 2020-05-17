@@ -4,7 +4,7 @@ module Test.Setup.Eval where
 
 import Prelude
 
-import Control.Monad.Free (foldFree, liftF)
+import Control.Monad.Free (Free, foldFree, liftF, substFree)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
@@ -20,6 +20,7 @@ import Halogen.HTML as HH
 import Halogen.Hooks (Hook(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
+import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Halogen.Hooks.Types (StateId(..))
 import Test.Setup.Log (writeLog)
@@ -59,7 +60,7 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
     c@(Modify (StateId token) f reply) -> do
-      state <- Hooks.Eval.getState
+      state <- H.HalogenM Hooks.Eval.getState
       let v = Hooks.Eval.unsafeGetCell token state.stateCells.queue
 
       -- Calls to `get` should not trigger evaluation. This matches with the
@@ -80,7 +81,8 @@ interpretHook
   -> InterpretHookReason
   -> (LogRef -> Hook Aff h a)
   -> UseHookF Aff
-  ~> HalogenM' q LogRef Aff a
+  -- Fully expanded because type synonyms can't be partially applied
+  ~> Free (H.HalogenF (HookState q LogRef Aff a) (HookM Aff Unit) SlotType OutputValue Aff)
 interpretHook runHookM runHook reason hookFn = case _ of
   {-
     Left here as an example of how to insert logging into this test, but logging
@@ -116,12 +118,13 @@ mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn ev
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
   interpretUseHookFn runHookM reason hookFn = do
-    { input } <- Hooks.Eval.getState
+    { input } <- H.HalogenM Hooks.Eval.getState
     let Hook hookF = hookFn input
 
     writeLog (RunHooks reason) input
-    a <- foldFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
+    
     pure a
 
 -- | Create a new DriverState, which can be used to evaluate multiple calls to

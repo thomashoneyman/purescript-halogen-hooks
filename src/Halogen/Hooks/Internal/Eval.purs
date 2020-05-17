@@ -2,9 +2,8 @@ module Halogen.Hooks.Internal.Eval where
 
 import Prelude
 
-import Control.Applicative.Free (hoistFreeAp, retractFreeAp)
-import Control.Monad.Free (foldFree, liftF)
-import Control.Parallel (parallel, sequential)
+import Control.Applicative.Free (hoistFreeAp, liftFreeAp, retractFreeAp)
+import Control.Monad.Free (Free, liftF, substFree)
 import Data.Array as Array
 import Data.Bifunctor (bimap)
 import Data.Coyoneda (unCoyoneda)
@@ -19,10 +18,11 @@ import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.Hook (Hook)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
-import Halogen.Hooks.Internal.Types (MemoValuesImpl, fromMemoValue, fromMemoValues, toQueryValue)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Types (MemoValuesImpl, OutputValue, SlotType, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateId(..))
+import Halogen.Query.HalogenM (HalogenAp(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
@@ -40,7 +40,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Query q reply -> do
-    { queryFn } <- getState
+    { queryFn } <- H.HalogenM getState
     case queryFn of
       Nothing ->
         pure (reply unit)
@@ -53,10 +53,10 @@ mkEval inputEq runHookM runHook hookFn = case _ of
     pure a
 
   H.Receive nextInput a -> do
-    { input: prevInput } <- getState
+    { input: prevInput } <- H.HalogenM getState
 
     unless (prevInput `inputEq` nextInput) do
-      modifyState_ _ { input = nextInput }
+      H.HalogenM $ modifyState_ _ { input = nextInput }
       void $ runHookAndEffects Step
 
     pure a
@@ -68,12 +68,12 @@ mkEval inputEq runHookM runHook hookFn = case _ of
   where
   runHookAndEffects reason = do
     _ <- runHook reason hookFn
-    { evalQueue } <- getState
+    { evalQueue } <- H.HalogenM getState
 
     when (not (Array.null evalQueue)) do
-      modifyState_ _ { evalQueue = [], stateDirty = false }
+      H.HalogenM $ modifyState_ _ { evalQueue = [], stateDirty = false }
       sequence_ evalQueue
-      { stateDirty } <- getState
+      { stateDirty } <- H.HalogenM getState
 
       let initializeOrStepReason = reason == Initialize || reason == Step
       when (stateDirty && initializeOrStepReason) do
@@ -88,7 +88,7 @@ interpretHook
   -> InterpretHookReason
   -> (i -> Hook m hooks a)
   -> UseHookF m
-  ~> HalogenM' q i m a
+  ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
 interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
@@ -132,7 +132,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
               finalizer = fromMaybe (pure unit) mbFinalizer
               newQueue state = Array.snoc state.effectCells.queue (mbMemos /\ finalizer)
 
-            modifyState_ \st -> st { effectCells { queue = newQueue st } }
+            H.HalogenM $ modifyState_ \st -> st { effectCells { queue = newQueue st } }
 
         modifyState_ \st -> st { evalQueue = Array.snoc st.evalQueue eval }
 
@@ -164,14 +164,14 @@ interpretHook runHookM runHook reason hookFn = case _ of
                     -- now run the actual effect, which produces mbFinalizer
                     act
 
-                  { effectCells: { queue: queue' } } <- getState
+                  { effectCells: { queue: queue' } } <- H.HalogenM $ getState
 
                   let
                     newFinalizer = fromMaybe (pure unit) mbFinalizer
                     newValue = mbMemos /\ newFinalizer
                     newQueue = unsafeSetCell index newValue queue'
 
-                  modifyState_ _  { effectCells { queue = newQueue } }
+                  H.HalogenM $ modifyState_ _ { effectCells { queue = newQueue } }
 
               modifyState_ \st -> st
                 { evalQueue = Array.snoc st.evalQueue eval
@@ -263,9 +263,11 @@ interpretHook runHookM runHook reason hookFn = case _ of
         pure $ reply $ Tuple value ref
 
 evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
-evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseHookF
+evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) = H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where
-  interpretHalogenHook :: HookF m ~> HalogenM' q i m a
+  interpretHalogenHook
+    :: HookF m
+    ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
     Modify (StateId token) f reply -> do
       state <- getState
@@ -288,31 +290,31 @@ evalHookM runHooks (HookM evalUseHookF) = foldFree interpretHalogenHook evalUseH
       pure (reply next)
 
     Subscribe eventSource reply ->
-      H.HalogenM $ liftF $ H.Subscribe eventSource reply
+      liftF $ H.Subscribe eventSource reply
 
     Unsubscribe sid a ->
-      H.HalogenM $ liftF $ H.Unsubscribe sid a
+      liftF $ H.Unsubscribe sid a
 
     Lift f ->
-      H.HalogenM $ liftF $ H.Lift f
+      liftF $ H.Lift f
 
     ChildQuery box ->
-      H.HalogenM $ liftF $ H.ChildQuery box
+      liftF $ H.ChildQuery box
 
     Raise o a ->
-      H.raise o *> pure a
+      liftF $ H.Raise o a
 
     Par (HookAp p) ->
-      sequential $ retractFreeAp $ hoistFreeAp (parallel <<< evalHookM runHooks) p
+      liftF $ H.Par $ retractFreeAp $ hoistFreeAp (HalogenAp <<< liftFreeAp <<< evalHookM (H.HalogenM runHooks)) p
 
     Fork hmu reply ->
-      H.HalogenM $ liftF $ H.Fork (evalHookM runHooks hmu) reply
+      liftF $ H.Fork (evalHookM (H.HalogenM runHooks) hmu) reply
 
     Kill fid a ->
-      H.HalogenM $ liftF $ H.Kill fid a
+      liftF $ H.Kill fid a
 
     GetRef p reply ->
-      H.HalogenM $ liftF $ H.GetRef p reply
+      liftF $ H.GetRef p reply
 
 -- Read a cell for a hook
 unsafeGetCell :: forall a. Int -> Array a -> a
@@ -323,31 +325,36 @@ unsafeSetCell :: forall a. Int -> a -> Array a -> Array a
 unsafeSetCell index a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
 
 -- Read the internal Hook state without incurring a `MonadEffect` constraint
-getState :: forall q i m a. HalogenM' q i m a (InternalHookState q i m a)
+getState
+  :: forall q i m a
+   . Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) (InternalHookState q i m a)
 getState = do
-  { stateRef } <- H.gets unwrap
+  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
   pure $ unsafePerformEffect $ Ref.read stateRef
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState
   :: forall q i m a
    . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> HalogenM' q i m a (InternalHookState q i m a)
+  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) (InternalHookState q i m a)
 modifyState fn = do
-  { stateRef } <- H.gets unwrap
+  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
   pure $ unsafePerformEffect $ Ref.modify fn stateRef
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState_
   :: forall q i m a
    . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> HalogenM' q i m a Unit
+  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) Unit
 modifyState_ fn = do
-  { stateRef } <- H.gets unwrap
+  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
   pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
 
 -- Overwrite the internal Hook state without incurring a `MonadEffect` constraint
-putState :: forall q i m a. InternalHookState q i m a -> HalogenM' q i m a Unit
+putState
+  :: forall q i m a
+   . InternalHookState q i m a
+  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) Unit
 putState s = do
-  { stateRef } <- H.gets unwrap
+  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
   pure $ unsafePerformEffect $ Ref.write s stateRef
