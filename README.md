@@ -29,7 +29,7 @@ If Halogen Hooks is not available in your package set, add it to your project's 
 ```dhall
 let additions =
   { halogen-hooks =
-      { dependencies = [ "halogen", "indexed-monad" ]
+      { dependencies = [ "halogen", "indexed-monad", "record" ]
       , repo = "https://github.com/thomashoneyman/purescript-halogen-hooks.git"
       , version = "master"
       }
