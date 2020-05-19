@@ -5,18 +5,18 @@ import Prelude
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
+import Effect.Aff.Class (class MonadAff)
+import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
-import Halogen.Hooks as Hooks
-import Effect.Aff.Class (class MonadAff)
-import Effect.Class (liftEffect)
 import Halogen.Hooks (Hook, HookM, UseEffect)
+import Halogen.Hooks as Hooks
 import Halogen.Query.EventSource as ES
-import Web.Event.Event (EventType(..))
-import Web.Event.Event as Event
+import Web.Event.Event (EventType(..), stopPropagation)
 import Web.HTML as HTML
 import Web.HTML.Window as Window
+import Web.UIEvent.MouseEvent as ME
 
 newtype UseWindowClick hooks
   = UseWindowClick (UseEffect hooks)
@@ -28,32 +28,17 @@ useWindowClick handler =
   Hooks.wrap Hooks.do
 
     Hooks.useLifecycleEffect do
-      subscription <- subscribeToWindow
-      pure $ Just $ Hooks.unsubscribe subscription
+      window <- liftEffect HTML.window
 
-    Hooks.pure unit
-
-  where
-
-  subscribeToWindow :: HookM m H.SubscriptionId
-  subscribeToWindow = do
-
-    window <- liftEffect HTML.window
-
-    let
-      eventToMaybe :: Event.Event -> Maybe (HookM m Unit)
-      eventToMaybe =
-        const $ Just handler
-
-    subscriptionId <-
-      Hooks.subscribe do
+      _ <- Hooks.subscribe do
         ES.eventListenerEventSource
           (EventType "click")
           (Window.toEventTarget window)
-          eventToMaybe
+          (const $ Just handler)
 
-    -- needed to unsubscribe
-    pure subscriptionId
+      pure $ Just $ pure unit
+
+    Hooks.pure unit
 
 component :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
 component =
@@ -61,18 +46,23 @@ component =
     -- Declare a new state variable, which we'll call "count"
     count /\ countId <- Hooks.useState 0
 
-    let
-      decCount :: HookM m Unit
-      decCount = do
-        Hooks.modify_ countId (_ - 2)
+    -- Decrement count when clicked in window outside of button
+    useWindowClick $ Hooks.modify_ countId (_ - 1)
 
-    useWindowClick decCount
+    let
+      evtToMaybeModify :: ME.MouseEvent -> Maybe (HookM m Unit)
+      evtToMaybeModify evt =
+        Just
+          do
+            -- stopPropagation is necessary so button click not also interpreted as window click.
+            liftEffect $ stopPropagation $ ME.toEvent evt
+            -- increment count
+            Hooks.modify_ countId (_ + 1)
 
     Hooks.pure do
       HH.div_
-        [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
+        [ HH.p_ [ HH.text $ "You clicked on the button " <> show count <> " times. Try clicking outside of the button." ]
         , HH.button
-            -- How do I stop propagation here?
-            [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
+            [ HE.onClick evtToMaybeModify ]
             [ HH.text "Click me" ]
         ]
