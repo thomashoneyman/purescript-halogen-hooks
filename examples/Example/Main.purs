@@ -7,6 +7,7 @@ import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Example.Halogen.Basic.Button as Halogen.Basic
+import Example.Halogen.Basic.ButtonWindow as Halogen.ButtonWindow
 import Example.Halogen.Components.Container as Halogen.Components.Container
 import Example.Halogen.ComponentsInputs.Container as Halogen.ComponentsInputs.Container
 import Example.Halogen.Effects.Random as Halogen.Effects.Random
@@ -40,6 +41,7 @@ examples =
 
     -- Examples from the existing Halogen documentation
     , "Halogen|Basic" /\ Halogen.Basic.component
+    , "Halogen|Button Window" /\ Halogen.ButtonWindow.component
     , "Halogen|Components" /\ Halogen.Components.Container.component
     , "Halogen|Components: Inputs" /\ Halogen.ComponentsInputs.Container.component
     , "Halogen|Effects: Random" /\ Halogen.Effects.Random.component
