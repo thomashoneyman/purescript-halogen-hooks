@@ -235,7 +235,7 @@ templateComponent =
     }
 ```
 
-### Rendering HTML using the Array
+### Rendering the Initial HTML using the Array
 
 But wait! How then do we render the component's HTML? The trick is to change what the indexed monad "returns" in its computation. Currently, it returns the array. Below, we'll change it to return the actual HTML we want to render for the component. Thus, rather than "producing" an array of states, we use the indexed monad computation to build the desired HTML by utilizing our array of states. This will change our code to look like this:
 ```purescript
@@ -273,7 +273,7 @@ type HalogenComponentState a =
   , state :: Array a
   }
 
-desiredApi 
+desiredApi
   :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
 desiredApi = do
   first /\ firstIndex <- useState "first"
@@ -296,6 +296,10 @@ component =
     , -- other labels
     }
 ```
+
+So, how do we fix that?
+
+idea: to render second and third times, need to reuse indexed monad computation but interpret it differently (e.g. don't create the array, use the array!)
 
 The above code won't compile because `desiredApi` will "return" only `ComponentHTML`, not `{ html :: ComponentHTML , state :: Array }`. For now, understand that something behind the scenes will make `desiredApi` produce a value of our desired `State` type. I'll explain that later, but for simplicity, assume that this works.
 
