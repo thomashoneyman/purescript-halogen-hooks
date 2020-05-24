@@ -196,6 +196,20 @@ desiredApi = do
   -- ...
 ```
 
+Ouch... the `IxMonad` definition gets a bit hairy. Let's use a type alias to clarify what it is.
+```purescript
+type IxStateStack none =
+   UseState {- second -} String -- top of stack
+  (UseState {- first -}  String
+   none
+  )
+desiredApi :: IxMonad none (IxStateStack none) _
+desiredApi = do
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
+  -- ...
+```
+
 ## Integrating Array-Making Indexed-Monads into Halogen Components
 
 This idea integrates into Halogen components by implementing a system, a number of individual pieces that work together to make this concept work. In this section's explanation, some things won't make sense until later.
@@ -229,10 +243,10 @@ type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType }
 
 desiredApi
-  :: IndexedMonad none allElements (H.ComponentHTML ActionType ChildSlots MonadType)
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
 desiredApi = do
-  first /\ firstIndex <- addFirst
-  second /\ secondIndex <- addSecond
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
   pure $
     HH.div_
       [ HH.text $ "First is " <> show first <>
@@ -258,11 +272,12 @@ type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType
   , state :: Array a
   }
-desiredApi
-  :: IndexedMonad none allElements (H.ComponentHTML ActionType ChildSlots MonadType)
+
+desiredApi 
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
 desiredApi = do
-  first /\ firstIndex <- addFirst
-  second /\ secondIndex <- addSecond
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
   pure $
     HH.div_
       [ HH.text $ "First is " <> show first <>
