@@ -291,14 +291,7 @@ type HalogenComponentState a =
 
 desiredApi
   :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
-desiredApi = do
-  first /\ firstIndex <- useState "first"
-  second /\ secondIndex <- useState "second"
-  pure $
-    HH.div_
-      [ HH.text $ "First is " <> show first <>
-                  " and second is " <> show second <> "."
-      ]
+desiredApi = -- same as before
 
 component :: H.Component HH.HTML QueryType Input Message MonadType
 component =
