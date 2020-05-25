@@ -308,6 +308,38 @@ component =
 
 So, how do we fix that?
 
+### Using a `Free`-based DSL for Constructing the Component's State
+
+The trick is to use a domain-specific language (DSL) via the `Free` monad. Using `Free`, we can define an abstract syntax tree (AST) that we later interpret to produce the results we want. In other words, we write the `desiredApi` implementation using our `Free`-based language. Then, we interpret that AST, so that it produces the `Record` that has both the `html` and `state` labels:
+```purescript
+data LanguageF state a
+  = UseState state (state /\ Int -> a)
+
+interpretLanguageF :: LanguageF state ~> HalogenM _ _ _ m (Maybe a)
+interpretLanguageF = case _ of
+  UseState initialState reply -> do
+    -- this implementation isn't correct
+    -- but it gets the idea across
+    st <- H.get
+    H.put (st { state = st.state `snoc` initialState
+              -- increment our index by 1, so that next `useState`
+              -- refers to correct index
+              , nextIndex = st.nextIndex + 1
+              })
+    reply $ Just $ initialState /\ st.nextIndex
+
+-- used in `H.mkComponent` record.
+initialState :: forall input. input -> _ { html :: _, state :: Array String }
+initialState _ = foldFree interpretLanguageF desiredApi
+```
+
+However, `Free` by itself isn't an indexed monad. So, we'll add our own wrapper around it that adds the index to it:
+```purescript
+newtype IxFree fAlgebra before after a = IxFree (Free fAlgebra a)
+
+type OurIxMonad before after output = IxFree LanguageF before after output
+```
+
 idea: to render second and third times, need to reuse indexed monad computation but interpret it differently (e.g. don't create the array, use the array!)
 
 The above code won't compile because `desiredApi` will "return" only `ComponentHTML`, not `{ html :: ComponentHTML , state :: Array }`. For now, understand that something behind the scenes will make `desiredApi` produce a value of our desired `State` type. I'll explain that later, but for simplicity, assume that this works.
