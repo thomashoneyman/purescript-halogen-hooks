@@ -132,13 +132,27 @@ If this is how indexed monads work, is there a way to prevent one from using con
 ```purescript
 data IxMonad stateBefore stateAfter output
 
-addFirst :: IxMonad none (FirstPlus none) ElemIndex
+addFirst :: IxMonad none (FirstPlus none) Unit
 
-addSecond :: IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) ElemIndex
+addSecond :: IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) Unit
 ```
-... and so forth. Here's the end result: a type-level linked-list where the first element is last and the last element is first.
+... and so forth. Here's the end result: a type-level linked-list.
 ```purescript
-desiredArray :: IxMonad none allElements (Array a)
+desiredArray :: IxMonad none (SecondPlus (FirstPlus none)) (Array a)
+desiredArray = do
+  addFirst
+  addSecond
+```
+
+In the above version, `addFirst`/`addSecond` both return `Unit`, which isn't helpful. At the very least, we could return the index of the element in the array:
+```purescript
+data IxMonad stateBefore stateAfter output
+
+addFirst :: IxMonad none (FirstPlus none) Int
+
+addSecond :: IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) Int
+
+desiredArray :: IxMonad none (SecondPlus (FirstPlus none)) _
 desiredArray = do
   indexToFirstElement <- addFirst
   indexToSecondElement <- addSecond
@@ -146,12 +160,12 @@ desiredArray = do
   -- their corresponding element in the underlying `Array`.
 ```
 
-Now, what would happen if we returned both the index to the element in the array AND the element itself? In that case, we would change the returned `ElemIndex` to `Tuple a ElemIndex` where the `a` corresponds to the type of element in the array. Our API would look something like this:
+Now, what would happen if we returned both the index to the element in the array AND the element itself? In that case, we would change the returned `Int` to `Tuple a Int` where the `a` corresponds to the type of element in the array. Our API would look something like this:
 ```purescript
-addFirst :: IxMonad none (FirstPlus none) (Tuple a ElemIndex)
+addFirst :: IxMonad none (FirstPlus none) (Tuple a Int)
 
 -- "a /\ b" is syntax sugar for "(Tuple a b)"
-addSecond :: IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) (b /\ ElemIndex)
+addSecond :: IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) (b /\ Int)
 
 desiredApi :: IxMonad none allElements _
 desiredApi = do
@@ -160,15 +174,15 @@ desiredApi = do
   -- ...
 ```
 
-Let's make one more change. Right now, we don't specify what the value we are storing in the array will be. So, let's add an argument that indicates what value should be stored at that index. Remember, the underlying `Array` can only store values of the same type. We'll use `String` for the time being.
+Let's make one more change. Right now, we don't specify what the value we are storing in the array will be. So, let's add an argument that indicates what the initial value should be for that index in the element. Remember, the underlying `Array` can only store values of the same type. So, we'll use `String` for the time being.
 ```purescript
 addFirst
   :: String
-  -> IxMonad none (FirstPlus none) (a /\ ElemIndex)
+  -> IxMonad none (FirstPlus none) (String /\ Int)
 
 addSecond
   :: String
-  -> IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) (b /\ ElemIndex)
+  -> IxMonad (FirstPlus none) (SecondPlus (FirstPlus none)) (String /\ Int)
 
 desiredApi :: IxMonad none allElements _
 desiredApi = do
@@ -177,8 +191,10 @@ desiredApi = do
   -- ...
 ```
 
-The final change we can make is to unify `addFirst` and `addSecond` into one definition. We'll call it `useState`. In the above examples, we used the `FirstPlus` and `SecondPlus` names to help clarify what is going on in the types. We will now remove those. Here's what our code looks like now:
+Finally, let's unify `addFirst` and `addSecond` into one definition. We'll call it `useState`. In the above examples, we used the `FirstPlus` and `SecondPlus` names to help clarify what is going on in the types. We will now remove those. Here's what our code looks like now:
 ```purescript
+data UseState state previous
+
 useState
   :: String
   -> IxMonad previous (UseState String previous) (String /\ Int)
@@ -189,7 +205,7 @@ desiredApi
       (UseState {- second -} String -- top of stack
       (UseState {- first -} String
       none))                        -- bottom of stack
-      _
+      _                             -- return value to be determined
 desiredApi = do
   first /\ firstIndex <- useState "first"
   second /\ secondIndex <- useState "second"
