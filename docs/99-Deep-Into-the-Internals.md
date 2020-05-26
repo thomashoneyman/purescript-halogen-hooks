@@ -798,7 +798,7 @@ type HalogenComponentState a =
                       -- the dependencies part isn't shown below for
                       -- simplicity, similar to `useMemos`
                     , effectCells :: Queue (_ /\ HookM m Unit)
-                    
+
                     , evalQueue :: Queue (HookM m Unit)
                     }
   }
