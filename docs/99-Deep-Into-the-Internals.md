@@ -324,12 +324,11 @@ interpretLanguageF = case _ of
     -- this implementation isn't correct
     -- but it gets the idea across
     st <- H.get
-    H.put (st { state = st.state `snoc` initialState
-              -- increment our index by 1, so that next `useState`
-              -- refers to correct index
-              , nextIndex = st.nextIndex + 1
-              })
-    reply $ Just $ initialState /\ st.nextIndex
+    H.put (st { state = st.state `snoc` initialState })
+
+    -- Note: we use the length of the array before appending the current
+    -- element to it to determine what its corresponding index is in the array.
+    reply $ Just $ initialState /\ Array.length st.state
 
 -- used in `H.mkComponent` record.
 initialState :: forall input. input -> _ { html :: _, state :: Array String }
