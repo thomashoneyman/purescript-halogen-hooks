@@ -723,7 +723,7 @@ To support this, we'll add a queue to our state type that stores all effects tha
 type Queue a = { queue :: Array a, nextIndex :: Int }
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML (HookM m Unit) ChildSlots (HookM m Unit)
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
                     , memoCells :: Queue _ -- not shown for simplicity
@@ -746,7 +746,7 @@ data InterpretReason
       -- 1. Enqueue and later run finalizer effects
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML (HookM m Unit) ChildSlots (HookM m Unit)
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
                     , memoCells :: Queue _ -- not shown for simplicity
@@ -789,7 +789,7 @@ data InterpretReason
       -- 1. Enqueue and later run finalizer effects
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML (HookM m Unit) ChildSlots (HookM m Unit)
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
                     , memoCells :: Queue _ -- not shown for simplicity
