@@ -344,7 +344,7 @@ type OurIxMonad before after output = IxFree LanguageF before after output
 
 ## Supporting the Capacity to Change State
 
-### Introducing the Concept of "Evaluation Cycles"
+### Introducing the Concept of an "Evaluation Cycles"
 
 So far, our rendered HTML is static; we can't change the state stored in our Array, so that it updates the HTML. In Halogen components, we would use `H.modify_ \state -> state + 1` to update state and cause our component to rerender. In this implementation, the HTML we render is "returned" in the `desiredApi` computation. So, we need to somehow change what the values bound by the names `first` and `second` are:
 ```purescript
