@@ -630,7 +630,7 @@ type Queue a = { queue :: Array a, nextIndex :: Int }
 type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
-  
+
                     , refCells :: Queue (Ref RefValue)
                     }
   }
