@@ -315,6 +315,9 @@ The trick is to use a domain-specific language (DSL) via the `Free` monad. Using
 data LanguageF state a
   = UseState state (state /\ Int -> a)
 
+useState :: forall a. a -> Free LanguageF (state /\ Int -> Unit)
+useState initial = wrap $ UseState initial
+
 interpretLanguageF :: LanguageF state ~> HalogenM _ _ _ m (Maybe a)
 interpretLanguageF = case _ of
   UseState initialState reply -> do
