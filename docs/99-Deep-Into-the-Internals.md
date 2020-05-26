@@ -514,7 +514,7 @@ fromStateValue = unsafeCoerce
 While you might cringe at the use of `unsafeCoerce`, you'll see that its usage is actually safe.
 ```purescript
 useState :: forall state. state -> UseState _
-useState initialState = UseState initialState' interface
+useState initialState = wrap $ UseState initialState' interface
   where
   initialState' :: StateValue
   initialState' = toStateValue initialState
