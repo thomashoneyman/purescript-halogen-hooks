@@ -532,6 +532,63 @@ type HalogenComponentState a =
   }
 ```
 
+## Preventing Array Index Misuse via Existential Types
+
+While the above code works, what stops a developer from doing this?
+```purescript
+-- same as before
+desiredApi
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+desiredApi = do
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
+  pure $
+    HH.div_
+      [ HH.text $ "First is " <> show first <>
+                  " and second is " <> show second <> "."
+      ]
+
+updateFirst = do
+  -- Since `firstIndex` is an `Int`, we can easily modify it,
+  -- so that it refers to `secondIndex` now.
+  -- Thus, this code modifies `second` to be "newValue", not `first`!
+  modifyState (firstIndex + 1) "newValue"
+```
+
+The solution is to use existential types again:
+```purescript
+foreign import data StateId :: Type
+
+toStateId :: Int -> StateId
+toStateId = unsafeCoerce
+
+fromStateId :: StateId -> Int
+fromStateId = unsafeCoerce
+```
+
+However, there is one change we will make to help type inference and prevent further misuse. We will add a phantom type to `StateId`, so that we know what the type of its corresponding value in the array at that index is.
+```purescript
+foreign import data StateId :: Type -> Type
+
+toStateId :: forall state. Int -> StateId state
+toStateId = unsafeCoerce
+
+fromStateId :: forall state. StateId state -> Int
+fromStateId = unsafeCoerce
+
+-- Now, we can change `useState` to include this additional information:
+useState :: forall state. state -> UseState _
+useState initialState = wrap $ UseState initialState' interface
+  where
+  initialState' :: StateValue
+  initialState' = toStateValue initialState
+
+  -- recall that the return value here, `Tuple state (StateId state)`
+  -- is the type of the code:
+  --   (first /\ firstIndex :: Tuple state (StateId state)) <- useState "first"
+  interface :: Tuple StateValue Int -> Tuple state (StateId state)
+  interface (Tuple value index) = Tuple (fromStateValue value) (toStateId index)
+```
 
 - what values do we need to store?
     - state -> changes causes rerender
