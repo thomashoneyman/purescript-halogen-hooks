@@ -756,12 +756,8 @@ type HalogenComponentState a =
   }
 ```
 
-- what values do we need to store?
-    - state -> changes causes rerender
-    - mutable references -> changes does not cause rerender
-    - effects -> initialize and finalize
-- updating Halogen components to use 'shared state structure' of an array: "state" becomes HTML we use when we render; "non-state" becomes the state we actually manipulate
-- evaluation cycles: update state, then run effects
-- adding dependencies: useTickEffect,
-- finally, add in memos
-    - memos -> state that is otherwise expensive to produce and which should not incur performance penalty due to frequent hook re-evaluations
+### Adding Dependent Effects
+
+
+
+## Evaluation Cycles and "Stale" Values
