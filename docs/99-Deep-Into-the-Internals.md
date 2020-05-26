@@ -590,6 +590,25 @@ useState initialState = wrap $ UseState initialState' interface
   interface (Tuple value index) = Tuple (fromStateValue value) (toStateId index)
 ```
 
+## Refactoring the `Array` and `nextIndex` into a `Queue` Type
+
+The `state` and `nextIndex` labels go hand-in-hand. However, `useState` is not the part of our `Free`-based DSL that we need. So, before covering those parts further, let's refactor these two types into a new one called `Queue`:
+```purescript
+-- Before
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { state :: Array StateValue, nextIndex :: Int }
+  }
+
+-- After
+type Queue a = { queue :: Array a, nextIndex :: Int }
+
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { stateCells :: Queue StateValue }
+  }
+```
+
 - what values do we need to store?
     - state -> changes causes rerender
     - mutable references -> changes does not cause rerender
