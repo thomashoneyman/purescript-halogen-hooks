@@ -609,6 +609,81 @@ type HalogenComponentState a =
   }
 ```
 
+## Adding Other State-like Things
+
+### UseRef
+
+While we have `useState`, which will rerender the HTML whenever one of its values changes, we might want a state value that won't cause a rerender when its value changes. Thus, we can introduce `useRef`:
+```purescript
+-- implementation not shown
+useRef :: a -> IxMonad before (UseRef a before) (a /\ Ref a)
+```
+When we interpret `useRef` via the `Initialize` reason, we create the `Ref` using the initial value and return both the initial value and the `Ref` itself. When we interpret `useRef` via the `NotInitialize` reason, we read the `Ref` and return both its latest value and the `Ref` itself.
+
+To support this, we'll update our component's state type to the following:
+```purescript
+type Queue a = { queue :: Array a, nextIndex :: Int }
+
+-- Note: `RefValue` is an existential type just like the
+-- `StateValue` we covered earlier.
+
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { stateCells :: Queue StateValue
+  
+                    , refCells :: Queue (Ref RefValue)
+                    }
+  }
+```
+
+### UseMemo
+
+If we ever want to use a `let` binding somewhere in our indexed monad computation, `desiredApi`, the binding will be reevaluated each time an evaluation cycle occurs:
+```purescript
+-- same as before
+desiredApi
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+desiredApi = do
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
+  let
+    superExpensiveComputation = -- ...
+  pure $
+    HH.div_
+      [ HH.text $ "First is " <> show first <>
+                  " and second is " <> show second <>
+                  " and the result of our super expensive computation \
+                  \ is: " <> show superExpensiveComputation <> "."
+      ]
+```
+
+When we initialize the array, `superExpensiveComputation` will be evaluated. Every time we reinterpret the AST upon a state modification, it will be reevaluated.
+
+As a result, we also have `useMemo`, which is a `let` binding that only gets evaluated when its dependencies change:
+```purescript
+-- implementation not shown
+useMemo :: dependencies -> a -> IxMonad before (UseMemo a before) a
+```
+
+When we interpret `useMemo` via the `Initialize` reason, we run the possibly expensive computation, store its value, and return the result. When we interpret `useMemo` via the `NotInitialize` reason, we check whether the dependencies from the last run have changed from what we have now. If they have changed, we produce the new value by rerunning the computation. Otherwise, we return what we previously stored.
+
+To support this, we'll add a `memoCells` label:
+```purescript
+type Queue a = { queue :: Array a, nextIndex :: Int }
+
+-- Note: `RefValue` is an existential type just like the
+-- `StateValue` we covered earlier.
+
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { stateCells :: Queue StateValue
+                    , refCells :: Queue (Ref RefValue)
+
+                    , memoCells :: Queue _ -- not shown for simplicity
+                    }
+  }
+```
+
 - what values do we need to store?
     - state -> changes causes rerender
     - mutable references -> changes does not cause rerender
