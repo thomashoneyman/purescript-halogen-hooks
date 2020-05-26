@@ -770,9 +770,7 @@ useLifecycleEffect do
 
 We can also add effects that run whenever their depenedencies change. These are tricky to get right because we need to ensure that everything else we've implemented thus far still works.
 
-These are similar to `useMemo`: only rerun the effects when the dependencies change. If no change occurs, don't rerun the effects.
-
-However, when do these dependencies change? In short, we need to recheck the dependencies whenever a state modification occurs and when another effect occurs (because the effect could modify the state). (See #5 for more context).
+These are similar to `useMemo`: only rerun the effects when the dependencies change. If no change occurs, don't rerun the effects. But, when can these dependencies change, so that we only check them when necessary? We need to recheck the dependencies in two situations: first, whenever a state modification occurs and second, when another effect occurs because the effect could modify the state (see #5 for more context).
 
 Regardless, this forces us to change `InterpretReason` to include yet another reason, `Step`, and to change the state type to include an array for these special effects, `effectCells`:
 
