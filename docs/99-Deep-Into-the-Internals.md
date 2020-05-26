@@ -343,9 +343,38 @@ newtype IxFree fAlgebra before after a = IxFree (Free fAlgebra a)
 type OurIxMonad before after output = IxFree LanguageF before after output
 ```
 
-idea: to render second and third times, need to reuse indexed monad computation but interpret it differently (e.g. don't create the array, use the array!)
+## Supporting the Capacity to Change State
 
-The above code won't compile because `desiredApi` will "return" only `ComponentHTML`, not `{ html :: ComponentHTML , state :: Array }`. For now, understand that something behind the scenes will make `desiredApi` produce a value of our desired `State` type. I'll explain that later, but for simplicity, assume that this works.
+So far, our rendered HTML is static; we can't change the state stored in our Array, so that it updates the HTML. In Halogen components, we would use `H.modify_ \state -> state + 1` to update state and cause our component to rerender. In this implementation, the HTML we render is "returned" in the `desiredApi` computation. So, we need to somehow change what the values bound by the names `first` and `second` are:
+```purescript
+desiredApi
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+desiredApi = do
+  -- When this code is first run, `first` is "first"
+  -- and `second` is "second". Thus, the HTML text says
+  -- "First is first and second is second."
+  --
+  -- Let's say we change `first` to "newValue" somewhere else.
+  -- Now, `first` in this computational context should be "newValue",
+  -- so that the HTML text says "First is newValue and second is second."
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
+  pure $
+    HH.div_
+      [ HH.text $ "First is " <> show first <>
+                  " and second is " <> show second <> "."
+      ]
+```
+
+This is where the array indices become relevant. Since we use indexed monads to prevent the end-user from writing conditional computations, `firstIndex` and `secondIndex` always refer to the same array index. Thus, we can use them to update the correct element in the array of states. Unlike our array-building computation, the state-modifying computation does not need to be run in a specific order. Adding that constraint is actually undesirable here. Therefore, we will use a normal non-indexed monad here rather than the indexed monad used to build our array of states.
+
+So what kind of monad will this be? Since `Halogen` components use `HalogenM` to run their Action/Query code, this new monad will mirror the API provided by that monad. Most of the time, it will delegate its handlers to `HalogenM`. However, whenever a state modification is called (e.g. `H.put`, `H.modify_`), it will need to implement things in a special way.
+
+In short, whenever a state modifcation occurs, we will do two things:
+1. use the index provided in `desiredApi` to update the corresponding element in the array that is stored in the component's state.
+2. reinterpret the `desiredApi` AST to update the corresponding value's binding in that context, so that the returned HTML is also updated (i.e. `first` now refers to the value "newValue", not the value "first").
+
+This two-part process is called an "evaluation cycle."
 
 ### Supporting States of Different Types via Existential Types
 
