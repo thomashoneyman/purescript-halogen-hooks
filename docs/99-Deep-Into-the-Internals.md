@@ -684,6 +684,78 @@ type HalogenComponentState a =
   }
 ```
 
+## Adding Effects
+
+While we can write stateful logic with our current implementation, there are three other kinds of stateful logic we can't yet write:
+1. component initializer effects
+2. component finalizer effects
+3. effects that run only when specific values have changed
+
+### Adding the Initializer Effect
+
+These effects are a bit tricky. Knowing about how evaluation cycles work, let's say we had the imaginary API:
+```purescript
+desiredApi
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+desiredApi = do
+  first /\ firstIndex <- useState "first"
+  second /\ secondIndex <- useState "second"
+  useInitializer do
+    liftEffect $ log $ "Now changing `first` to 'newValue'"
+    putState firstIndex "newValue"
+
+  useFinalizer do
+    liftEffect $ log $ "Running finalizer!"
+
+  pure $
+    HH.div_
+      [ HH.text $ "First is " <> show first <>
+                  " and second is " <> show second <>
+                  " and the result of our super expensive computation \
+                  \ is: " <> show superExpensiveComputation <> "."
+      ]
+```
+When should the effect run? In normal Halogen components, the `Initializer` code doesn't run until after the first render occurs. Thus, when we are interpreting the AST via the `Initialize` reason, we need to store the initializer that we need to run, but not yet run it at that point. Later on, we then need to run it.
+
+To support this, we'll add a queue to our state type that stores all effects that need to be run. We'll call it `evalQueue` for short. When we come across an initializer effect like above, we will enqueue that code into our `evalQueue`. Once we've done the first render (i.e. the `Initialize` `InterpretReason`), we will run the effect and then rerender our component.
+
+```purescript
+type Queue a = { queue :: Array a, nextIndex :: Int }
+
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots (HookM m Unit)
+  , internal :: Ref { stateCells :: Queue StateValue
+                    , refCells :: Queue (Ref RefValue)
+                    , memoCells :: Queue _ -- not shown for simplicity
+                    , evalQueue :: Queue (HookM m Unit)
+                    }
+  }
+```
+
+### Adding the Finalizer Effect
+
+`useFinalizer` works a bit differently. Since we don't ever run it until the end of the component's life, we need to store it outside of `evalQueue`. Only when the component is being removed from the DOM do we then run the finalizers. Thus, we'll add a `finalizers` label to our state type and add a `Finalize` reason to `InterpretReason`.
+```purescript
+data InterpretReason
+  = Initialize
+      -- 1. Create initial array(s) (e.g. state, ref, memo)
+      -- 2. Enqueue and later run initializer effects
+  | NotInitialize
+      -- 1. Update bindings here (e.g. useState, useRef, useMemo)
+  | Finalize
+      -- 1. Enqueue and later run finalizer effects
+
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots (HookM m Unit)
+  , internal :: Ref { stateCells :: Queue StateValue
+                    , refCells :: Queue (Ref RefValue)
+                    , memoCells :: Queue _ -- not shown for simplicity
+                    , finalizers :: Queue (HookM m Unit)
+                    , evalQueue :: Queue (HookM m Unit)
+                    }
+  }
+```
+
 - what values do we need to store?
     - state -> changes causes rerender
     - mutable references -> changes does not cause rerender
