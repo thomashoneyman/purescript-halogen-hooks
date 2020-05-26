@@ -501,7 +501,7 @@ We'll change our `Array a` to `Array StateValue`. But what is `StateValue`? It's
 ```purescript
 -- Prevent pattern matching on this type since the compiler will not
 -- know what it's real runtime representation is while the value
--- is coerced to this type.
+-- exists as this type.
 foreign import data StateValue :: Type
 
 toStateValue :: forall state. state -> StateValue
