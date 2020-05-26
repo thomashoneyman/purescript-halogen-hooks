@@ -346,9 +346,9 @@ The above code won't compile because `desiredApi` will "return" only `ComponentH
 
 ### Supporting States of Different Types via Existential Types
 
-What's the problem with this row in our `State` type: `state :: Array a`? The state values it stores must be the same type! That's not realistic; real-world use cases will use a number of different types for their state. So, how do we get around this limitation?
+So far, our state type has been the same: `a` in `Array a`. That's not realistic; real-world use cases will use a number of different types for their state. So, how do we get around this limitation?
 
-The good news is that the backend Halogen targets is JavaScript. JavaScript's `Array`s don't require the values inside of it to be of the same type. We'll exploit this while tricking the PureScript compiler into thinking that the underlying `Array` stores values of the same type. How? By using existential types.
+Fortunately, Halogen targets the browser backend. JavaScript's `Array`s don't require the values inside of it to be of the same type. We'll exploit this while tricking the PureScript compiler into thinking that the underlying `Array` stores values of the same type. How? By using existential types.
 
 Existential types are similar to OOP objects: you can't access the data "inside" the object; you can only use the object via the API it provides for you via methods/functions.
 
