@@ -376,6 +376,28 @@ In short, whenever a state modifcation occurs, we will do two things:
 
 This two-part process is called an "evaluation cycle."
 
+### Preventing Invalid and Unnecessary Renders
+
+This two-part process creates a problem. Since the component's state is the following...
+```purescript
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , state :: Array a
+  }
+```
+
+... then the first part of the evaluation cycle will update the array when we change the value for `first`. Since the component's state gets updated, Halogen will rerender the component. This is unnecessary and will do nothing. Recall that the component's `render` function just uses the HTML stored in the state. Since that hasn't yet changed after the first part of this cycle is finished, nothing visual changes. However, the computer will waste time and resources on diffing the virtual DOM, even if no change occurred.
+
+Once the second part of the evaluation cycle occurs, the component will rerender with the correct HTML.
+
+So, how do we prevent the wasteful and useless first-part render? We store the `Array` in a `Ref`. Since the `Ref` itself is immutable, we can't change it and cause the component to render anything new. However, we can change the contents inside of it. Thus, our state type for the component is now:
+```purescript
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { state :: Array a }
+  }
+```
+
 ### Supporting States of Different Types via Existential Types
 
 So far, our state type has been the same: `a` in `Array a`. That's not realistic; real-world use cases will use a number of different types for their state. So, how do we get around this limitation?
