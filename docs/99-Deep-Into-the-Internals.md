@@ -777,12 +777,14 @@ Regardless, this forces us to change `InterpretReason` to include yet another re
 ```purescript
 data InterpretReason
   = Initialize
-      -- 1. Create initial array(s) (e.g. state, ref, memo)
+      -- 1. Create initial array(s) (e.g. stateCells, refCells,
+      --      memoCells, effectCells)
       -- 2. Enqueue and later run initializer effects
   | NotInitialize
       -- 1. Update bindings here (e.g. useState, useRef, useMemo)
   | Step
-      -- 1. Recheck useTickEffect's dependencies and only rerun a change occurred
+      -- 1. Recheck useTickEffect's dependencies and only enqueue
+      --      and later rerun effects if a change occurred
   | Finalize
       -- 1. Enqueue and later run finalizer effects
 
