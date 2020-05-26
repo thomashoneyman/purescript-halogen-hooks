@@ -756,7 +756,7 @@ type HalogenComponentState a =
   }
 ```
 
-### Unifying `useInitializer` and `useFinalizer`
+### `useLifecycleEffect`: Unifying `useInitializer` and `useFinalizer`
 
 Sometimes, one will want to subscribe to something when the component is initialized and unsubscribe when the component is finalized. By separating the initialize and finalize effects, we prevent one from referring to things that are in scope. Thus, we unify these two things via `useLifecycleEffect`:
 ```purescript
@@ -766,7 +766,7 @@ useLifecycleEffect do
     liftEffect $ log "Finalizer now running."
 ```
 
-### Adding Dependent Effects
+### `useTickEffect`: Adding Dependent Effects
 
 We can also add effects that run whenever their depenedencies change. These are tricky to get right because we need to ensure that everything else we've implemented thus far still works.
 
