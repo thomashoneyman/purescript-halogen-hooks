@@ -524,6 +524,13 @@ useState initialState = wrap $ UseState initialState' interface
 ```
 Since both `toStateValue` and `fromStateValue` are used in the same definition, this is safe despite the usage of `unsafeCoerce`.
 
+Thus, our component's `State` type is now:
+```purescript
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , internal :: Ref { state :: Array StateValue, nextIndex :: Int }
+  }
+```
 
 
 - what values do we need to store?
