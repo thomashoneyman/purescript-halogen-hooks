@@ -259,7 +259,7 @@ type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType }
 
 desiredApi
-  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML (HookM m Unit) ChildSlots MonadType)
 desiredApi = do
   first /\ firstIndex <- useState "first"
   second /\ secondIndex <- useState "second"
@@ -367,9 +367,9 @@ desiredApi = do
       ]
 ```
 
-This is where the array indices become relevant. Since we use indexed monads to prevent the end-user from writing conditional computations, `firstIndex` and `secondIndex` always refer to the same array index. Thus, we can use them to update the correct element in the array of states. Unlike our array-building computation, the state-modifying computation does not need to be run in a specific order. Adding that constraint is actually undesirable here. Therefore, we will use a normal non-indexed monad here rather than the indexed monad used to build our array of states.
+This is where the array indices become relevant. Since we use indexed monads to prevent the end-user from writing conditional computations, `firstIndex` and `secondIndex` always refer to the same array index. Thus, we can use them to update the correct element in the array of states. Unlike our array-building computation, the state-modifying computation does not need to be run in a specific order. Adding that constraint is actually undesirable here. Therefore, we will use a normal non-indexed monad here rather than the indexed monad used to build our array of states. This monad will be called `HookM`.
 
-So what kind of monad will this be? Since `Halogen` components use `HalogenM` to run their Action/Query code, this new monad will mirror the API provided by that monad. Most of the time, it will delegate its handlers to `HalogenM`. However, whenever a state modification is called (e.g. `H.put`, `H.modify_`), it will need to implement things in a special way.
+So how will `HookM` work? Since `Halogen` components use `HalogenM` to run their Action/Query code, `HookM` will mirror the API provided by that monad. Most of the time, it will delegate its handlers to `HalogenM`. However, whenever a state modification is called (e.g. `H.put`, `H.modify_`), it will need to implement things in a special way.
 
 In short, whenever a state modifcation occurs, we will do two things:
 1. use the index provided in `desiredApi` to update the corresponding element in the array that is stored in the component's state.
@@ -422,7 +422,7 @@ initialState _ = foldFree interpretLanguageF desiredApi
 -- New version: includes the interpretation reason as an argument
 -- Current (copied from above)
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , state :: Array a
   , nextIndex :: Int
   }
@@ -469,7 +469,7 @@ updateState = foldFree (interpretLanguageF NotInitialize) desiredApi
 This two-part process creates a problem. Since the component's state is the following...
 ```purescript
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , state :: Array a
   , nextIndex :: Int
   }
@@ -484,7 +484,7 @@ In other words, we only want to rerender the component whenever the `html` label
 So, how do we prevent the wasteful and useless first-part render? We store the `Array` in a `Ref`. Since the `Ref` itself is immutable, we can't change it and cause the component to render anything new. However, we can change the contents inside of it. Thus, our state type for the component is now:
 ```purescript
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { state :: Array a, nextIndex :: Int }
   }
 ```
@@ -527,7 +527,7 @@ Since both `toStateValue` and `fromStateValue` are used in the same definition, 
 Thus, our component's `State` type is now:
 ```purescript
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { state :: Array StateValue, nextIndex :: Int }
   }
 ```
@@ -596,7 +596,7 @@ The `state` and `nextIndex` labels go hand-in-hand. However, `useState` is not t
 ```purescript
 -- Before
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { state :: Array StateValue, nextIndex :: Int }
   }
 
@@ -604,7 +604,7 @@ type HalogenComponentState a =
 type Queue a = { queue :: Array a, nextIndex :: Int }
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue }
   }
 ```
@@ -628,7 +628,7 @@ type Queue a = { queue :: Array a, nextIndex :: Int }
 -- `StateValue` we covered earlier.
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
 
                     , refCells :: Queue (Ref RefValue)
@@ -642,7 +642,7 @@ If we ever want to use a `let` binding somewhere in our indexed monad computatio
 ```purescript
 -- same as before
 desiredApi
-  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML (HookM m Unit) ChildSlots MonadType)
 desiredApi = do
   first /\ firstIndex <- useState "first"
   second /\ secondIndex <- useState "second"
@@ -675,7 +675,7 @@ type Queue a = { queue :: Array a, nextIndex :: Int }
 -- `StateValue` we covered earlier.
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots MonadType
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
 
@@ -696,7 +696,7 @@ While we can write stateful logic with our current implementation, there are thr
 These effects are a bit tricky. Knowing about how evaluation cycles work, let's say we had the imaginary API:
 ```purescript
 desiredApi
-  :: IxMonad none (IxStateStack none) (H.ComponentHTML ActionType ChildSlots MonadType)
+  :: IxMonad none (IxStateStack none) (H.ComponentHTML (HookM m Unit) ChildSlots MonadType)
 desiredApi = do
   first /\ firstIndex <- useState "first"
   second /\ secondIndex <- useState "second"
@@ -723,7 +723,7 @@ To support this, we'll add a queue to our state type that stores all effects tha
 type Queue a = { queue :: Array a, nextIndex :: Int }
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots (HookM m Unit)
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots (HookM m Unit)
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
                     , memoCells :: Queue _ -- not shown for simplicity
@@ -746,7 +746,7 @@ data InterpretReason
       -- 1. Enqueue and later run finalizer effects
 
 type HalogenComponentState a =
-  { html :: H.ComponentHTML ActionType ChildSlots (HookM m Unit)
+  { html :: H.ComponentHTML (HookM m Unit) ChildSlots (HookM m Unit)
   , internal :: Ref { stateCells :: Queue StateValue
                     , refCells :: Queue (Ref RefValue)
                     , memoCells :: Queue _ -- not shown for simplicity
