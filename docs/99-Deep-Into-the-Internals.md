@@ -377,6 +377,93 @@ In short, whenever a state modifcation occurs, we will do two things:
 
 This two-part process is called an "evaluation cycle."
 
+### Step 1: Updating the Value in the Array
+
+The implementation is relatively simple:
+```purescript
+modifyState :: Int -> (String -> String) -> HalogenM _ _ _ m Unit
+modifyState arrayIndex modifier = do
+  st <- H.get
+  let
+    oldValue = Array.unsafeGetAt arrayIndex st.state
+    newValue = modifier oldValue
+    arrayWithNewValue = Array.unsafeSetAt arrayIndex newValue st.state
+  H.put (st { state = arrayWithNewValue })
+```
+
+### Step 2: Reinterpreting the AST on State Modifications
+
+`desiredApi` is nothing more than an AST. We interpreted the AST to build our initial array of states. However, we can also interpret that same AST with a different intent: using the array we created previously to rerender the component with updated state values.
+
+In other words, we add a new argument called `InterpretReason` to our code. If it's `Initialize`, we interpret the AST to build the state array. If it's `NotInitialize`, we update the state values in the context, so that the rendered HTML is up-to-date. However, we can no longer use the length of the `Array` to determine on which index we are when interpreting the AST. Thus, we need to add another label to our component's state type: `nextIndex :: Int`. The change appears below:
+```purescript
+-- Current (copied from above)
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , state :: Array a
+  }
+
+interpretLanguageF :: LanguageF state ~> HalogenM _ _ _ m (Maybe a)
+interpretLanguageF = case _ of
+  UseState initialState reply -> do
+    -- this implementation isn't correct
+    -- but it gets the idea across
+    st <- H.get
+    H.put (st { state = st.state `snoc` initialState
+              -- increment our index by 1, so that next `useState`
+              -- refers to correct index
+              , nextIndex = st.nextIndex + 1
+              })
+    reply $ Just $ initialState /\ st.nextIndex
+
+initialState :: forall input. input -> _ { html :: _, state :: Array String }
+initialState _ = foldFree interpretLanguageF desiredApi
+
+-- New version: includes the interpretation reason as an argument
+-- Current (copied from above)
+type HalogenComponentState a =
+  { html :: H.ComponentHTML ActionType ChildSlots MonadType
+  , state :: Array a
+  , nextIndex :: Int
+  }
+
+interpretLanguageF :: InterpretReason -> LanguageF state ~> HalogenM _ _ _ m (Maybe a)
+interpretLanguageF reason = case _ of
+  UseState initialState reply -> case reason of
+
+    -- When given this reason, we create the array
+    Initialize -> do
+      -- this implementation isn't correct
+      -- but it gets the idea across
+      st <- H.get
+      H.put (st { state = st.state `snoc` initialState })
+
+      -- Note: we use the length of the array before appending the current
+      -- element to it to determine what its corresponding index is in the array.
+      reply $ Just $ initialState /\ Array.length st.state
+
+    -- When given this reason, we update the binding to be the current value
+    NotInitialize -> do
+      st <- H.get
+      let
+        nextIndex =
+          -- if this is the last `useState`, then set `nextIndex` back to 0
+          -- so that future evaluation cycles will refer to the correct index.
+          -- Otherwise, increment it to the next one.
+          if length st.state == st.nextIndex + 1 then 0 else st.nextIndex + 1
+
+        element = Array.unsafeIndexAt st.nextIndex st.state
+
+      H.modify_ (st { nextIndex = nextIndex })
+      reply $ Just $ element /\ st.nextIndex
+
+initialState :: forall input. input -> _ { html :: _, state :: Array String }
+initialState _ = foldFree (interpretLanguageF Initialize) desiredApi
+
+updateState :: _ { html :: _, state :: Array String }
+updateState = foldFree (interpretLanguageF NotInitialize) desiredApi
+```
+
 ### Preventing Invalid and Unnecessary Renders
 
 This two-part process creates a problem. Since the component's state is the following...
@@ -384,18 +471,21 @@ This two-part process creates a problem. Since the component's state is the foll
 type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType
   , state :: Array a
+  , nextIndex :: Int
   }
 ```
 
 ... then the first part of the evaluation cycle will update the array when we change the value for `first`. Since the component's state gets updated, Halogen will rerender the component. This is unnecessary and will do nothing. Recall that the component's `render` function just uses the HTML stored in the state. Since that hasn't yet changed after the first part of this cycle is finished, nothing visual changes. However, the computer will waste time and resources on diffing the virtual DOM, even if no change occurred.
 
-Once the second part of the evaluation cycle occurs, the component will rerender with the correct HTML.
+Moreover, as we evaluate the second part of the evaluation cycle, we will be updating `nextIndex` quite frequently. Since that is a part of the component's state, that will also cause an unnecessary rerender.
+
+In other words, we only want to rerender the component whenever the `html` label gets updated (i.e. at the end of an evaluation cycle), not when we are updating our state.
 
 So, how do we prevent the wasteful and useless first-part render? We store the `Array` in a `Ref`. Since the `Ref` itself is immutable, we can't change it and cause the component to render anything new. However, we can change the contents inside of it. Thus, our state type for the component is now:
 ```purescript
 type HalogenComponentState a =
   { html :: H.ComponentHTML ActionType ChildSlots MonadType
-  , internal :: Ref { state :: Array a }
+  , internal :: Ref { state :: Array a, nextIndex :: Int }
   }
 ```
 
