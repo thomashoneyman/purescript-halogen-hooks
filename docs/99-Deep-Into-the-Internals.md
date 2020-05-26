@@ -805,3 +805,45 @@ type HalogenComponentState a =
 ```
 
 ## Evaluation Cycles and "Stale" Values
+
+Some unexpected things can arise due to reinterpreting the same AST multiple times within the same evaluation cycle. Let's imagine the following scenario:
+```purescript
+desiredApi
+  :: Hook none (IxStateStack none) (H.ComponentHTML (HookM m Unit) ChildSlots MonadType)
+desiredApi = Hooks.component \_ _ -> Hooks.do
+  first /\ firstIndex <- useState 0
+  second /\ secondIndex <- useState 0
+  useLifecycleEffect do
+    first1 <- Hooks.get firstIndex
+    liftEffect $ log $ "First is: " <> show first
+    liftEffect $ log $ "First1 is: " <> show first1
+    pure $ Just do
+      first2 <- Hooks.get firstIndex
+      liftEffect $ log $ "First is: " <> show first
+      liftEffect $ log $ "First1 is: " <> show first1
+      liftEffect $ log $ "First2 is: " <> show first2
+
+  Hooks.pure $
+    HH.div_
+      [ HH.text $ "First is " <> show first <>
+                  " and second is " <> show second <>
+                  " and the result of our super expensive computation \
+                  \ is: " <> show superExpensiveComputation <> "."
+      , HH.button
+          [ HE.onClick \_ -> Just $ Hooks.modify_ firstIndex (_ + 1) ]
+          [ HH.text "Increase first by one." ]
+      ]
+```
+
+Here's how this code works:
+1. The AST is interpreted for the first time, the `first` binding is 0, the initializer as it is currently defined is enqueued, and the component is rendered. The enqueued initializer effect is run. The `first` binding is 0 and the `first1` binding is 0 because the element as referenced by `firstIndex` has not been changed yet. The finalizer for this effect is stored in `finalizers` as it is currently defined. Evaluation Cycle 1 completes.
+2. The button is clicked, which causes the array that stores `first`'s corresponding value to now be `1`. The AST is reinterpreted under `Queued`. The `first` binding is now `1`, and the component rerenders. Evaluation Cycle 2 completes.
+3. The component is about to be removed from the DOM, triggering its finalizers. Thus, the AST is reinterpreted, and the finalizer is enqueued. When the finalizer runs, it prints the following
+     - "First is 0" - because when the finalizer was originally created and stored in `finalizers`, the `first` binding was 0. Any change made after this point of definition are not known to the code. Thus, `first` here is "stale."
+     - "First1 is 0" - because when we `get`ted the value in the initializer, that's what the value was in the array at that time.
+     - "First2 is 1" - because when we `get`ted the value in the finalizer, it gets the value when the finalizer is being run (i.e. what the value is _now_, not back when it was created).
+Evaluation Cycle 3 completes.
+
+Since the initializer was defined in Evaluation Cycle 1 and no changes occurred to `first` between the Evaluation Cycle 1 and 2, the `first` binding does not refer to a "stale" value. However, since the finalizer was defined in Evaluation Cycle 1 and a change did occur between Evaluation Cycle 1 and Evaluation Cycle 3, the `first` binding refers to a "stale" value when the finalizer is run.
+
+In short, if you ever define a `HookM` computation in one evaluation cycle, and then run it in a later evaluation cycle, and a change occurred to a value in-between those two cycles, you will reference this "stale" value. This tends to occur in finalizers when running effects or when running asynchronous code via `Hooks.fork`. If in doubt, always `Hooks.get stateIndex` the value rather than referring to the state value in scope.
