@@ -23,14 +23,9 @@ import Web.HTML.Window as Window
 
 foreign import data UseWindowWidth :: Hooks.HookType
 
-type UseWindowWidth' =
-  UseState (Maybe Int)
-    <> UseEffect
-    <> Hooks.Nil
+type UseWindowWidth' = UseState (Maybe Int) <> UseEffect <> Hooks.Pure
 
-instance newtypeUseWindowWidth
-  :: HookEquals UseWindowWidth' h
-  => HookNewtype UseWindowWidth h
+instance newtypeUseWindowWidth :: HookEquals UseWindowWidth' h => HookNewtype UseWindowWidth h
 
 useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap hook

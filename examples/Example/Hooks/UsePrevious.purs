@@ -16,14 +16,9 @@ import Halogen.Hooks as Hooks
 
 foreign import data UsePrevious :: Type -> Hooks.HookType
 
-type UsePrevious' a =
-  UseRef (Maybe a)
-    <> UseEffect
-    <> Hooks.Nil
+type UsePrevious' a = UseRef (Maybe a) <> UseEffect <> Hooks.Pure
 
-instance newtypeUsePrevious
-  :: HookEquals (UsePrevious' a) h
-  => HookNewtype (UsePrevious a) h
+instance newtypeUsePrevious :: HookEquals (UsePrevious' a) h => HookNewtype (UsePrevious a) h
 
 usePrevious :: forall m a. MonadAff m => Eq a => a -> Hook m (UsePrevious a) (Maybe a)
 usePrevious value = Hooks.wrap hook

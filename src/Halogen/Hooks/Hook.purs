@@ -26,30 +26,28 @@ derive newtype instance functorHook :: Functor (Hook m h)
 -- | ```
 foreign import kind HookType
 
--- | A type for listing several Hook types in order, terminated with `Hooks.Nil`.
--- | Typically this is used via the operator `<>`.
+-- | A type for listing several Hook types in order. Typically this is used via
+-- | the operator `<>`.
 -- |
 -- | ```purs`
 -- | import Halogen.Hooks (type (<>))
 -- |
--- | type UseStateEffect = UseState Int <> UseEffect <> Nil
+-- | type UseStateEffect = UseState Int <> UseEffect <> Pure
 -- |
 -- | -- using  to the
--- | type UseStateEffect = Hooked (UseState Int) (Hooked UseEffect Nil)
+-- | type UseStateEffect = HookAppend (UseState Int) (HookAppend UseEffect Nil)
 -- | ```
-foreign import data Hooked :: HookType -> HookType -> HookType
+foreign import data HookAppend :: HookType -> HookType -> HookType
 
--- | `Hooked` as an infix operator
-infixr 1 type Hooked as <>
+-- | `HookAppend` as an infix operator
+infixr 1 type HookAppend as <>
 
--- | A `HookType` that can be used to end a list of `HookType`s produced using
--- | `Hooked`. If `<>` can be thought of as append, `Nil` can be thought of as
--- | `mempty`.
+-- | The `HookType` used for `pure`, which lifts an arbitrary value into `Hook`.
 -- |
 -- | ```purs`
--- | type UseX = UseState Int <> UseEffect <> Nil
+-- | type UseX = UseState Int <> UseEffect <> Pure
 -- | ```
-foreign import data Nil :: HookType
+foreign import data Pure :: HookType
 
 -- | A class for asserting that one `HookType` can be "unwrapped" to produce
 -- | the other. This class is used to turn a list of Hooks into a new opaque
@@ -58,7 +56,7 @@ foreign import data Nil :: HookType
 -- | ```purs
 -- | foreign import data UseX :: HookType
 -- |
--- | instance newtypeUseX :: HookNewtype UseX (UseState Int <> UseEffect <> Nil)
+-- | instance newtypeUseX :: HookNewtype UseX (UseState Int <> UseEffect <> Pure)
 -- |
 -- | useX :: forall m. Hook m UseX Int
 -- | useX = Hooks.wrap Hooks.do
@@ -72,7 +70,7 @@ class HookNewtype (a :: HookType) (b :: HookType) | a -> b
 -- | ```purs
 -- | foreign import data UseX :: HookType
 -- |
--- | type UseX' = UseState Int <> UseEffect <> Nil
+-- | type UseX' = UseState Int <> UseEffect <> Pure
 -- |
 -- | instance newtypeUseX :: HookEquals h UseX' => HookNewtype UseX h
 -- | ```
@@ -91,23 +89,48 @@ instance hookRefl :: HookEquals a a
 -- | ```purs
 -- | foreign import data MyHook :: HookType
 -- |
--- | instance newtypeMyHook :: HookNewtype MyHook (UseState Int <> Nil)
+-- | instance newtypeMyHook :: HookNewtype MyHook (UseState Int <> Pure)
 -- |
 -- | useMyHook :: forall m. Hook m MyHook Int
 -- | useMyHook = Hooks.wrap Hooks.do
 -- |   ... -- hook definition goes here
 -- | ```
 wrap :: forall h h' m a. HookNewtype h' h => Hook m h a -> Hook m h' a
-wrap = unsafeCoerce -- Safe implementation exists with bind / pure, but we use `HookType`
+wrap = unsafeCoerce -- only necessary because we can't use `Newtype`
 
 -- | For use with qualified-do.
+-- |
+-- | ```purs
+-- | import Halogen.Hooks as Hooks
+-- |
+-- | useMyHook = Hooks.do
+-- |   -- bind is necessary to use do-syntax with Hooks
+-- |   ... <- Hooks.useState ...
+-- | ```
 bind :: forall h h' m a b. Hook m h a -> (a -> Hook m h' b) -> Hook m (h <> h') b
 bind (Hook ma) f = Hook $ ma >>= \a -> case f a of Hook mb -> mb
 
 -- | For use with qualified-do.
+-- |
+-- | ```purs
+-- | import Halogen.Hooks as Hooks
+-- |
+-- | useMyHook = Hooks.do
+-- |   ...
+-- |   -- discard is necessary to use do-syntax with Hooks
+-- |   Hooks.useLifecycleEffect ...
+-- | ```
 discard :: forall h h' m a. Hook m h Unit -> (Unit -> Hook m h' a) -> Hook m (h <> h') a
 discard = bind
 
--- | For use with qualified-do.
+-- | For use with qualified-do:
+-- |
+-- | ```purs
+-- | import Halogen.Hooks as Hooks
+-- |
+-- | useMyHook = Hooks.do
+-- |   ...
+-- |   Hooks.pure ...
+-- | ```
 pure :: forall h m a. a -> Hook m h a
 pure = Hook <<< Applicative.pure

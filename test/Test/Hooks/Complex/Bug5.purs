@@ -23,7 +23,7 @@ type UseTickAfterInitialize' =
     <> UseEffect
     <> UseState Int
     <> UseEffect
-    <> Hooks.Nil
+    <> Hooks.Pure
 
 instance newtypeUseTickAfterInitialize
   :: HookEquals h UseTickAfterInitialize' => HookNewtype UseTickAfterInitialize h

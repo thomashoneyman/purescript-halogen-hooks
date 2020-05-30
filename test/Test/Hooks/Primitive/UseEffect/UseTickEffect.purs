@@ -17,9 +17,14 @@ import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Nil
+type Interface =
+  { increment :: HookM Aff Unit
+  , toggle :: HookM Aff Unit, count :: Int
+  }
 
-useTickEffectLog :: LogRef -> Hook Aff UseLogHook { increment :: HookM Aff Unit, toggle :: HookM Aff Unit, count :: Int }
+type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Pure
+
+useTickEffectLog :: LogRef -> Hook Aff UseLogHook Interface
 useTickEffectLog log = Hooks.do
   count /\ countId <- Hooks.useState 0
   toggle /\ toggleId <- Hooks.useState false

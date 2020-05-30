@@ -16,9 +16,11 @@ import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 
-type UseLogHook = UseState Int <> UseEffect <> Hooks.Nil
+type Interface = { tick :: HookM Aff Unit }
 
-useLifecycleEffectLog :: LogRef -> Hook Aff UseLogHook { tick :: HookM Aff Unit }
+type UseLogHook = UseState Int <> UseEffect <> Hooks.Pure
+
+useLifecycleEffectLog :: LogRef -> Hook Aff UseLogHook Interface
 useLifecycleEffectLog log = Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
   -- because lifecycle effects run only once.

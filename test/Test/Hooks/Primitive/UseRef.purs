@@ -17,9 +17,9 @@ import Test.Setup.Types (LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-type UseRefCount = UseRef Int <> Hooks.Nil
+type Interface = { increment :: HookM Aff Unit, count :: Int }
 
-useRefCount :: LogRef -> Hook Aff UseRefCount { increment :: HookM Aff Unit, count :: Int }
+useRefCount :: LogRef -> Hook Aff (UseRef Int <> Hooks.Pure) Interface
 useRefCount ref = Hooks.do
   count /\ countRef <- Hooks.useRef 0
   Hooks.pure { count, increment: liftEffect $ Ref.modify_ (_ + 1) countRef }

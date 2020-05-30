@@ -24,12 +24,11 @@ type UseMemoCount' =
     <> UseMemo Int
     <> UseMemo Int
     <> UseMemo Int
-    <> Hooks.Nil
+    <> Hooks.Pure
 
-instance newtypeUseMemoCount
-  :: HookEquals h UseMemoCount' => HookNewtype UseMemoCount h
+instance newtypeUseMemoCount :: HookEquals h UseMemoCount' => HookNewtype UseMemoCount h
 
-type MemoCount =
+type Interface =
   { incrementA :: HookM Aff Unit
   , incrementB :: HookM Aff Unit
   , incrementC :: HookM Aff Unit
@@ -38,7 +37,7 @@ type MemoCount =
   , expensive3 :: Int
   }
 
-useMemoCount :: LogRef -> Hook Aff UseMemoCount MemoCount
+useMemoCount :: LogRef -> Hook Aff UseMemoCount Interface
 useMemoCount log = Hooks.wrap Hooks.do
   state1 /\ state1Id <- Hooks.useState 0
   state2 /\ state2Id <- Hooks.useState 0

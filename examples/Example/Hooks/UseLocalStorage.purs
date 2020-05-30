@@ -28,7 +28,7 @@ type UseLocalStorage' a =
   UseState (Either String a)
     <> UseInitializer
     <> UseEffect
-    <> Hooks.Nil
+    <> Hooks.Pure
 
 instance newtypeUseLocalStorage
   :: HookEquals (UseLocalStorage' a) h

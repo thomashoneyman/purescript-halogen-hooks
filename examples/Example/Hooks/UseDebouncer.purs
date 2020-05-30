@@ -20,14 +20,9 @@ import Halogen.Hooks as Hooks
 
 foreign import data UseDebouncer :: Type -> Hooks.HookType
 
-type UseDebouncer' a =
-  UseRef (Maybe Debouncer)
-    <> UseRef (Maybe a)
-    <> Hooks.Nil
+type UseDebouncer' a = UseRef (Maybe Debouncer) <> UseRef (Maybe a) <> Hooks.Pure
 
-instance newtypeUseDebouncer
-  :: HookEquals (UseDebouncer' a) h
-  => HookNewtype (UseDebouncer a) h
+instance newtypeUseDebouncer :: HookEquals (UseDebouncer' a) h => HookNewtype (UseDebouncer a) h
 
 type Debouncer = { var :: AVar Unit, fiber :: Fiber Unit }
 
