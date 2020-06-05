@@ -46,7 +46,7 @@ import Data.Newtype (class Newtype)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
-import Halogen.Hooks.Component (component)
+import Halogen.Hooks.Component (component, memoComponent)
 import Halogen.Hooks.Hook (Hook, Hooked(..))
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
