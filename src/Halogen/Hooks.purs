@@ -34,7 +34,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
-import Halogen.Hooks.Component (component)
+import Halogen.Hooks.Component (component, memoComponent)
 import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), HookAppend, Pure, bind, discard, pure, wrap, kind HookType)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
