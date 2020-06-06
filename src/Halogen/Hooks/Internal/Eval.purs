@@ -22,7 +22,7 @@ import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, OutputValue, SlotType, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentRef, StateId(..))
+import Halogen.Hooks.Types (StateId(..))
 import Halogen.Query.HalogenM (HalogenAp(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
@@ -84,18 +84,17 @@ mkEval inputEq runHookM runHook hookFn = case _ of
 
 interpretHook
   :: forall hooks q i m a
-   . ComponentRef
-  -> (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
+   . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
   -> (InterpretHookReason -> HalogenM' q i m a a)
   -> InterpretHookReason
   -> (i -> Hooked m Unit hooks a)
   -> UseHookF m
   ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
-interpretHook componentRef runHookM runHook reason hookFn = case _ of
+interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
       Initialize -> do
-        { stateCells: { queue } } <- getState
+        { componentRef, stateCells: { queue } } <- getState
 
         let
           newQueue = Array.snoc queue initial
@@ -105,7 +104,7 @@ interpretHook componentRef runHookM runHook reason hookFn = case _ of
         pure $ reply $ Tuple initial identifier
 
       _ -> do
-        { stateCells: { index, queue } } <- getState
+        { componentRef, stateCells: { index, queue } } <- getState
 
         let
           value = unsafeGetCell index queue
@@ -264,8 +263,8 @@ interpretHook componentRef runHookM runHook reason hookFn = case _ of
         modifyState_ _ { refCells { index = nextIndex } }
         pure $ reply $ Tuple value ref
 
-evalHookM :: forall q i m a. ComponentRef -> HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
-evalHookM componentRef (H.HalogenM runHooks) (HookM evalUseHookF) =
+evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
+evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
   H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where
   interpretHalogenHook
@@ -273,19 +272,19 @@ evalHookM componentRef (H.HalogenM runHooks) (HookM evalUseHookF) =
     ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
     Modify (StateId (Tuple ref id)) f reply -> do
+      state <- getState
+
       -- It is not safe to use `HookM` code which modifies state outside of the
       -- component that defines it, because the state identifiers are referring
       -- to an environment that potentially doesn't exist in the target component.
       --
       -- This leads either to unexpected state modifications or a crash when an
       -- index in state is accessed that doesn't exist.
-      unless (unsafeRefEq componentRef ref) do
+      unless (unsafeRefEq state.componentRef ref) do
         unsafeThrow "Attempted to use state-modifying `HookM` code outside the component where it was defined."
 
-      state' <- getState
-
       let
-        current = unsafeGetCell id state'.stateCells.queue
+        current = unsafeGetCell id state.stateCells.queue
         next = f current
 
       -- Like Halogen's implementation, `Modify` covers both get and set calls
@@ -293,7 +292,7 @@ evalHookM componentRef (H.HalogenM runHooks) (HookM evalUseHookF) =
       -- to ensure calls to `get` don't trigger evaluations / renders.
       unless (unsafeRefEq current next) do
         let newQueue = unsafeSetCell id next
-        modifyState_ \state -> state
+        modifyState_ _
           { stateCells { queue = newQueue state.stateCells.queue }
           , stateDirty = true
           }
@@ -317,13 +316,10 @@ evalHookM componentRef (H.HalogenM runHooks) (HookM evalUseHookF) =
       liftF $ H.Raise o a
 
     Par (HookAp p) ->
-      liftF
-        $ H.Par
-        $ retractFreeAp
-        $ hoistFreeAp (HalogenAp <<< liftFreeAp <<< evalHookM componentRef (H.HalogenM runHooks)) p
+      liftF $ H.Par $ retractFreeAp $ hoistFreeAp (HalogenAp <<< liftFreeAp <<< evalHookM (H.HalogenM runHooks)) p
 
     Fork hmu reply ->
-      liftF $ H.Fork (evalHookM componentRef (H.HalogenM runHooks) hmu) reply
+      liftF $ H.Fork (evalHookM (H.HalogenM runHooks) hmu) reply
 
     Kill fid a ->
       liftF $ H.Kill fid a

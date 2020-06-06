@@ -90,7 +90,6 @@ memoComponent
   -> H.Component HH.HTML q i o m
 memoComponent eqInput inputHookFn = do
   let
-    ref = unsafeCoerce {} :: ComponentRef
     queryToken = UnsafeQueryToken :: QueryToken q
     slotToken = UnsafeSlotToken :: SlotToken s
     outputToken = UnsafeOutputToken :: OutputToken o
@@ -98,20 +97,17 @@ memoComponent eqInput inputHookFn = do
 
   H.mkComponent
     { initialState
-    , render:
-        \(HookState { result }) -> result
-    , eval:
-        toHalogenM slotToken outputToken
-          <<< mkEval eqInput (evalHookM ref) (interpretUseHookFn ref (evalHookM ref)) hookFn
+    , render: \(HookState { result }) -> result
+    , eval: toHalogenM slotToken outputToken <<< mkEval eqInput evalHookM (interpretUseHookFn evalHookM) hookFn
     }
   where
   -- WARNING: If you update this function, make sure to apply the same update
   -- to the tests, which use their own version of this function. The test function
   -- should be identical, except with the addition of logging.
-  interpretUseHookFn ref runHookM reason hookFn = do
+  interpretUseHookFn runHookM reason hookFn = do
     { input } <- H.HalogenM getState
     let Hooked (Indexed hookF) = hookFn input
-    a <- H.HalogenM $ substFree (interpretHook ref runHookM (\r -> interpretUseHookFn ref runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a
 
@@ -120,6 +116,7 @@ memoComponent eqInput inputHookFn = do
       { result: HH.text ""
       , stateRef: unsafePerformEffect $ Ref.new
           { input
+          , componentRef: unsafeCoerce {} :: ComponentRef
           , queryFn: Nothing
           , stateCells: { queue: [], index: 0 }
           , effectCells: { queue: [], index: 0 }
