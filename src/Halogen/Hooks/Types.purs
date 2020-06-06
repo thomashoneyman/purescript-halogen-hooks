@@ -1,5 +1,7 @@
 module Halogen.Hooks.Types where
 
+import Data.Tuple (Tuple)
+
 -- | A unique identifier for a state produced by `useState`, which can be passed
 -- | to the state functions `get`, `put`, `modify`, and `modify_` to get or
 -- | modify the state.
@@ -12,7 +14,9 @@ module Halogen.Hooks.Types where
 -- | let
 -- |   handler = Hooks.modify_ stateId (_ + 10)
 -- | ```
-newtype StateId state = StateId Int
+newtype StateId state = StateId (Tuple ComponentRef Int)
+
+data ComponentRef
 
 -- | The set of tokens enabling queries, child slots, and output messages when
 -- | running a Hook as a component. This set of tokens is provided by the
@@ -34,14 +38,14 @@ type ComponentTokens q ps o =
 -- | relationship, and so they are not tracked in Hook types.
 -- |
 -- | This token is provided by the `component` function.
-foreign import data QueryToken :: (Type -> Type) -> Type
+data QueryToken (a :: Type -> Type) = UnsafeQueryToken
 
 -- | A token which carries the type of child slots supported by the component
 -- | which is executing a Hook. Child slots are specific to the parent-child
 -- | component relationship, and so they are not tracked in Hook types.
 -- |
 -- | This token is provided by the `component` function.
-foreign import data SlotToken :: # Type -> Type
+data SlotToken (slots :: # Type) = UnsafeSlotToken
 
 -- | A token which carries the type of outputs supported by the component
 -- | which is executing a Hook. Output messages slots are specific to the
@@ -49,10 +53,10 @@ foreign import data SlotToken :: # Type -> Type
 -- | Hook types.
 -- |
 -- | This token is provided by the `component` function.
-foreign import data OutputToken :: Type -> Type
+data OutputToken output = UnsafeOutputToken
 
 -- | An opaque type which signifies that a set of dependencies have been captured
 -- | and can be used by Hooks like `UseMemo` and `UseEffect`.
 -- |
 -- | This type is provided by the `captures` and `capturesWith` functions.
-foreign import data MemoValues :: Type
+data MemoValues

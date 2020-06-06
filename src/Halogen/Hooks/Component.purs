@@ -14,7 +14,7 @@ import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
-import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
+import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken(..), QueryToken(..), SlotToken(..))
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
@@ -84,30 +84,34 @@ component = memoComponent (\_ _ -> false)
 -- |   -- unless the `User`'s id has changed.
 -- | ```
 memoComponent
-  :: forall hooks q i ps o m
+  :: forall hooks q i s o m
    . (i -> i -> Boolean)
-  -> (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
+  -> (ComponentTokens q s o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) s m))
   -> H.Component HH.HTML q i o m
 memoComponent eqInput inputHookFn = do
   let
-    queryToken = unsafeCoerce unit :: QueryToken q
-    slotToken = unsafeCoerce unit :: SlotToken ps
-    outputToken = unsafeCoerce unit :: OutputToken o
+    ref = unsafeCoerce {} :: ComponentRef
+    queryToken = UnsafeQueryToken :: QueryToken q
+    slotToken = UnsafeSlotToken :: SlotToken s
+    outputToken = UnsafeOutputToken :: OutputToken o
     hookFn = inputHookFn { queryToken, slotToken, outputToken }
 
   H.mkComponent
     { initialState
-    , render: \(HookState { result }) -> result
-    , eval: toHalogenM slotToken outputToken <<< mkEval eqInput evalHookM (interpretUseHookFn evalHookM) hookFn
+    , render:
+        \(HookState { result }) -> result
+    , eval:
+        toHalogenM slotToken outputToken
+          <<< mkEval eqInput (evalHookM ref) (interpretUseHookFn ref (evalHookM ref)) hookFn
     }
   where
   -- WARNING: If you update this function, make sure to apply the same update
   -- to the tests, which use their own version of this function. The test function
   -- should be identical, except with the addition of logging.
-  interpretUseHookFn runHookM reason hookFn = do
+  interpretUseHookFn ref runHookM reason hookFn = do
     { input } <- H.HalogenM getState
     let Hooked (Indexed hookF) = hookFn input
-    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (interpretHook ref runHookM (\r -> interpretUseHookFn ref runHookM r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a
 
