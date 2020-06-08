@@ -64,16 +64,22 @@ evalHookM runHooks (HookM hm) = foldFree go hm
     c@(Modify (StateId (Tuple ref id)) f reply) -> do
       state <- H.HalogenM Hooks.Eval.getState
 
-      unless (unsafeRefEq state.componentRef ref) do
-        unsafeThrow "Attempted to use state-modifying HookM code outside the component where it was defined."
+      case unsafeRefEq state.componentRef ref of
+        true ->
+          pure unit
+        _ ->
+          unsafeThrow "Attempted to use state-modifying HookM code outside the component where it was defined."
 
       let
         v = Hooks.Eval.unsafeGetCell id state.stateCells.queue
 
       -- Calls to `get` should not trigger evaluation. This matches with the
       -- underlying implementation of `evalHookM` and Halogen's `evalM`.
-      unless (unsafeRefEq v (f v)) do
-        writeLog ModifyState state.input
+      case unsafeRefEq v (f v) of
+        true ->
+          pure unit
+        _ ->
+          writeLog ModifyState state.input
 
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 

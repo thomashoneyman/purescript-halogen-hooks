@@ -280,11 +280,10 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
       --
       -- This leads either to unexpected state modifications or a crash when an
       -- index in state is accessed that doesn't exist.
-      let matchesRef = unsafeRefEq state.componentRef ref
-
-      -- Using `unless` here throws an exception -- strictness? Using `case`
-      -- behaves as expected
-      case matchesRef of
+      --
+      -- NOTE: Using `unless` here throws an exception -- strictness? Using a
+      -- case statement behaves as expected.
+      case unsafeRefEq state.componentRef ref of
         true ->
           pure unit
         _ ->
@@ -297,13 +296,16 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
       -- Like Halogen's implementation, `Modify` covers both get and set calls
       -- to `state`. We use the same `unsafeRefEq` technique to as Halogen does
       -- to ensure calls to `get` don't trigger evaluations / renders.
-      unless (unsafeRefEq current next) do
-        let newQueue = unsafeSetCell id next
-        modifyState_ _
-          { stateCells { queue = newQueue state.stateCells.queue }
-          , stateDirty = true
-          }
-        void runHooks
+      case unsafeRefEq current next of
+        true ->
+          pure unit
+        _ -> do
+          let newQueue = unsafeSetCell id next
+          modifyState_ _
+            { stateCells { queue = newQueue state.stateCells.queue }
+            , stateDirty = true
+            }
+          void runHooks
 
       pure (reply next)
 
