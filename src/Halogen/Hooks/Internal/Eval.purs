@@ -280,8 +280,15 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
       --
       -- This leads either to unexpected state modifications or a crash when an
       -- index in state is accessed that doesn't exist.
-      unless (unsafeRefEq state.componentRef ref) do
-        unsafeThrow "Attempted to use state-modifying `HookM` code outside the component where it was defined."
+      let matchesRef = unsafeRefEq state.componentRef ref
+
+      -- Using `unless` here throws an exception -- strictness? Using `case`
+      -- behaves as expected
+      case matchesRef of
+        true ->
+          pure unit
+        _ ->
+          unsafeThrow "Attempted to use state-modifying `HookM` code outside the component where it was defined."
 
       let
         current = unsafeGetCell id state.stateCells.queue
