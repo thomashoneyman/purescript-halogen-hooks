@@ -13,7 +13,7 @@ import Halogen.Hooks.Hook (Hook(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
-import Halogen.Hooks.Types (ComponentTokens, OutputToken, QueryToken, SlotToken)
+import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
@@ -43,15 +43,15 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | better type inference if you annotate the token type:
 -- |
 -- | ```purs
--- | type Tokens = ComponentTokens MyQuery MySlots MyOutput
+-- | type Tokens = ComponentTokens Query Slots Output
 -- |
--- | myComponent :: forall i m. H.Component MyQuery i MyOutput m
+-- | myComponent :: forall i m. H.Component Query i Output m
 -- | myComponent = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
 -- |   ... hook implementation
 -- | ```
 component
-  :: forall hooks q i ps o m
-   . (ComponentTokens q ps o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) ps m))
+  :: forall hooks q i s o m
+   . (ComponentTokens q s o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) s m))
   -> H.Component HH.HTML q i o m
 component = memoComponent (\_ _ -> false)
 
@@ -83,15 +83,15 @@ component = memoComponent (\_ _ -> false)
 -- |   -- unless the `User`'s id has changed.
 -- | ```
 memoComponent
-  :: forall hooks q i ps o m
+  :: forall hooks q i s o m
    . (i -> i -> Boolean)
-  -> (ComponentTokens q ps o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) ps m))
+  -> (ComponentTokens q s o -> i -> Hook m hooks (H.ComponentHTML (HookM m Unit) s m))
   -> H.Component HH.HTML q i o m
 memoComponent eqInput inputHookFn = do
   let
-    queryToken = unsafeCoerce unit :: QueryToken q
-    slotToken = unsafeCoerce unit :: SlotToken ps
-    outputToken = unsafeCoerce unit :: OutputToken o
+    queryToken = unsafeCoerce {} :: QueryToken q
+    slotToken = unsafeCoerce {} :: SlotToken s
+    outputToken = unsafeCoerce {} :: OutputToken o
     hookFn = inputHookFn { queryToken, slotToken, outputToken }
 
   H.mkComponent
@@ -115,6 +115,7 @@ memoComponent eqInput inputHookFn = do
       { result: HH.text ""
       , stateRef: unsafePerformEffect $ Ref.new
           { input
+          , componentRef: unsafeCoerce {} :: ComponentRef
           , queryFn: Nothing
           , stateCells: { queue: [], index: 0 }
           , effectCells: { queue: [], index: 0 }

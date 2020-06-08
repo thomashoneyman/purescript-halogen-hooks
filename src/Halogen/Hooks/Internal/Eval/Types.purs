@@ -9,7 +9,7 @@ import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Types (MemoValue, OutputValue, RefValue, SlotType, StateValue)
-import Halogen.Hooks.Types (MemoValues, OutputToken, SlotToken)
+import Halogen.Hooks.Types (ComponentRef, MemoValues, OutputToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 type HalogenM' q i m b a = H.HalogenM (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
@@ -54,6 +54,7 @@ derive instance newtypeHookState :: Newtype (HookState q i m a) _
 
 type InternalHookState q i m a =
   { input :: i
+  , componentRef :: ComponentRef
   , queryFn :: Maybe (QueryFn q m)
   , evalQueue :: Array (H.HalogenM (HookState q i m a) (HookM m Unit) SlotType OutputValue m Unit)
   , stateCells :: QueueState StateValue

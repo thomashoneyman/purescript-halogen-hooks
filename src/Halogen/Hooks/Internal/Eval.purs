@@ -12,6 +12,7 @@ import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
+import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
@@ -93,22 +94,22 @@ interpretHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
       Initialize -> do
-        { stateCells: { queue } } <- getState
+        { componentRef, stateCells: { queue } } <- getState
 
         let
           newQueue = Array.snoc queue initial
-          identifier = StateId (Array.length newQueue - 1)
+          identifier = StateId (Tuple componentRef (Array.length newQueue - 1))
 
         modifyState_ _ { stateCells { queue = newQueue } }
         pure $ reply $ Tuple initial identifier
 
       _ -> do
-        { stateCells: { index, queue } } <- getState
+        { componentRef, stateCells: { index, queue } } <- getState
 
         let
           value = unsafeGetCell index queue
           nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-          identifier = StateId index
+          identifier = StateId (Tuple componentRef index)
 
         modifyState_ _ { stateCells { index = nextIndex } }
         pure $ reply $ Tuple value identifier
@@ -263,29 +264,48 @@ interpretHook runHookM runHook reason hookFn = case _ of
         pure $ reply $ Tuple value ref
 
 evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
-evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) = H.HalogenM $ substFree interpretHalogenHook evalUseHookF
+evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
+  H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where
   interpretHalogenHook
     :: HookF m
     ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
-    Modify (StateId token) f reply -> do
+    Modify (StateId (Tuple ref id)) f reply -> do
       state <- getState
 
+      -- It is not safe to use `HookM` code which modifies state outside of the
+      -- component that defines it, because the state identifiers are referring
+      -- to an environment that potentially doesn't exist in the target component.
+      --
+      -- This leads either to unexpected state modifications or a crash when an
+      -- index in state is accessed that doesn't exist.
+      --
+      -- NOTE: Using `unless` here throws an exception -- strictness? Using a
+      -- case statement behaves as expected.
+      case unsafeRefEq state.componentRef ref of
+        true ->
+          pure unit
+        _ ->
+          unsafeThrow "Attempted to use state-modifying `HookM` code outside the component where it was defined."
+
       let
-        current = unsafeGetCell token state.stateCells.queue
+        current = unsafeGetCell id state.stateCells.queue
         next = f current
 
-      -- Like Halogen's implementation, `Modify` covers both get and set
-      -- calls to state. We can use the same `unsafeRefEq` technique to
-      -- ensure calls to `get` don't trigger evaluations.
-      unless (unsafeRefEq current next) do
-        let newQueue = unsafeSetCell token next
-        putState $ state
-          { stateCells { queue = newQueue state.stateCells.queue }
-          , stateDirty = true
-          }
-        void runHooks
+      -- Like Halogen's implementation, `Modify` covers both get and set calls
+      -- to `state`. We use the same `unsafeRefEq` technique to as Halogen does
+      -- to ensure calls to `get` don't trigger evaluations / renders.
+      case unsafeRefEq current next of
+        true ->
+          pure unit
+        _ -> do
+          let newQueue = unsafeSetCell id next
+          modifyState_ _
+            { stateCells { queue = newQueue state.stateCells.queue }
+            , stateDirty = true
+            }
+          void runHooks
 
       pure (reply next)
 
@@ -333,15 +353,6 @@ getState = do
   pure $ unsafePerformEffect $ Ref.read stateRef
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
-modifyState
-  :: forall q i m a
-   . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) (InternalHookState q i m a)
-modifyState fn = do
-  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
-  pure $ unsafePerformEffect $ Ref.modify fn stateRef
-
--- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState_
   :: forall q i m a
    . (InternalHookState q i m a -> InternalHookState q i m a)
@@ -349,12 +360,3 @@ modifyState_
 modifyState_ fn = do
   HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
   pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
-
--- Overwrite the internal Hook state without incurring a `MonadEffect` constraint
-putState
-  :: forall q i m a
-   . InternalHookState q i m a
-  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) Unit
-putState s = do
-  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
-  pure $ unsafePerformEffect $ Ref.write s stateRef
