@@ -11,6 +11,7 @@ import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Halogen (HalogenQ)
@@ -23,7 +24,7 @@ import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
-import Halogen.Hooks.Types (StateId(..))
+import Halogen.Hooks.Types (ComponentRef, StateId(..))
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
@@ -60,14 +61,25 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
-    c@(Modify (StateId token) f reply) -> do
+    c@(Modify (StateId (Tuple ref id)) f reply) -> do
       state <- H.HalogenM Hooks.Eval.getState
-      let v = Hooks.Eval.unsafeGetCell token state.stateCells.queue
+
+      case unsafeRefEq state.componentRef ref of
+        true ->
+          pure unit
+        _ ->
+          unsafeThrow "Attempted to use state-modifying HookM code outside the component where it was defined."
+
+      let
+        v = Hooks.Eval.unsafeGetCell id state.stateCells.queue
 
       -- Calls to `get` should not trigger evaluation. This matches with the
       -- underlying implementation of `evalHookM` and Halogen's `evalM`.
-      unless (unsafeRefEq v (f v)) do
-        writeLog ModifyState state.input
+      case unsafeRefEq v (f v) of
+        true ->
+          pure unit
+        _ ->
+          writeLog ModifyState state.input
 
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
@@ -106,14 +118,15 @@ mkEval
    . (LogRef -> Hooked Aff Unit h b)
   -> (Unit -> HalogenQ q (HookM Aff Unit) LogRef Unit)
   -> HalogenM' q LogRef Aff b Unit
-mkEval h = mkEvalQuery h `compose` H.tell
+mkEval h q = mkEvalQuery h (H.tell q)
 
 mkEvalQuery
   :: forall h q b a
    . (LogRef -> Hooked Aff Unit h b)
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
-mkEvalQuery = Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn evalHookM)
+mkEvalQuery =
+  Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn evalHookM)
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in
   -- sync with the implementation in the main Hooks library. If you change this
@@ -143,6 +156,7 @@ initDriver = liftEffect do
 
   stateRef <- Ref.new
     { input: logRef
+    , componentRef: unsafeCoerce {} :: ComponentRef
     , queryFn: Nothing
     , stateCells: { queue: [], index: 0 }
     , effectCells: { queue: [], index: 0 }
