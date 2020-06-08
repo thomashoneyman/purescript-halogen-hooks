@@ -16,6 +16,9 @@ import Data.Tuple (Tuple)
 -- | ```
 newtype StateId state = StateId (Tuple ComponentRef Int)
 
+-- | A unique reference for a component, which is used to track which component
+-- | Hooks code is defined in to ensure that it isn't run in another component
+-- | (this is unsafe, and doing so will throw an exception).
 data ComponentRef
 
 -- | The set of tokens enabling queries, child slots, and output messages when
@@ -38,14 +41,14 @@ type ComponentTokens q ps o =
 -- | relationship, and so they are not tracked in Hook types.
 -- |
 -- | This token is provided by the `component` function.
-data QueryToken (a :: Type -> Type) = UnsafeQueryToken
+data QueryToken (a :: Type -> Type)
 
 -- | A token which carries the type of child slots supported by the component
 -- | which is executing a Hook. Child slots are specific to the parent-child
 -- | component relationship, and so they are not tracked in Hook types.
 -- |
 -- | This token is provided by the `component` function.
-data SlotToken (slots :: # Type) = UnsafeSlotToken
+data SlotToken (slots :: # Type)
 
 -- | A token which carries the type of outputs supported by the component
 -- | which is executing a Hook. Output messages slots are specific to the
@@ -53,7 +56,7 @@ data SlotToken (slots :: # Type) = UnsafeSlotToken
 -- | Hook types.
 -- |
 -- | This token is provided by the `component` function.
-data OutputToken output = UnsafeOutputToken
+data OutputToken output
 
 -- | An opaque type which signifies that a set of dependencies have been captured
 -- | and can be used by Hooks like `UseMemo` and `UseEffect`.

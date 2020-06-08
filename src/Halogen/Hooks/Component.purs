@@ -14,7 +14,7 @@ import Halogen.Hooks.Hook (Hooked(..))
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval (evalHookM, interpretHook, mkEval, getState)
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
-import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken(..), QueryToken(..), SlotToken(..))
+import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
 
 -- | Produces a Halogen component from a `Hook` which returns `ComponentHTML`.
@@ -90,9 +90,9 @@ memoComponent
   -> H.Component HH.HTML q i o m
 memoComponent eqInput inputHookFn = do
   let
-    queryToken = UnsafeQueryToken :: QueryToken q
-    slotToken = UnsafeSlotToken :: SlotToken s
-    outputToken = UnsafeOutputToken :: OutputToken o
+    queryToken = unsafeCoerce {} :: QueryToken q
+    slotToken = unsafeCoerce {} :: SlotToken s
+    outputToken = unsafeCoerce {} :: OutputToken o
     hookFn = inputHookFn { queryToken, slotToken, outputToken }
 
   H.mkComponent
