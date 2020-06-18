@@ -53,7 +53,7 @@ import Unsafe.Coerce (unsafeCoerce)
 component
   :: forall hooks q i ps o m
    . (ComponentTokens q ps o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) ps m))
-  -> H.Component HH.HTML q i o m
+  -> H.Component q i o m
 component = memoComponent (\_ _ -> false)
 
 -- | A version of `component` which allows you to decide whether or not to send
@@ -87,7 +87,7 @@ memoComponent
   :: forall hooks q i s o m
    . (i -> i -> Boolean)
   -> (ComponentTokens q s o -> i -> Hooked m Unit hooks (H.ComponentHTML (HookM m Unit) s m))
-  -> H.Component HH.HTML q i o m
+  -> H.Component q i o m
 memoComponent eqInput inputHookFn = do
   let
     queryToken = unsafeCoerce {} :: QueryToken q

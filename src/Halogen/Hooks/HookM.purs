@@ -28,18 +28,18 @@ import Halogen.Data.Slot as Slot
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
 import Halogen.Hooks.Types (OutputToken, SlotToken, StateId)
 import Halogen.Query.ChildQuery as CQ
-import Halogen.Query.EventSource as ES
 import Prim.Row as Row
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
+import FRP.Event as Event
 
 -- | A DSL compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
 data HookF m a
   = Modify (StateId StateValue) (StateValue -> StateValue) (StateValue -> a)
-  | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
+  | Subscribe (H.SubscriptionId -> Event.Event (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
   | ChildQuery (CQ.ChildQueryBox SlotType a)
@@ -210,7 +210,7 @@ queryAll _ label q =
 -- | Subscribes a component to an `EventSource`. When a component is disposed of
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
-subscribe :: forall m. ES.EventSource m (HookM m Unit) -> HookM m H.SubscriptionId
+subscribe :: forall m. Event.Event (HookM m Unit) -> HookM m H.SubscriptionId
 subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
@@ -222,7 +222,7 @@ subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 -- | When a component is disposed of any active subscriptions will automatically
 -- | be stopped and no further subscriptions will be possible during
 -- | finalization.
-subscribe' :: forall m. (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) -> HookM m Unit
+subscribe' :: forall m. (H.SubscriptionId -> Event.Event (HookM m Unit)) -> HookM m Unit
 subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
 
 -- | Unsubscribes a component from an `EventSource`. If the subscription
