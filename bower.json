@@ -14,7 +14,7 @@
         "output"
     ],
     "dependencies": {
-        "purescript-halogen": "^v5.0.0-rc.7",
-        "purescript-indexed-monad": "^v1.1.0"
+        "purescript-halogen": "^v5.0.1",
+        "purescript-indexed-monad": "^v1.2.0"
     }
 }
