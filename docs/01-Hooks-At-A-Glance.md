@@ -30,7 +30,7 @@ example = Hooks.component \_ _ -> Hooks.do
 
   Hooks.pure do
     HH.div_
-      [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
+      [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
           [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
           [ HH.text "Click me" ]
@@ -69,15 +69,15 @@ useStateFn fn initial = map (map fn) (Hooks.useState initial)
 
 manyStates = Hooks.do
   -- Return a modify function instead of an identifier!
-  age /\ modifyAge <- useStateFn H.modify_ 42
-  fruit /\ setFruit <- useStateFn H.put "banana"
+  age /\ modifyAge <- useStateFn Hooks.modify_ 42
+  fruit /\ setFruit <- useStateFn Hooks.put "banana"
 
   let
     handler :: HookM _ Unit
     handler = do
-      -- instead of H.modify_ ageId \n -> n + 10
+      -- instead of Hooks.modify_ ageId \n -> n + 10
       modifyAge \n -> n + 10
-      -- instead of H.put fruitId "strawberry"
+      -- instead of Hooks.put fruitId "strawberry"
       setFruit "strawberry"
 ```
 
@@ -110,7 +110,7 @@ example = Hooks.component \_ _ -> Hooks.do
 
   Hooks.pure do
     HH.div_
-      [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
+      [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
           [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
       ]
