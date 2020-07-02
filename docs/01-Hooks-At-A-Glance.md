@@ -133,7 +133,7 @@ There are other built-in Hooks you may find useful. For example, you can use the
 
 ## Hooks and Ordering
 
-Hooks are functions, but they're implemented with an indexed monad that ensures that Hooks are always called in the same order. You will receive a compile-time error if you try to call Hooks out of order (for instance, by calling Hooks within branching logic like `if` or `case` statements).
+Hooks must always be called in the same order each time they are evaluated. You will receive a compile-time error if you try to rearrange Hooks between evaluations (by calling Hooks within branching logic like `if` or `case` statements, for instance).
 
 This restriction exists because Hooks are internally implemented in a Halogen component which stores the Hooks and their data in arrays. If Hooks are run out of order, then their array indices will no longer match, potentially causing a runtime crash. This implementation matches with the same approach used in React and React Basic Hooks.
 
