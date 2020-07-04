@@ -49,6 +49,15 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | myComponent :: forall i m. H.Component MyQuery i MyOutput m
 -- | myComponent = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
 -- |   ... hook implementation
+-- |
+-- | Use type variables to substitue unused token types:
+-- |
+-- | ```purs
+-- | type Tokens s o = ComponentTokens MyQuery s o
+-- |
+-- | myComponent :: forall i o m. H.Component MyQuery i o m
+-- | myComponent = Hooks.component \(tokens :: Tokens _ o) _ -> Hooks.do
+-- |   ... hook implementation
 -- | ```
 component
   :: forall hooks q i ps o m
