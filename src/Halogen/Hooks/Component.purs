@@ -44,10 +44,19 @@ import Unsafe.Coerce (unsafeCoerce)
 -- | better type inference if you annotate the token type:
 -- |
 -- | ```purs
--- | type Tokens = ComponentTokens MyQuery MySlots MyOutput
+-- | type Tokens = Hooks.ComponentTokens MyQuery MySlots MyOutput
 -- |
 -- | myComponent :: forall i m. H.Component MyQuery i MyOutput m
 -- | myComponent = Hooks.component \(tokens :: Tokens) _ -> Hooks.do
+-- |   ... hook implementation
+-- |
+-- | Use type variables to substitue unused token types:
+-- |
+-- | ```purs
+-- | type Tokens s o = Hooks.ComponentTokens MyQuery s o
+-- |
+-- | myComponent :: forall i o m. H.Component MyQuery i o m
+-- | myComponent = Hooks.component \(tokens :: Tokens _ o) _ -> Hooks.do
 -- |   ... hook implementation
 -- | ```
 component
