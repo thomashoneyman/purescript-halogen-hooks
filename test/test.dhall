@@ -2,7 +2,10 @@ let conf = ../spago.dhall
 in conf //
   { dependencies =
       conf.dependencies #
-        [ "debug"
+        [ "aff-promise"
+        , "argonaut-core"
+        , "debug"
+        , "node-fs"
         , "spec"
         , "record"
         ]

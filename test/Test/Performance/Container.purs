@@ -2,7 +2,8 @@ module Test.Performance.Container where
 
 import Prelude
 
-import Data.Array (all, concatMap, replicate)
+import Control.Promise (Promise, fromAff)
+import Data.Array (concatMap, replicate)
 import Data.Foldable (sequence_)
 import Data.Maybe (Maybe(..))
 import Data.Symbol (SProxy(..))
@@ -10,115 +11,103 @@ import Data.Tuple.Nested ((/\))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Aff.Class (class MonadAff)
+import Effect.Class (liftEffect)
 import Halogen as H
-import Halogen.Aff as HA
+import Halogen.Aff.Util as HA
 import Halogen.HTML as HH
-import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
 import Halogen.VDom.Driver (runUI)
 
+foreign import setInterface :: forall a. (String -> Effect (Promise (Maybe Unit))) -> Effect Unit
+
 main :: Effect Unit
 main = launchAff_ do
   body <- HA.awaitBody
-  runUI container unit body
+  io <- runUI container unit body
 
-data TestState
-  = NotStarted
-  | HookTest
-  | ComponentTest
-  | Completed
+  let
+    q' :: String -> Effect (Promise (Maybe Unit))
+    q' = case _ of
+      _ -> fromAff (io.query (RunHook identity))
 
-derive instance eqTestState :: Eq TestState
+  liftEffect do
+    setInterface q'
 
-type State =
-  { a :: TestState }
+data Query a = RunHook (Unit -> a) | RunComponent (Unit -> a)
 
-data Action
-  = RunHook TestHook
+data EnabledTest = None | TestA | TestB
 
-data TestHook
-  = A
-
-container :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+container :: forall i o m. MonadAff m => H.Component HH.HTML Query i o m
 container = H.mkComponent
-  { initialState: \_ -> { a: NotStarted }
+  { initialState: \_ -> None
   , render
-  , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
+  , eval: H.mkEval $ H.defaultEval { handleQuery = handleQuery }
   }
   where
-  render { a } =
-    HH.div
-      [ ]
-      [ actions
-      , whenElem (a == HookTest) \_ ->
-          HH.slot (SProxy :: _ "aHook") unit testHook unit absurd
-      , whenElem (a == ComponentTest) \_ ->
-          HH.slot (SProxy :: _ "aComponent") unit testComponent unit absurd
-      ]
+  render = case _ of
+    None -> HH.p [ HP.id_ "z" ] [ HH.text "" ]
+    TestA -> HH.slot (SProxy :: _ "aHook") unit testHook unit absurd
+    TestB -> HH.slot (SProxy :: _ "aComponent") unit testComponent unit absurd
 
-  handleAction = case _ of
-    RunHook A -> do
-      H.gets _.a >>= case _ of
-        NotStarted -> do
-          H.modify_ _ { a = HookTest }
+  handleQuery :: forall a. Query a -> H.HalogenM _ _ _ _ _ (Maybe a)
+  handleQuery = case _ of
+    RunHook reply -> do
+      H.put TestA
+      _ <- H.query (SProxy :: _ "aHook") unit (Run identity)
+      pure (Just (reply unit))
 
-        HookTest -> do
-          H.modify_ _ { a = ComponentTest }
+    RunComponent reply -> do
+      H.put TestB
+      _ <- H.query (SProxy :: _ "aComponent") unit (Run identity)
+      pure (Just (reply unit))
 
-        ComponentTest -> do
-          H.modify_ _ { a = Completed }
+data Run a = Run (Unit -> a)
 
-        Completed -> do
-          pure unit
-
-actions :: forall w. HH.HTML w Action
-actions =
-  HH.div
-    [ HP.id_ "actions" ]
-    [ HH.button
-        [ HP.id_ "a"
-        , HE.onClick \_ -> Just $ RunHook A
-        ]
-        [ HH.text "Run Hook A" ]
-    ]
-
-whenElem :: forall w i. Boolean -> (Unit -> HH.HTML w i) -> HH.HTML w i
-whenElem cond f = if cond then f unit else HH.text ""
-
-testComponent :: forall q i o m. H.Component HH.HTML q i o m
-testComponent = H.mkComponent
-  { initialState: \_ -> { n: 0, n1: 0, n2: 0, n3: 0, n4: 0 }
-  , render: \{ n, n1, n2, n3, n4 } ->
-      whenElem (all (_ >= 50) [ n, n1, n2, n3, n4 ]) \_ ->
-        HH.div
-          [ HP.id_ "completed"]
-          [ HH.text (show n) ]
-  , eval: H.mkEval $ H.defaultEval { initialize = Just unit, handleAction = handleAction }
-  }
+testComponent :: forall i o m. H.Component HH.HTML Run i o m
+testComponent =
+  H.mkComponent
+    { initialState:
+        \_ -> { n: 0, n1: 0, n2: 0, n3: 0, n4: 0 }
+    , render:
+        \{ n, n1, n2, n3, n4 } ->
+          HH.div_ $ map (HH.text <<< show) [ n, n1, n2, n3, n4 ]
+    , eval:
+        H.mkEval $ H.defaultEval { handleQuery = handleQuery }
+    }
   where
-  handleAction _ = do
-    sequence_ $ replicate 50 $ H.modify_ \s -> s { n = s.n + 1 }
-    sequence_ $ replicate 50 $ H.modify_ \s -> s { n1 = s.n1 + 1 }
-    sequence_ $ replicate 50 $ H.modify_ \s -> s { n2 = s.n2 + 1 }
-    sequence_ $ replicate 50 $ H.modify_ \s -> s { n3 = s.n3 + 1 }
-    sequence_ $ replicate 50 $ H.modify_ \s -> s { n4 = s.n4 + 1 }
+  handleQuery :: forall a. Run a -> H.HalogenM _ _ _ _ _ (Maybe a)
+  handleQuery (Run reply) = do
+    void $ H.fork do
+      sequence_ $ replicate 50 $ H.modify_ \s -> s { n = s.n + 1 }
 
-testHook :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
-testHook = Hooks.memoComponent (\_ _ -> false) \_ _ -> Hooks.do
+    void $ H.fork do
+      sequence_ $ replicate 50 $ H.modify_ \s -> s { n1 = s.n1 + 1 }
+
+    void $ H.fork do
+      sequence_ $ replicate 50 $ H.modify_ \s -> s { n2 = s.n2 + 1 }
+
+    void $ H.fork do
+      sequence_ $ replicate 50 $ H.modify_ \s -> s { n3 = s.n3 + 1 }
+
+    void $ H.fork do
+      sequence_ $ replicate 50 $ H.modify_ \s -> s { n4 = s.n4 + 1 }
+
+    pure (Just (reply unit))
+
+testHook :: forall i o m. MonadAff m => H.Component HH.HTML Run i o m
+testHook = Hooks.memoComponent (\_ _ -> false) \{ queryToken } _ -> Hooks.do
   n /\ nId <- Hooks.useState 0
   n1 /\ n1Id <- Hooks.useState 0
   n2 /\ n2Id <- Hooks.useState 0
   n3 /\ n3Id <- Hooks.useState 0
   n4 /\ n4Id <- Hooks.useState 0
 
-  Hooks.useLifecycleEffect do
-    sequence_ $ concatMap (\id -> replicate 50 (Hooks.modify_ id (_ + 1))) [ nId, n1Id, n2Id, n3Id, n4Id ]
-    pure Nothing
+  Hooks.useQuery queryToken case _ of
+    Run reply -> do
+      sequence_ $ concatMap (\id -> replicate 50 (Hooks.modify_ id (_ + 1))) [ nId, n1Id, n2Id, n3Id, n4Id ]
+      pure (Just (reply unit))
 
   Hooks.pure do
-    whenElem (all (_ >= 50) [ n, n1, n2, n3, n4 ]) \_ ->
-      HH.div
-        [ HP.id_ "completed"]
-        [ HH.text (show n) ]
+    HH.div_ $ map (HH.text <<< show) [ n, n1, n2, n3, n4 ]
 

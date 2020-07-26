@@ -1,0 +1,73 @@
+const puppeteer = require("puppeteer");
+const { getPerformanceModel } = require("headless-devtools");
+
+exports.launchImpl = function () {
+  return puppeteer.launch();
+};
+
+exports.newPageImpl = function (browser) {
+  return browser.newPage();
+};
+
+exports.debugImpl = function (page) {
+  page.on("console", (msg) => console.log("PAGE LOG:", msg.text()));
+  page.on("pageerror", (err) => console.log("ERROR LOG:", err.message));
+};
+
+exports.evaluateImpl = function (page, query) {
+  return page.evaluate((q) => window.query(q), query);
+};
+
+exports.waitForSelectorImpl = function (page, selector) {
+  return page.waitForSelector(selector);
+};
+
+exports.gotoImpl = function (page, path) {
+  return page.goto(path);
+};
+
+exports.closePageImpl = function (page) {
+  return page.close();
+};
+
+exports.closeBrowserImpl = function (browser) {
+  return browser.close();
+};
+
+exports.enableHeapProfilerImpl = function (page) {
+  return page._client.send("HeapProfiler.enable");
+};
+
+exports.collectGarbageImpl = function (page) {
+  return page._client.send("HeapProfiler.collectGarbage");
+};
+
+exports.startTraceImpl = function (page, path) {
+  return page.tracing.start({ path });
+};
+
+exports.stopTraceImpl = function (page) {
+  return page.tracing.stop();
+};
+
+// Should be used on the trace produced by `page.tracing.stop()`
+exports.getPerformanceModelImpl = function (trace) {
+  try {
+    const traceJSON = JSON.parse(trace.toString());
+    return getPerformanceModel(traceJSON);
+  } catch (e) {
+    return null;
+  }
+};
+
+// Should be used on the model returned by `getPeformanceModel`
+exports.getAverageFPS = function (model) {
+  const frames = model.frames();
+  const durations = frames.map((x) => x.duration);
+  const avg = durations.reduce((acc, item) => acc + item, 0) / durations.length;
+  return Math.round(1000 / avg);
+};
+
+exports.pageMetricsImpl = function (page) {
+  return page.metrics();
+};
