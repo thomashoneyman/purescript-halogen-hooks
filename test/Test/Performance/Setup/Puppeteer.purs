@@ -4,7 +4,7 @@ module Test.Performance.Setup.Puppeteer
   , Page
   , newPage
   , debug
-  , evaluate
+  , click
   , waitForSelector
   , goto
   , closePage
@@ -36,8 +36,6 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Uncurried (EffectFn1, EffectFn2, runEffectFn1, runEffectFn2)
 import Node.Path as Path
-import Test.Performance.Container (Query)
-import Web.DOM.ParentNode (QuerySelector)
 import Web.HTML (HTMLElement)
 
 -- | An instance of a Puppeteer browser, which should be created at
@@ -65,16 +63,14 @@ foreign import debugImpl :: EffectFn1 Page Unit
 debug :: Page -> Aff Unit
 debug = liftEffect <<< runEffectFn1 debugImpl
 
-foreign import evaluateImpl :: EffectFn2 Page String (Promise (Maybe Unit))
+foreign import clickImpl :: EffectFn1 HTMLElement (Promise Unit)
 
--- | Set the contents of the Puppeteer page (usually, by loading a file
--- | from disk as a string.)
-evaluate :: Page -> String -> Aff (Maybe Unit)
-evaluate = toAffE2 evaluateImpl
+click :: HTMLElement -> Aff Unit
+click = toAffE1 clickImpl
 
-foreign import waitForSelectorImpl :: EffectFn2 Page QuerySelector (Promise (Nullable HTMLElement))
+foreign import waitForSelectorImpl :: EffectFn2 Page String (Promise (Nullable HTMLElement))
 
-waitForSelector :: Page -> QuerySelector -> Aff (Maybe HTMLElement)
+waitForSelector :: Page -> String -> Aff (Maybe HTMLElement)
 waitForSelector page selector = map toMaybe (toAffE2 waitForSelectorImpl page selector)
 
 foreign import gotoImpl :: EffectFn2 Page Path.FilePath (Promise Unit)
@@ -152,14 +148,22 @@ foreign import pageMetricsImpl :: EffectFn1 Page (Promise JSPageMetrics)
 newtype Kilobytes = Kilobytes Int
 
 derive instance newtypeKilobytes :: Newtype Kilobytes _
+derive newtype instance eqKilobytes :: Eq Kilobytes
 derive newtype instance semiringKilobytes :: Semiring Kilobytes
 derive newtype instance ringKilobytes :: Ring Kilobytes
+
+instance showKilobytes :: Show Kilobytes where
+  show (Kilobytes kb) = show kb <> "kb"
 
 newtype Milliseconds = Milliseconds Int
 
 derive instance newtypeMilliseconds :: Newtype Milliseconds _
+derive newtype instance eqMilliseconds :: Eq Milliseconds
 derive newtype instance semiringMilliseconds :: Semiring Milliseconds
 derive newtype instance ringMilliseconds :: Ring Milliseconds
+
+instance showMilliseconds :: Show Milliseconds where
+  show (Milliseconds ms) = show ms <> "ms"
 
 -- | A snapshot of current page data
 type PageMetrics =

@@ -14,8 +14,8 @@ exports.debugImpl = function (page) {
   page.on("pageerror", (err) => console.log("ERROR LOG:", err.message));
 };
 
-exports.evaluateImpl = function (page, query) {
-  return page.evaluate((q) => window.query(q), query);
+exports.clickImpl = function (elem) {
+  return elem.click();
 };
 
 exports.waitForSelectorImpl = function (page, selector) {

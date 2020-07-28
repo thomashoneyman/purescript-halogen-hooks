@@ -2,10 +2,14 @@ module Test.Main where
 
 import Prelude
 
-import Data.Maybe (Maybe, fromJust)
-import Debug.Trace (traceM)
+import Data.Array (fold)
+import Data.Identity (Identity(..))
+import Data.Maybe (Maybe(..), fromJust)
+import Data.Newtype (un)
+import Data.Traversable (for_)
 import Effect (Effect)
 import Effect.Aff (Aff, bracket, launchAff_)
+import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
@@ -14,17 +18,17 @@ import Test.Hooks.Primitive.UseEffect (effectHook)
 import Test.Hooks.Primitive.UseMemo (memoHook)
 import Test.Hooks.Primitive.UseRef (refHook)
 import Test.Hooks.Primitive.UseState (stateHook)
-import Test.Performance.Container as Container
-import Test.Performance.Setup.Puppeteer (Browser, FilePath(..), Kilobytes, Milliseconds, Page, PageMetrics)
+import Test.Performance.Container (statePrefix)
+import Test.Performance.Setup.Puppeteer (Browser, FilePath(..), Kilobytes, Milliseconds, Page)
 import Test.Performance.Setup.Puppeteer as Puppeteer
-import Test.Spec (around, describe, it)
+import Test.Spec (Spec, around, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 import Test.Spec.Reporter (consoleReporter)
-import Test.Spec.Runner (runSpec)
+import Test.Spec.Runner (defaultConfig, runSpecT)
+import Web.DOM.ParentNode (QuerySelector(..))
 
 main :: Effect Unit
-main = launchAff_ $ withPuppeteer \browser -> runSpec [ consoleReporter ] do
-
+main = launchAff_ $ withPuppeteer \browser -> runSpec' do
   describe "Primitive Tests" do
     stateHook
     effectHook
@@ -34,12 +38,31 @@ main = launchAff_ $ withPuppeteer \browser -> runSpec [ consoleReporter ] do
   describe "Complex Tests" do
     rerunTickAfterInitialEffectsHook
 
-  around (withMetrics browser) $ describe "Puppeteer Tests" do
-    it "runs" \{ page, query, startMetrics } -> do
-      _ <- query "RunHook"
-      result <- summarize page startMetrics
-      traceM result
-      0 `shouldEqual` 0
+  around (withMetrics browser) $ describe "Performance Tests" do
+
+    it "??? hook" \{ runTest } -> do
+      hook <- runTest (QuerySelector $ fold [ ".", statePrefix, "-hook" ])
+      component <- runTest (QuerySelector $ fold [ ".", statePrefix, "-component" ])
+      hook `shouldEqual` component
+
+    it "??? hook" \{ runTest } -> do
+      hook <- runTest (QuerySelector $ fold [ ".", statePrefix, "-hook" ])
+      component <- runTest (QuerySelector $ fold [ ".", statePrefix, "-component" ])
+      hook `shouldEqual` component
+
+runSpec' :: Spec Unit -> Aff Unit
+runSpec' = void <<< un Identity <<< runSpecT testConfig [ consoleReporter ]
+
+testConfig :: { exit :: Boolean, slow :: Aff.Milliseconds, timeout :: Maybe Aff.Milliseconds }
+testConfig = defaultConfig { timeout = Just $ Aff.Milliseconds 10000.0 }
+
+withPuppeteer :: (Browser -> Aff Unit) -> Aff Unit
+withPuppeteer = bracket Puppeteer.launch Puppeteer.closeBrowser
+
+type PerformanceTestParameters =
+  { page :: Page
+  , runTest :: QuerySelector -> Aff PerformanceSummary
+  }
 
 type PerformanceSummary =
   { averageFPS :: Int
@@ -47,62 +70,67 @@ type PerformanceSummary =
   , heapUsed :: Kilobytes
   }
 
-withPuppeteer :: (Browser -> Aff Unit) -> Aff Unit
-withPuppeteer = bracket Puppeteer.launch Puppeteer.closeBrowser
-
-type PerformanceTestParameters =
-  { page :: Page
-  , startMetrics :: PageMetrics
-  , query :: String -> Aff (Maybe Unit)
-  }
-
+-- TODO:
+--
+-- Currently tests use query selectors to start tests and understand when a test
+-- has completed. But it would be better to expose an interface via the window
+-- object that can be used to query the Halogen application and run tests. This
+-- would allow tests to:
+--
+--   1. Query the application and await the result; when the result is received
+--      then the test is complete and the timer can stop.
+--
+--   2. Alternately, query the application and subscribe to output messages which
+--      will record when a test has completed.
+--
+-- The Halogen application can register functions onto the window object at app
+-- startup (in the `main` function). The `Puppeteer.evaluate` function enables
+-- calling functions within Puppeteer, and the `Puppeteer.exposeFunction` function
+-- enables a function which evaluates within Puppeteer to be called from outside.
+--
+-- Until then, though, we'll just rely on query selectors.
 withMetrics :: Browser -> (PerformanceTestParameters -> Aff Unit) -> Aff Unit
 withMetrics browser action = bracket initialize (_.page >>> finalize) action
   where
   initialize = do
     page <- Puppeteer.newPage browser
-    Puppeteer.debug page
 
     path <- liftEffect $ resolve [] "test/test.html"
     Puppeteer.goto page ("file://" <> path)
 
-    -- TODO: Basically, I have to do all computation within Puppeteer, and only
-    -- report back serializable data. For example, when the Halogen app initializes
-    -- it can set a function 'query' on the window object. I can call that function
-    -- via puppeteer and collect the response, but the response has to be able to
-    -- come back over the wire as something primitive (I think).
-    --
-    -- So for example I could query, which produces a promise(?) and when it resolves
-    -- as say `Unit` I can consider the test to be complete
-    mbUnit <- Puppeteer.evaluate page "RunHook"
-    traceM mbUnit
+    let
+      runTest :: QuerySelector -> Aff PerformanceSummary
+      runTest (QuerySelector selector) = do
+        _ <- Puppeteer.waitForSelector page ".tests"
 
-    let query = Puppeteer.evaluate page
+        Puppeteer.enableHeapProfiler page
+        Puppeteer.collectGarbage page
 
-    Puppeteer.enableHeapProfiler page
-    Puppeteer.collectGarbage page
+        Puppeteer.startTrace page (FilePath "trace.json")
+        initialPageMetrics <- Puppeteer.pageMetrics page
 
-    Puppeteer.startTrace page (FilePath "trace.json")
-    startMetrics <- Puppeteer.pageMetrics page
+        -- Run the test to completion
+        test <- Puppeteer.waitForSelector page selector
+        for_ test Puppeteer.click
+        _ <- Puppeteer.waitForSelector page (selector <> "-complete")
 
-    pure { page, query, startMetrics }
+        -- Collect garbage again before collecting heap measurements; without
+        -- this occasional spikes at the end of tests will throw off results.
+        Puppeteer.collectGarbage page
+        finalPageMetrics <- Puppeteer.pageMetrics page
 
-  finalize = Puppeteer.closePage
+        trace <- Puppeteer.stopTrace page
+        mbModel <- Puppeteer.getPerformanceModel trace
 
-summarize :: Page -> PageMetrics -> Aff PerformanceSummary
-summarize page startMetrics = do
-  -- required for accurate heap measurements, otherwise occasional spikes will
-  -- throw things completely off
-  Puppeteer.collectGarbage page
+        let metrics = finalPageMetrics - initialPageMetrics
 
-  endMetrics <- Puppeteer.pageMetrics page
-  trace <- Puppeteer.stopTrace page
-  mbModel <- Puppeteer.getPerformanceModel trace
+        pure
+          { averageFPS: Puppeteer.getAverageFPS $ unsafePartial $ fromJust mbModel
+          , heapUsed: metrics.heapUsed
+          , elapsedTime: metrics.timestamp
+          }
 
-  let metrics = startMetrics - endMetrics
+    pure { runTest, page }
 
-  pure
-    { averageFPS: Puppeteer.getAverageFPS $ unsafePartial $ fromJust mbModel
-    , heapUsed: metrics.heapUsed
-    , elapsedTime: metrics.timestamp
-    }
+  finalize =
+    Puppeteer.closePage
