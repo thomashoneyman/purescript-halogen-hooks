@@ -5,7 +5,7 @@ import Prelude hiding (compare)
 import Data.Array as Array
 import Data.Foldable (foldl, for_)
 import Data.Maybe (fromJust)
-import Effect.Aff (Aff, bracket)
+import Effect.Aff (Aff, bracket, error, throwError)
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
@@ -48,11 +48,9 @@ data TestType = StateTest
 compare :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
 compare browser = case _ of
   StateTest -> do
-    hook <- measure' StateHook
-    component <- measure' StateComponent
+    hook <- measure browser StateHook
+    component <- measure browser StateComponent
     pure { hook, component }
-  where
-  measure' = measure browser
 
 measure :: Browser -> Test -> Aff PerformanceSummary
 measure browser test = do
@@ -98,38 +96,31 @@ measure browser test = do
     }
 
 runScriptForTest :: Page -> Test -> Aff Unit
-runScriptForTest page test = do
-  let selector = prependHash (testToString test)
+runScriptForTest page test = let selector = prependHash (testToString test) in case test of
+  _ | test == StateHook || test == StateComponent -> do
+        n <- Puppeteer.waitForSelector page (selector <> startSuffix)
+        for_ n Puppeteer.click
+        void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
 
-  case test of
-    StateHook -> do
-      n <- Puppeteer.waitForSelector page (selector <> startSuffix)
-      for_ n Puppeteer.click
-      void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
+    | test == TodoHook -> do
+        addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
+        for_ addNew Puppeteer.click
 
-    StateComponent -> do
-      n <- Puppeteer.waitForSelector page (selector <> startSuffix)
-      for_ n Puppeteer.click
-      void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
+        check0 <- Puppeteer.waitForSelector page (prependHash $ checkId 0)
+        for_ check0 Puppeteer.click
+        check1 <- Puppeteer.waitForSelector page (prependHash $ checkId 1)
+        for_ check1 Puppeteer.click
 
-    TodoHook -> do
-      addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
-      for_ addNew Puppeteer.click
+        Puppeteer.focus page (prependHash $ editId 5)
+        Puppeteer.typeWithKeyboard page "is so fun"
+        save5 <- Puppeteer.waitForSelector page (prependHash $ saveId 5)
+        for_ save5 Puppeteer.click
 
-      check0 <- Puppeteer.waitForSelector page (prependHash $ checkId 0)
-      for_ check0 Puppeteer.click
-      check1 <- Puppeteer.waitForSelector page (prependHash $ checkId 1)
-      for_ check1 Puppeteer.click
+        for_ check0 Puppeteer.click
+        for_ check1 Puppeteer.click
 
-      Puppeteer.focus page (prependHash $ editId 5)
-      Puppeteer.typeWithKeyboard page "is so fun"
-      save5 <- Puppeteer.waitForSelector page (prependHash $ saveId 5)
-      for_ save5 Puppeteer.click
-
-      for_ check0 Puppeteer.click
-      for_ check1 Puppeteer.click
-
-  pure unit
+  _ ->
+    throwError $ error "Test does not exist."
 
 prependHash :: String -> String
 prependHash str = "#" <> str
