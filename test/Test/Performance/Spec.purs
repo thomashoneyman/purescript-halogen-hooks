@@ -22,9 +22,9 @@ snapshots :: Snapshots
 snapshots =
   { v0_4_3: Map.fromFoldable
       [ Tuple App.StateHook
-          { averageFPS: 9, elapsedTime: Milliseconds 166, heapUsed: Kilobytes 185 }
+          { averageFPS: 9, elapsedTime: Milliseconds 159, heapUsed: Kilobytes 186 }
       , Tuple App.StateComponent
-          { averageFPS: 19, elapsedTime: Milliseconds 101, heapUsed: Kilobytes 134 }
+          { averageFPS: 21, elapsedTime: Milliseconds 104, heapUsed: Kilobytes 134 }
       ]
   }
 
