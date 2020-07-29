@@ -49,25 +49,6 @@ compare browser n testType = do
 
   pure { hookResults, hookAverage, componentResults, componentAverage }
 
--- TODO:
---
--- Currently tests use query selectors to start tests and understand when a test
--- has completed. But it would be better to expose an interface via the window
--- object that can be used to query the Halogen application and run tests. This
--- would allow tests to:
---
---   1. Query the application and await the result; when the result is received
---      then the test is complete and the timer can stop.
---
---   2. Alternately, query the application and subscribe to output messages which
---      will record when a test has completed.
---
--- The Halogen application can register functions onto the window object at app
--- startup (in the `main` function). The `Puppeteer.evaluate` function enables
--- calling functions within Puppeteer, and the `Puppeteer.exposeFunction` function
--- enables a function which evaluates within Puppeteer to be called from outside.
---
--- Until then, though, we'll just rely on query selectors.
 compareOnce :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
 compareOnce browser = case _ of
   StateTest -> do
@@ -123,6 +104,25 @@ measure browser test = do
     , elapsedTime: metrics.timestamp
     }
 
+-- TODO: Replace query selectors
+--
+-- Currently tests use query selectors to start tests and understand when a test
+-- has completed. But it would be better to expose an interface via the window
+-- object that can be used to query the Halogen application and run tests. This
+-- would allow tests to:
+--
+--   1. Query the application and await the result; when the result is received
+--      then the test is complete and the timer can stop.
+--
+--   2. Alternately, query the application and subscribe to output messages which
+--      will record when a test has completed.
+--
+-- The Halogen application can register functions onto the window object at app
+-- startup (in the `main` function). The `Puppeteer.evaluate` function enables
+-- calling functions within Puppeteer, and the `Puppeteer.exposeFunction` function
+-- enables a function which evaluates within Puppeteer to be called from outside.
+--
+-- Until then, though, we'll just rely on query selectors.
 runScriptForTest :: Page -> Test -> Aff Unit
 runScriptForTest page test = let selector = prependHash (testToString test) in case test of
   _ | test == StateHook || test == StateComponent -> do
