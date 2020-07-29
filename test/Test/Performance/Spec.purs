@@ -2,33 +2,13 @@ module Test.Performance.Spec where
 
 import Prelude hiding (compare)
 
-import Data.Map as Map
-import Data.Tuple (Tuple(..))
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow, warn)
-import Test.Performance.Test (Test(..))
-import Test.Setup.Performance.Measure (PerformanceSummary, TestType(..), compare, withBrowser)
+import Test.Setup.Performance.Measure (TestType(..), compare, withBrowser)
 import Test.Setup.Performance.Puppeteer (Milliseconds(..), Kilobytes(..))
 import Test.Setup.Performance.Puppeteer as Puppeteer
 import Test.Spec (Spec, around, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
-
--- Snapshots are taken by running a benchmark 10 times and averaging the results
-type Snapshots =
-  { v0_4_3 :: Map.Map Test PerformanceSummary
-  }
-
-snapshots :: Snapshots
-snapshots =
-  { v0_4_3: Map.fromFoldable
-      [ Tuple StateHook
-          { averageFPS: 12, elapsedTime: Milliseconds 201, heapUsed: Kilobytes 266 }
-      , Tuple StateComponent
-          { averageFPS: 25, elapsedTime: Milliseconds 144, heapUsed: Kilobytes 171 }
-      , Tuple TodoHook
-          { averageFPS: 20, elapsedTime: Milliseconds 810, heapUsed: Kilobytes 2280 }
-      ]
-  }
 
 -- These tests have wide acceptance ranges because of the variability of banchmarks
 -- via Puppeteer in general. But they do have some light boundaries and should
@@ -38,7 +18,7 @@ spec = around withBrowser $ describe "Performance Tests" do
   it "Should instantiate Puppeteer browser" \browser -> do
     -- We can safely disregard 'Failed to parse CPU profile' log messages. This
     -- disables those logs from this point onwards in the program execution.
-    liftEffect $ Puppeteer.filterConsole
+    liftEffect Puppeteer.filterConsole
 
     warn
       """
@@ -58,9 +38,8 @@ spec = around withBrowser $ describe "Performance Tests" do
   it "Should satisfy state benchmark" \browser -> do
     result <- compare browser 3 StateTest
 
-    log "Hook"
+    log "State Test: Hook (top) vs. Component (bottom)"
     logShow result.hookAverage
-    log "Component"
     logShow result.componentAverage
 
     result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
@@ -70,11 +49,9 @@ spec = around withBrowser $ describe "Performance Tests" do
   it "Should satisfy todo benchmark" \browser -> do
     result <- compare browser 5 TodoTest
 
-    log "Hook"
+    log "Todo Test: Hook (top) vs. Component (bottom)"
     logShow result.hookAverage
-    log "Component"
     logShow result.componentAverage
-    log "Averages"
 
     result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
     result.hookAverage.elapsedTime `shouldSatisfy` (_ < result.componentAverage.elapsedTime * Milliseconds 2)
