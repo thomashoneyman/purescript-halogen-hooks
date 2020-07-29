@@ -2,7 +2,7 @@ module Test.Setup.Performance.App where
 
 import Prelude
 
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Aff.Class (class MonadAff)
@@ -14,7 +14,8 @@ import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
 import Test.Performance.State.Component as State.Component
 import Test.Performance.State.Hook as State.Hook
-import Test.Performance.State.Query as State.Query
+import Test.Performance.Test (Test(..), completedSuffix, testToString)
+import Test.Performance.Todo.Hook as Todo.Hook
 
 main :: Effect Unit
 main = launchAff_ do
@@ -26,20 +27,9 @@ data TestState
   | Running Test
   | Completed Test
 
-data Test
-  = StateHook
-  | StateComponent
+derive instance eqTestState :: Eq TestState
 
-derive instance eqTest :: Eq Test
-derive instance ordTest :: Ord Test
-
-testToString :: Test -> String
-testToString = case _ of
-  StateHook -> "state-hook"
-  StateComponent -> "state-component"
-
-testsId = "tests" :: String
-completedSuffix = "-completed" :: String
+data Action = HandleStartTest Test | HandleTestComplete Test
 
 container :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
 container = H.mkComponent
@@ -48,37 +38,43 @@ container = H.mkComponent
   , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
   }
   where
+  -- Used by Puppeteer to mount a test into the page so that it can be started
   testAction test = do
     let test' = testToString test
-    HH.button [ HP.id_ test', HE.onClick \_ -> Just test ] [ HH.text test' ]
+    HH.button [ HP.id_ test', HE.onClick \_ -> Just (HandleStartTest test) ] [ HH.text test' ]
 
-  viewTest = case _ of
-    -- indicates to Puppeteer that the test has completed
-    Completed test -> HH.div [ HP.id_ (testToString test <> completedSuffix) ] [ ]
-    -- indicates that Puppeteer has started the test
-    _ -> HH.text ""
+  handleComplete test =
+    Just <<< const (HandleTestComplete test)
 
-  render state =
+  render state = do
     HH.div_
-      [ HH.div -- where Puppeteer can hook in to trigger tests
-          [ HP.id_ testsId ]
-          [ testAction StateHook
-          , HH.slot State.Hook._stateHook unit State.Hook.component unit absurd
+      [ HH.div_
+          [ -- Used by Puppeteer to trigger a test to be mounted into the page
+            testAction StateHook
           , testAction StateComponent
-          , HH.slot State.Component._stateComponent unit State.Component.component unit absurd
+          , testAction TodoHook
+
+          , case state of
+              NotStarted ->
+                HH.text ""
+
+              Running StateHook ->
+                HH.slot State.Hook._stateHook unit State.Hook.component unit (handleComplete StateHook)
+
+              Running StateComponent ->
+                HH.slot State.Component._stateComponent unit State.Component.component unit (handleComplete StateComponent)
+
+              Running TodoHook ->
+                HH.slot Todo.Hook._todoHook unit Todo.Hook.container unit (handleComplete TodoHook)
+
+              Completed test ->
+                HH.div [ HP.id_ (testToString test <> completedSuffix) ] [ ]
           ]
-      , viewTest state
       ]
 
   handleAction = case _ of
-    test@StateHook -> do
+    HandleStartTest test ->
       H.put (Running test)
-      done <- H.query State.Hook._stateHook unit (State.Query.Run identity)
-      when (isJust done) do
-        H.put (Completed test)
 
-    test@StateComponent -> do
-      H.put (Running test)
-      done <- H.query State.Component._stateComponent unit (State.Query.Run identity)
-      when (isJust done) do
-        H.put (Completed test)
+    HandleTestComplete test ->
+      H.put (Completed test)

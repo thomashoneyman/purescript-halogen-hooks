@@ -6,6 +6,8 @@ module Test.Setup.Performance.Puppeteer
   , debug
   , click
   , waitForSelector
+  , focus
+  , typeWithKeyboard
   , goto
   , closePage
   , closeBrowser
@@ -72,6 +74,16 @@ foreign import waitForSelectorImpl :: EffectFn2 Page String (Promise (Nullable H
 
 waitForSelector :: Page -> String -> Aff (Maybe HTMLElement)
 waitForSelector page selector = map toMaybe (toAffE2 waitForSelectorImpl page selector)
+
+foreign import focusImpl :: EffectFn2 Page String (Promise Unit)
+
+focus :: Page -> String -> Aff Unit
+focus = toAffE2 focusImpl
+
+foreign import typeWithKeybordImpl :: EffectFn2 Page String (Promise Unit)
+
+typeWithKeyboard :: Page -> String -> Aff Unit
+typeWithKeyboard = toAffE2 typeWithKeybordImpl
 
 foreign import gotoImpl :: EffectFn2 Page Path.FilePath (Promise Unit)
 

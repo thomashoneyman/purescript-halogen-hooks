@@ -37,4 +37,4 @@ main = launchAff_ $ runSpec' do
   runSpec' = void <<< un Identity <<< runSpecT testConfig [ consoleReporter ]
 
   testConfig :: Config
-  testConfig = defaultConfig { timeout = Just $ Aff.Milliseconds 10000.0 }
+  testConfig = defaultConfig { timeout = Just $ Aff.Milliseconds 30_000.0 }

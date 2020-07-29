@@ -3,16 +3,15 @@ module Test.Setup.Performance.Measure where
 import Prelude hiding (compare)
 
 import Data.Array as Array
-import Data.Foldable (foldl, traverse_)
+import Data.Foldable (foldl, for_)
 import Data.Maybe (fromJust)
-import Data.Newtype (over)
 import Effect.Aff (Aff, bracket)
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
-import Test.Setup.Performance.App (completedSuffix, testsId)
-import Test.Setup.Performance.App as App
-import Test.Setup.Performance.Puppeteer (Browser, FilePath(..), Kilobytes(..), Milliseconds(..))
+import Test.Performance.Test (Test(..), completedSuffix, startSuffix, testToString)
+import Test.Performance.Todo.Shared (addNewId, checkId, editId, saveId)
+import Test.Setup.Performance.Puppeteer (Browser, FilePath(..), Kilobytes(..), Milliseconds(..), Page)
 import Test.Setup.Performance.Puppeteer as Puppeteer
 
 type PerformanceSummary =
@@ -49,39 +48,45 @@ data TestType = StateTest
 compare :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
 compare browser = case _ of
   StateTest -> do
-    hook <- measure' App.StateHook
-    component <- measure' App.StateComponent
+    hook <- measure' StateHook
+    component <- measure' StateComponent
     pure { hook, component }
   where
   measure' = measure browser
 
-measure :: Browser -> App.Test -> Aff PerformanceSummary
+measure :: Browser -> Test -> Aff PerformanceSummary
 measure browser test = do
   page <- Puppeteer.newPage browser
 
   path <- liftEffect $ resolve [] "test/test.html"
   Puppeteer.goto page ("file://" <> path)
-  void $ Puppeteer.waitForSelector page (prependHash testsId)
 
-  let selector = prependHash (App.testToString test)
+  -- Prepare by selecting the test to mount
+  let selector = prependHash (testToString test)
+  mbTestElem <- Puppeteer.waitForSelector page selector
 
+  -- Prepare for the test by collecting garbage (for more accurate heap usage
+  -- metrics) and starting metrics collection
   Puppeteer.enableHeapProfiler page
   Puppeteer.collectGarbage page
-  Puppeteer.startTrace page (FilePath ("test/" <> (App.testToString test <> "-trace.json")))
+  Puppeteer.startTrace page (FilePath ("test/" <> (testToString test <> "-trace.json")))
   initialPageMetrics <- Puppeteer.pageMetrics page
 
   -- Run the test to completion
-  Puppeteer.waitForSelector page selector >>= traverse_ Puppeteer.click
-  _ <- Puppeteer.waitForSelector page (selector <> completedSuffix)
+  for_ mbTestElem Puppeteer.click
+  runScriptForTest page test
 
-  -- Collect garbage again before collecting heap measurements; without
-  -- this occasional spikes at the end of tests will throw off results.
+  -- Collect garbage again before collecting heap measurements; without this,
+  -- occasional spikes at the end of tests will throw off results.
   Puppeteer.collectGarbage page
 
   finalPageMetrics <- Puppeteer.pageMetrics page
   trace <- Puppeteer.stopTrace page
   Puppeteer.closePage page
 
+  -- TODO: Is it possible to filter this only to script execution? The trace
+  -- contains some dead time that affects results by including Puppeteer overhead
+  -- and downtime.
   mbModel <- Puppeteer.getPerformanceModel trace
 
   let metrics = finalPageMetrics - initialPageMetrics
@@ -91,6 +96,40 @@ measure browser test = do
     , heapUsed: metrics.heapUsed
     , elapsedTime: metrics.timestamp
     }
+
+runScriptForTest :: Page -> Test -> Aff Unit
+runScriptForTest page test = do
+  let selector = prependHash (testToString test)
+
+  case test of
+    StateHook -> do
+      n <- Puppeteer.waitForSelector page (selector <> startSuffix)
+      for_ n Puppeteer.click
+      void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
+
+    StateComponent -> do
+      n <- Puppeteer.waitForSelector page (selector <> startSuffix)
+      for_ n Puppeteer.click
+      void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
+
+    TodoHook -> do
+      addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
+      for_ addNew Puppeteer.click
+
+      check0 <- Puppeteer.waitForSelector page (prependHash $ checkId 0)
+      for_ check0 Puppeteer.click
+      check1 <- Puppeteer.waitForSelector page (prependHash $ checkId 1)
+      for_ check1 Puppeteer.click
+
+      Puppeteer.focus page (prependHash $ editId 5)
+      Puppeteer.typeWithKeyboard page "is so fun"
+      save5 <- Puppeteer.waitForSelector page (prependHash $ saveId 5)
+      for_ save5 Puppeteer.click
+
+      for_ check0 Puppeteer.click
+      for_ check1 Puppeteer.click
+
+  pure unit
 
 prependHash :: String -> String
 prependHash str = "#" <> str
@@ -102,6 +141,6 @@ average summaries = do
     total = Array.length summaries
 
   { averageFPS: summary.averageFPS / total
-  , elapsedTime: over Milliseconds (_ / total) summary.elapsedTime
-  , heapUsed: over Kilobytes (_ / total) summary.heapUsed
+  , elapsedTime: summary.elapsedTime / Milliseconds total
+  , heapUsed: summary.heapUsed / Kilobytes total
   }

@@ -2,7 +2,7 @@ const puppeteer = require("puppeteer");
 const { getPerformanceModel } = require("headless-devtools");
 
 exports.launchImpl = function () {
-  return puppeteer.launch();
+  return puppeteer.launch(); // to debug visually, set { headless: true }
 };
 
 exports.newPageImpl = function (browser) {
@@ -20,6 +20,14 @@ exports.clickImpl = function (elem) {
 
 exports.waitForSelectorImpl = function (page, selector) {
   return page.waitForSelector(selector);
+};
+
+exports.focusImpl = function (page, selector) {
+  return page.focus(selector);
+};
+
+exports.typeWithKeybordImpl = function (page, string) {
+  return page.keyboard.type(string);
 };
 
 exports.gotoImpl = function (page, path) {

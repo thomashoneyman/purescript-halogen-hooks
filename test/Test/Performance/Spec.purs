@@ -7,24 +7,26 @@ import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
 import Effect.Class.Console (log, logShow, warn)
 import Partial.Unsafe (unsafePartial)
-import Test.Setup.Performance.App as App
-import Test.Setup.Performance.Measure (PerformanceSummary, TestType(..), compare, withBrowser)
+import Test.Performance.Test (Test(..))
+import Test.Setup.Performance.Measure (PerformanceSummary, TestType(..), compare, measure, withBrowser)
 import Test.Setup.Performance.Puppeteer (Milliseconds(..), Kilobytes(..))
 import Test.Spec (Spec, around, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
 -- Snapshots are taken by running a benchmark 10 times and averaging the results
 type Snapshots =
-  { v0_4_3 :: Map.Map App.Test PerformanceSummary
+  { v0_4_3 :: Map.Map Test PerformanceSummary
   }
 
 snapshots :: Snapshots
 snapshots =
   { v0_4_3: Map.fromFoldable
-      [ Tuple App.StateHook
-          { averageFPS: 9, elapsedTime: Milliseconds 159, heapUsed: Kilobytes 186 }
-      , Tuple App.StateComponent
-          { averageFPS: 21, elapsedTime: Milliseconds 104, heapUsed: Kilobytes 134 }
+      [ Tuple StateHook
+          { averageFPS: 12, elapsedTime: Milliseconds 201, heapUsed: Kilobytes 266 }
+      , Tuple StateComponent
+          { averageFPS: 25, elapsedTime: Milliseconds 144, heapUsed: Kilobytes 171 }
+      , Tuple TodoHook
+          { averageFPS: 20, elapsedTime: Milliseconds 810, heapUsed: Kilobytes 2280 }
       ]
   }
 
@@ -42,6 +44,8 @@ spec = around withBrowser $ describe "Performance Tests" do
       each test in the performance benchmark. You can load any of these profiles
       into the Chrome dev tools to manually examine the performance trace (for
       example, to verify the numbers or to review the flamechart).
+
+      Note: Chrome's processing speed can vary widely from machine to machine.
       """
 
     true `shouldEqual` true
@@ -49,14 +53,20 @@ spec = around withBrowser $ describe "Performance Tests" do
   it "Should satisfy state benchmark" \browser -> do
     { hook, component } <- compare browser StateTest
 
-    log "Hook / Snapshot"
+    log "Hook"
     logShow hook
-    logShow $ unsafePartial $ fromJust $ Map.lookup App.StateHook snapshots.v0_4_3
-
-    log "Component / Snapshot"
+    log "Component"
     logShow component
-    logShow $ unsafePartial $ fromJust $ Map.lookup App.StateComponent snapshots.v0_4_3
 
     hook.averageFPS `shouldSatisfy` (_ > component.averageFPS / 3)
     hook.elapsedTime `shouldSatisfy` (_ < component.elapsedTime * Milliseconds 2)
     hook.heapUsed `shouldSatisfy` (_ < component.heapUsed * Kilobytes 2)
+
+  it "Should satisfy todo benchmark" \browser -> do
+    -- TODO: component
+    hook <- measure browser TodoHook
+
+    log "Hook"
+    logShow hook
+    log "Hook Snapshot"
+    logShow $ unsafePartial $ fromJust $ Map.lookup TodoHook snapshots.v0_4_3

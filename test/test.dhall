@@ -7,6 +7,7 @@ in conf //
         , "debug"
         , "node-fs"
         , "spec"
+        , "random"
         , "record"
         ]
   , sources =
