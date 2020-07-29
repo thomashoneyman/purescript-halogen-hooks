@@ -15,6 +15,6 @@ The `Hooks` directory contains tests that exercise the logic of the Hooks provid
 
 The `Performance` directory contains small apps that are run by Puppeteer. These tests measure the performance metrics that are observable via the Chrome developer tools, and output trace.json files that can be imported into the Chrome developer tools for more granular looks at performance.
 
-These tests are meant to measure the overhead incurred by Hooks and aid in attempts to make the library more performant. For that reason, Hooks tests are usually accompanied by the equivalent implementation using ordinary Halogen components.
+These tests are meant to measure the overhead incurred by Hooks and aid in attempts to make the library more performant. **These tests are not typically reflective of real-world use, and large numbers don't mean poor performance in the real world. They are simply meant to measure whether internal changes have positive or negative performance implications.** Hooks tests are usually accompanied by the equivalent implementation using ordinary Halogen components as a reference.
 
 Each Hooks release contains a snapshot, which is an average of several runs of a benchmark, which can be used to ensure regressions haven't occurred.
