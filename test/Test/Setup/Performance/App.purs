@@ -30,6 +30,9 @@ data Test
   = StateHook
   | StateComponent
 
+derive instance eqTest :: Eq Test
+derive instance ordTest :: Ord Test
+
 testToString :: Test -> String
 testToString = case _ of
   StateHook -> "state-hook"
