@@ -3,6 +3,7 @@ module Test.Performance.Todo.Shared where
 import Prelude
 
 import Data.Array as Array
+import Data.Maybe (Maybe)
 import Data.Set (Set)
 import Data.Set as Set
 import Data.Symbol (SProxy(..))
@@ -69,6 +70,11 @@ mkTodo id = do
   ix <- randomInt 0 9
   let description = unsafePartial (Array.unsafeIndex descriptions ix)
   pure { description, id }
+
+updateTodo :: Todo -> Array Todo -> Maybe (Array Todo)
+updateTodo todo todos = do
+  ix <- Array.findIndex (_.id >>> eq todo.id) todos
+  Array.updateAt ix todo todos
 
 descriptions :: Array String
 descriptions = [ "eat", "drink", "sleep", "party", "walk", "run", "hike", "play the drums", "cook", "chill" ]

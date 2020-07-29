@@ -2,7 +2,6 @@ module Test.Performance.Todo.Hook where
 
 import Prelude
 
-import Data.Array as Array
 import Data.Foldable (for_)
 import Data.Function (on)
 import Data.Maybe (Maybe(..))
@@ -16,7 +15,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
-import Test.Performance.Todo.Shared (CheckboxInput, CheckboxOutput(..), TodoInput, TodoOutput(..), createTodo)
+import Test.Performance.Todo.Shared (CheckboxInput, CheckboxOutput(..), TodoInput, TodoOutput(..))
 import Test.Performance.Todo.Shared as Shared
 
 _todoHook = SProxy :: SProxy "todoHook"
@@ -28,8 +27,8 @@ container = Hooks.component \_ _ -> Hooks.do
   let
     handleTodo = Just <<< case _ of
       Save t -> do
-        let new = Array.findIndex (_.id >>> eq t.id) state.todos >>= \i -> Array.updateAt i t state.todos
-        for_ new \todos -> Hooks.modify_ stateId _ { todos = todos }
+        for_ (Shared.updateTodo t state.todos) \todos ->
+          Hooks.modify_ stateId _ { todos = todos }
 
       SetCompleted id complete -> do
         if complete then
@@ -51,7 +50,7 @@ container = Hooks.component \_ _ -> Hooks.do
       [ HH.button
           [ HP.id_ Shared.addNewId
           , HE.onClick \_ -> Just do
-              newState <- liftEffect $ createTodo state
+              newState <- liftEffect $ Shared.createTodo state
               Hooks.put stateId newState
           ]
           [ HH.text "Add New" ]

@@ -19,6 +19,7 @@
     "bundle:performance": "spago -x test/test.dhall bundle-app --main Test.Setup.Performance.App --to test/test.js"
   },
   "devDependencies": {
+    "filter-console": "^0.1.1",
     "headless-devtools": "^2.0.1",
     "puppeteer": "^5.2.0"
   }

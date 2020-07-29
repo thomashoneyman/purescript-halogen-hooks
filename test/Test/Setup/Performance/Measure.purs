@@ -2,10 +2,13 @@ module Test.Setup.Performance.Measure where
 
 import Prelude hiding (compare)
 
+import Data.Array (replicate)
 import Data.Array as Array
 import Data.Foldable (foldl, for_)
 import Data.Maybe (fromJust)
-import Effect.Aff (Aff, bracket, error, throwError)
+import Data.Traversable (for)
+import Effect.Aff (Aff, bracket, delay, error, throwError)
+import Effect.Aff as Aff
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
@@ -20,11 +23,31 @@ type PerformanceSummary =
   , heapUsed :: Kilobytes
   }
 
+type ComparisonSummary =
+  { hookResults :: Array PerformanceSummary
+  , hookAverage :: PerformanceSummary
+  , componentResults :: Array PerformanceSummary
+  , componentAverage :: PerformanceSummary
+  }
+
 -- | Bracket test runs by supplying a new browser to each one
 withBrowser :: (Browser -> Aff Unit) -> Aff Unit
 withBrowser = bracket Puppeteer.launch Puppeteer.closeBrowser
 
-data TestType = StateTest
+data TestType = StateTest | TodoTest
+
+compare :: Browser -> Int -> TestType -> Aff ComparisonSummary
+compare browser n testType = do
+  let runs = replicate n (compareOnce browser testType)
+  results <- for runs (delay (Aff.Milliseconds 100.0) *> _)
+
+  let
+    hookResults = map _.hook results
+    componentResults = map _.component results
+    hookAverage = average hookResults
+    componentAverage = average componentResults
+
+  pure { hookResults, hookAverage, componentResults, componentAverage }
 
 -- TODO:
 --
@@ -45,11 +68,16 @@ data TestType = StateTest
 -- enables a function which evaluates within Puppeteer to be called from outside.
 --
 -- Until then, though, we'll just rely on query selectors.
-compare :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
-compare browser = case _ of
+compareOnce :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
+compareOnce browser = case _ of
   StateTest -> do
     hook <- measure browser StateHook
     component <- measure browser StateComponent
+    pure { hook, component }
+
+  TodoTest -> do
+    hook <- measure browser TodoHook
+    component <- measure browser TodoComponent
     pure { hook, component }
 
 measure :: Browser -> Test -> Aff PerformanceSummary
@@ -102,7 +130,7 @@ runScriptForTest page test = let selector = prependHash (testToString test) in c
         for_ n Puppeteer.click
         void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
 
-    | test == TodoHook -> do
+    | test == TodoHook || test == TodoComponent -> do
         addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
         for_ addNew Puppeteer.click
 
@@ -120,7 +148,7 @@ runScriptForTest page test = let selector = prependHash (testToString test) in c
         for_ check1 Puppeteer.click
 
   _ ->
-    throwError $ error "Test does not exist."
+    throwError $ error "Impossible!!!"
 
 prependHash :: String -> String
 prependHash str = "#" <> str

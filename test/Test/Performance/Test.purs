@@ -6,6 +6,7 @@ data Test
   = StateHook
   | StateComponent
   | TodoHook
+  | TodoComponent
 
 derive instance eqTest :: Eq Test
 derive instance ordTest :: Ord Test
@@ -15,6 +16,7 @@ testToString = case _ of
   StateHook -> "state-hook"
   StateComponent -> "state-component"
   TodoHook -> "todo-hook"
+  TodoComponent -> "todo-component"
 
 -- Used by a test along with its string id to control test start / stop
 startSuffix = "-start" :: String

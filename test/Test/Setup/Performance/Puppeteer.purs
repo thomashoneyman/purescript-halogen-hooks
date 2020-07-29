@@ -1,5 +1,6 @@
 module Test.Setup.Performance.Puppeteer
-  ( Browser
+  ( filterConsole
+  , Browser
   , launch
   , Page
   , newPage
@@ -39,6 +40,9 @@ import Effect.Class (liftEffect)
 import Effect.Uncurried (EffectFn1, EffectFn2, runEffectFn1, runEffectFn2)
 import Node.Path as Path
 import Web.HTML (HTMLElement)
+
+-- | Turn off noisy messages from the Puppeteer tests
+foreign import filterConsole :: Effect Unit
 
 -- | An instance of a Puppeteer browser, which should be created at
 -- | the start of any Puppeteer session and closed at the end.

@@ -1,5 +1,10 @@
 const puppeteer = require("puppeteer");
+const filterConsole = require("filter-console");
 const { getPerformanceModel } = require("headless-devtools");
+
+exports.filterConsole = function () {
+  filterConsole(["Failed to parse CPU profile."]);
+};
 
 exports.launchImpl = function () {
   return puppeteer.launch(); // to debug visually, set { headless: true }

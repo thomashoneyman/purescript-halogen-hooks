@@ -3,13 +3,13 @@ module Test.Performance.Spec where
 import Prelude hiding (compare)
 
 import Data.Map as Map
-import Data.Maybe (fromJust)
 import Data.Tuple (Tuple(..))
+import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow, warn)
-import Partial.Unsafe (unsafePartial)
 import Test.Performance.Test (Test(..))
-import Test.Setup.Performance.Measure (PerformanceSummary, TestType(..), compare, measure, withBrowser)
+import Test.Setup.Performance.Measure (PerformanceSummary, TestType(..), compare, withBrowser)
 import Test.Setup.Performance.Puppeteer (Milliseconds(..), Kilobytes(..))
+import Test.Setup.Performance.Puppeteer as Puppeteer
 import Test.Spec (Spec, around, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
 
@@ -36,37 +36,46 @@ snapshots =
 spec :: Spec Unit
 spec = around withBrowser $ describe "Performance Tests" do
   it "Should instantiate Puppeteer browser" \browser -> do
+    -- We can safely disregard 'Failed to parse CPU profile' log messages. This
+    -- disables those logs from this point onwards in the program execution.
+    liftEffect $ Puppeteer.filterConsole
+
     warn
       """
-      You can safely disregard 'Failed to parse CPU profile' log messages.
-
       You will see '-trace.json' profiles deposited to the test/ directory for
       each test in the performance benchmark. You can load any of these profiles
       into the Chrome dev tools to manually examine the performance trace (for
       example, to verify the numbers or to review the flamechart).
 
       Note: Chrome's processing speed can vary widely from machine to machine.
+      Compare numbers from the master branch on your machine against your test
+      branch on your machine, or rely on comparative numbers between the component
+      and hooks implementations.
       """
 
     true `shouldEqual` true
 
   it "Should satisfy state benchmark" \browser -> do
-    { hook, component } <- compare browser StateTest
+    result <- compare browser 3 StateTest
 
     log "Hook"
-    logShow hook
+    logShow result.hookAverage
     log "Component"
-    logShow component
+    logShow result.componentAverage
 
-    hook.averageFPS `shouldSatisfy` (_ > component.averageFPS / 3)
-    hook.elapsedTime `shouldSatisfy` (_ < component.elapsedTime * Milliseconds 2)
-    hook.heapUsed `shouldSatisfy` (_ < component.heapUsed * Kilobytes 2)
+    result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
+    result.hookAverage.elapsedTime `shouldSatisfy` (_ < result.componentAverage.elapsedTime * Milliseconds 2)
+    result.hookAverage.heapUsed `shouldSatisfy` (_ < result.componentAverage.heapUsed * Kilobytes 2)
 
   it "Should satisfy todo benchmark" \browser -> do
-    -- TODO: component
-    hook <- measure browser TodoHook
+    result <- compare browser 5 TodoTest
 
     log "Hook"
-    logShow hook
-    log "Hook Snapshot"
-    logShow $ unsafePartial $ fromJust $ Map.lookup TodoHook snapshots.v0_4_3
+    logShow result.hookAverage
+    log "Component"
+    logShow result.componentAverage
+    log "Averages"
+
+    result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
+    result.hookAverage.elapsedTime `shouldSatisfy` (_ < result.componentAverage.elapsedTime * Milliseconds 2)
+    result.hookAverage.heapUsed `shouldSatisfy` (_ < result.componentAverage.heapUsed * Kilobytes 2)

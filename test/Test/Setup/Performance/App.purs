@@ -15,6 +15,7 @@ import Halogen.VDom.Driver (runUI)
 import Test.Performance.State.Component as State.Component
 import Test.Performance.State.Hook as State.Hook
 import Test.Performance.Test (Test(..), completedSuffix, testToString)
+import Test.Performance.Todo.Component as Todo.Component
 import Test.Performance.Todo.Hook as Todo.Hook
 
 main :: Effect Unit
@@ -53,6 +54,7 @@ container = H.mkComponent
             testAction StateHook
           , testAction StateComponent
           , testAction TodoHook
+          , testAction TodoComponent
 
           , case state of
               NotStarted ->
@@ -66,6 +68,9 @@ container = H.mkComponent
 
               Running TodoHook ->
                 HH.slot Todo.Hook._todoHook unit Todo.Hook.container unit (handleComplete TodoHook)
+
+              Running TodoComponent ->
+                HH.slot Todo.Component._todoComponent unit Todo.Component.container unit (handleComplete TodoComponent)
 
               Completed test ->
                 HH.div [ HP.id_ (testToString test <> completedSuffix) ] [ ]
