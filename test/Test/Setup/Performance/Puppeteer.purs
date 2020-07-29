@@ -1,4 +1,4 @@
-module Test.Performance.Setup.Puppeteer
+module Test.Setup.Performance.Puppeteer
   ( Browser
   , launch
   , Page
@@ -149,8 +149,11 @@ newtype Kilobytes = Kilobytes Int
 
 derive instance newtypeKilobytes :: Newtype Kilobytes _
 derive newtype instance eqKilobytes :: Eq Kilobytes
+derive newtype instance ordKilobytes :: Ord Kilobytes
 derive newtype instance semiringKilobytes :: Semiring Kilobytes
 derive newtype instance ringKilobytes :: Ring Kilobytes
+derive newtype instance commutativeRingKilobytes :: CommutativeRing Kilobytes
+derive newtype instance euclidianRingKilobytes :: EuclideanRing Kilobytes
 
 instance showKilobytes :: Show Kilobytes where
   show (Kilobytes kb) = show kb <> "kb"
@@ -159,8 +162,11 @@ newtype Milliseconds = Milliseconds Int
 
 derive instance newtypeMilliseconds :: Newtype Milliseconds _
 derive newtype instance eqMilliseconds :: Eq Milliseconds
+derive newtype instance ordMilliseconds :: Ord Milliseconds
 derive newtype instance semiringMilliseconds :: Semiring Milliseconds
 derive newtype instance ringMilliseconds :: Ring Milliseconds
+derive newtype instance commutativeRingMilliseconds :: CommutativeRing Milliseconds
+derive newtype instance euclidianRingMilliseconds :: EuclideanRing Milliseconds
 
 instance showMilliseconds :: Show Milliseconds where
   show (Milliseconds ms) = show ms <> "ms"
