@@ -4,10 +4,8 @@ import Prelude
 
 import Data.Maybe (Maybe(..), isJust)
 import Effect (Effect)
-import Effect.Aff (delay, launchAff_)
-import Effect.Aff as Aff
-import Effect.Aff.Class (class MonadAff, liftAff)
-import Effect.Class.Console (log)
+import Effect.Aff (launchAff_)
+import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.Aff.Util as HA
 import Halogen.HTML as HH
