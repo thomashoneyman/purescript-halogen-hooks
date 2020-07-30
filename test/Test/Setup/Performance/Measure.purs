@@ -2,13 +2,15 @@ module Test.Setup.Performance.Measure where
 
 import Prelude hiding (compare)
 
+import Control.Monad.Rec.Class (forever)
 import Data.Array (replicate)
 import Data.Array as Array
-import Data.Foldable (foldl, for_)
+import Data.Foldable (foldl, for_, sum)
 import Data.Maybe (fromJust)
 import Data.Traversable (for)
-import Effect.Aff (Aff, bracket, delay, error, throwError)
+import Effect.Aff (Aff, bracket, delay, error, forkAff, killFiber, throwError)
 import Effect.Aff as Aff
+import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
@@ -19,8 +21,9 @@ import Test.Setup.Performance.Puppeteer as Puppeteer
 
 type PerformanceSummary =
   { averageFPS :: Int
-  , elapsedTime :: Milliseconds
-  , heapUsed :: Kilobytes
+  , averageHeap :: Kilobytes
+  , scriptTime :: Milliseconds
+  , totalTime :: Milliseconds
   }
 
 type ComparisonSummary =
@@ -49,7 +52,10 @@ compare browser n testType = do
 
   pure { hookResults, hookAverage, componentResults, componentAverage }
 
-compareOnce :: Browser -> TestType -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
+compareOnce
+  :: Browser
+  -> TestType
+  -> Aff { hook :: PerformanceSummary, component :: PerformanceSummary }
 compareOnce browser = case _ of
   StateTest -> do
     hook <- measure browser StateHook
@@ -64,6 +70,7 @@ compareOnce browser = case _ of
 measure :: Browser -> Test -> Aff PerformanceSummary
 measure browser test = do
   page <- Puppeteer.newPage browser
+  Puppeteer.debug page
 
   path <- liftEffect $ resolve [] "test/test.html"
   Puppeteer.goto page ("file://" <> path)
@@ -74,35 +81,60 @@ measure browser test = do
 
   -- Prepare for the test by collecting garbage (for more accurate heap usage
   -- metrics) and starting metrics collection
+  let tracePath = FilePath $ "test/" <> testToString test <> "-trace.json"
+
+  -- Initialize data for capturing heap measurements
+  var <- AVar.new { captures: [], count: 0 }
+
+  -- Collect garbage in preparation for heap measurements
   Puppeteer.enableHeapProfiler page
   Puppeteer.collectGarbage page
-  Puppeteer.startTrace page (FilePath ("test/" <> (testToString test <> "-trace.json")))
+
+  -- Start recording the performance trace, depositing the resulting trace file
+  -- to `tracePath` so it can be manually analyzed
+  Puppeteer.startTrace page tracePath
+
+  -- Collect initial timestamp and heap usage
   initialPageMetrics <- Puppeteer.pageMetrics page
+
+  -- Start collecting heap measurements every 10 milliseconds
+  heapFiber <- forkAff $ forever do
+    { heapUsed } <- Puppeteer.pageMetrics page
+    { captures, count } <- AVar.take var
+    AVar.put { captures: Array.snoc captures heapUsed, count: count + 1 } var
+    delay $ Aff.Milliseconds 10.0
 
   -- Run the test to completion
   for_ mbTestElem Puppeteer.click
   runScriptForTest page test
 
-  -- Collect garbage again before collecting heap measurements; without this,
-  -- occasional spikes at the end of tests will throw off results.
-  Puppeteer.collectGarbage page
+  -- Retrieve heap captures
+  { captures, count } <- AVar.take var
 
+  -- Collect final timestamp and heap usage
   finalPageMetrics <- Puppeteer.pageMetrics page
+
+  -- Stop recording the trace and write it to disk
   trace <- Puppeteer.stopTrace page
   Puppeteer.closePage page
+  killFiber (error "time's up!") heapFiber
 
-  -- TODO: Is it possible to filter this only to script execution? The trace
-  -- contains some dead time that affects results by including Puppeteer overhead
-  -- and downtime.
+  -- Use the trace to get the average FPS during the execution
   mbModel <- Puppeteer.getPerformanceModel trace
+  let averageFPS = Puppeteer.getAverageFPS $ unsafePartial $ fromJust mbModel
 
-  let metrics = finalPageMetrics - initialPageMetrics
+  -- Use the trace to retrieve time spent executing scripts (JS execution)
+  scriptTime <- liftEffect (Puppeteer.readScriptingTime tracePath)
 
-  pure
-    { averageFPS: Puppeteer.getAverageFPS $ unsafePartial $ fromJust mbModel
-    , heapUsed: metrics.heapUsed
-    , elapsedTime: metrics.timestamp
-    }
+  -- Use the initial and final metrics to record the total time spent recording
+  -- the trace
+  let totalTime = finalPageMetrics.timestamp - initialPageMetrics.timestamp
+
+  -- Use the heap usage captures to record the average heap usage during
+  -- execution, minus the heap that existed when the trace began.
+  let averageHeap = (sum captures / Kilobytes count) - initialPageMetrics.heapUsed
+
+  pure { averageFPS, averageHeap, scriptTime, totalTime }
 
 -- TODO: Replace query selectors
 --
@@ -160,6 +192,7 @@ average summaries = do
     total = Array.length summaries
 
   { averageFPS: summary.averageFPS / total
-  , elapsedTime: summary.elapsedTime / Milliseconds total
-  , heapUsed: summary.heapUsed / Kilobytes total
+  , averageHeap: summary.averageHeap / Kilobytes total
+  , scriptTime: summary.scriptTime / Milliseconds total
+  , totalTime: summary.totalTime / Milliseconds total
   }

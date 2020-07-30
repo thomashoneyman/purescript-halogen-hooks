@@ -1,5 +1,6 @@
 const puppeteer = require("puppeteer");
 const filterConsole = require("filter-console");
+const tracealyzer = require("tracealyzer");
 const { getPerformanceModel } = require("headless-devtools");
 
 exports.filterConsole = function () {
@@ -83,4 +84,10 @@ exports.getAverageFPS = function (model) {
 
 exports.pageMetricsImpl = function (page) {
   return page.metrics();
+};
+
+exports.tracealyzer = function (filename) {
+  return function () {
+    return tracealyzer(filename);
+  };
 };

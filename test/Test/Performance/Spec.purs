@@ -5,7 +5,7 @@ import Prelude hiding (compare)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (log, logShow, warn)
 import Test.Setup.Performance.Measure (TestType(..), compare, withBrowser)
-import Test.Setup.Performance.Puppeteer (Milliseconds(..), Kilobytes(..))
+import Test.Setup.Performance.Puppeteer (Kilobytes(..))
 import Test.Setup.Performance.Puppeteer as Puppeteer
 import Test.Spec (Spec, around, describe, it)
 import Test.Spec.Assertions (shouldEqual, shouldSatisfy)
@@ -43,8 +43,7 @@ spec = around withBrowser $ describe "Performance Tests" do
     logShow result.componentAverage
 
     result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
-    result.hookAverage.elapsedTime `shouldSatisfy` (_ < result.componentAverage.elapsedTime * Milliseconds 2)
-    result.hookAverage.heapUsed `shouldSatisfy` (_ < result.componentAverage.heapUsed * Kilobytes 2)
+    result.hookAverage.averageHeap `shouldSatisfy` (_ < result.componentAverage.averageHeap * Kilobytes 2)
 
   it "Should satisfy todo benchmark" \browser -> do
     result <- compare browser 5 TodoTest
@@ -54,5 +53,4 @@ spec = around withBrowser $ describe "Performance Tests" do
     logShow result.componentAverage
 
     result.hookAverage.averageFPS `shouldSatisfy` (_ > result.componentAverage.averageFPS / 3)
-    result.hookAverage.elapsedTime `shouldSatisfy` (_ < result.componentAverage.elapsedTime * Milliseconds 2)
-    result.hookAverage.heapUsed `shouldSatisfy` (_ < result.componentAverage.heapUsed * Kilobytes 2)
+    result.hookAverage.averageHeap `shouldSatisfy` (_ < result.componentAverage.averageHeap * Kilobytes 2)

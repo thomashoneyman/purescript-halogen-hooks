@@ -25,18 +25,23 @@ module Test.Setup.Performance.Puppeteer
   , Milliseconds(..)
   , PageMetrics
   , pageMetrics
+  , readScriptingTime
   ) where
 
 import Prelude
 
 import Control.Promise (Promise, toAffE)
+import Data.Argonaut.Core (Json)
+import Data.Argonaut.Decode (decodeJson, printJsonDecodeError, (.:), (.:?))
+import Data.Either (Either(..))
 import Data.Int (round)
-import Data.Maybe (Maybe)
+import Data.Maybe (Maybe, fromMaybe)
 import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
+import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn1, EffectFn2, runEffectFn1, runEffectFn2)
 import Node.Path as Path
 import Web.HTML (HTMLElement)
@@ -200,6 +205,22 @@ pageMetrics = toAffE1 pageMetricsImpl >>> map \{ "JSHeapUsedSize": heap, "Timest
   { heapUsed: Kilobytes (round (heap / 1000.0))
   , timestamp: Milliseconds (round (ts * 1000.0))
   }
+
+-- | Retrieve the time spent in scripting during the execution
+readScriptingTime :: FilePath -> Effect Milliseconds
+readScriptingTime fp = do
+  json <- tracealyzer fp
+
+  let
+    decoded = do
+      obj <- decodeJson json
+      (_ .:? "scripting") =<< (_ .: "categories") =<< obj .: "profiling"
+
+  case decoded of
+    Left err -> throw $ printJsonDecodeError err
+    Right val -> pure $ Milliseconds $ round $ fromMaybe 0.0 val
+
+foreign import tracealyzer :: FilePath -> Effect Json
 
 toAffE1 :: forall a b. EffectFn1 a (Promise b) -> a -> Aff b
 toAffE1 fn = toAffE <<< runEffectFn1 fn
