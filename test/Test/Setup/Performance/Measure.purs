@@ -5,8 +5,8 @@ import Prelude hiding (compare)
 import Control.Monad.Rec.Class (forever)
 import Data.Array (replicate)
 import Data.Array as Array
-import Data.Foldable (foldl, for_, sum)
-import Data.Maybe (fromJust)
+import Data.Foldable (foldl, for_, maximum, sum)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Traversable (for)
 import Effect.Aff (Aff, bracket, delay, error, forkAff, killFiber, throwError)
 import Effect.Aff as Aff
@@ -21,6 +21,7 @@ import Test.Setup.Performance.Puppeteer as Puppeteer
 
 type PerformanceSummary =
   { averageFPS :: Int
+  , peakHeap :: Kilobytes
   , averageHeap :: Kilobytes
   , scriptTime :: Milliseconds
   , totalTime :: Milliseconds
@@ -70,7 +71,6 @@ compareOnce browser = case _ of
 measure :: Browser -> Test -> Aff PerformanceSummary
 measure browser test = do
   page <- Puppeteer.newPage browser
-  Puppeteer.debug page
 
   path <- liftEffect $ resolve [] "test/test.html"
   Puppeteer.goto page ("file://" <> path)
@@ -98,6 +98,9 @@ measure browser test = do
   initialPageMetrics <- Puppeteer.pageMetrics page
 
   -- Start collecting heap measurements every 10 milliseconds
+  --
+  -- TODO: It may be better to ditch the dependencies and just use this strategy
+  -- with `requestAnimationFrame` to measure the FPS as well.
   heapFiber <- forkAff $ forever do
     { heapUsed } <- Puppeteer.pageMetrics page
     { captures, count } <- AVar.take var
@@ -132,9 +135,11 @@ measure browser test = do
 
   -- Use the heap usage captures to record the average heap usage during
   -- execution, minus the heap that existed when the trace began.
-  let averageHeap = (sum captures / Kilobytes count) - initialPageMetrics.heapUsed
+  let
+    peakHeap = fromMaybe (Kilobytes 0) $ map (_ - initialPageMetrics.heapUsed) $ maximum captures
+    averageHeap = (sum captures / Kilobytes count) - initialPageMetrics.heapUsed
 
-  pure { averageFPS, averageHeap, scriptTime, totalTime }
+  pure { averageFPS, averageHeap, peakHeap, scriptTime, totalTime }
 
 -- TODO: Replace query selectors
 --
@@ -193,6 +198,7 @@ average summaries = do
 
   { averageFPS: summary.averageFPS / total
   , averageHeap: summary.averageHeap / Kilobytes total
+  , peakHeap: summary.peakHeap / Kilobytes total
   , scriptTime: summary.scriptTime / Milliseconds total
   , totalTime: summary.totalTime / Milliseconds total
   }

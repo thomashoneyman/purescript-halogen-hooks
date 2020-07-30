@@ -46,7 +46,7 @@ spec = around withBrowser $ describe "Performance Tests" do
     result.hookAverage.averageHeap `shouldSatisfy` (_ < result.componentAverage.averageHeap * Kilobytes 2)
 
   it "Should satisfy todo benchmark" \browser -> do
-    result <- compare browser 5 TodoTest
+    result <- compare browser 3 TodoTest
 
     log "Todo Test: Hook (top) vs. Component (bottom)"
     logShow result.hookAverage
