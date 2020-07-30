@@ -15,6 +15,7 @@ Learn more about Hooks:
 1. [Read the blog post introducing Halogen Hooks](https://thomashoneyman.com/articles/introducing-halogen-hooks)
 2. [Read the Halogen Hooks documentation](./docs)
 3. [View the component and custom hook examples](./examples)
+4. [View the Hooks recipes in the PureScript Cookbook](https://github.com/JordanMartinez/purescript-cookbook)
 
 ## Installation
 

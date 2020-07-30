@@ -45,7 +45,7 @@ Hooks.do
 
 In a regular Halogen component, any time your state updates your component will re-render. Hooks operate in a similar fashion: any time one of your state cells updates, your Hooks will re-run.
 
-Most of the time you only need the `modify_` function for your state. If you prefer the `useState` hook to just return the modify function directly, you can do so like this:
+Most of the time you only need the `modify_` function for your state. It can be convenient to have the `useState` hook just return a function to modify the state instead of returning a `StateId`; if you prefer that, you can implement a helper function like `useStateFn` in the example below (`useStateFn` and other helpers are available in the [halogen-hooks-extra](https://github.com/JordanMartinez/purescript-halogen-hooks-extra) package):
 
 ```purs
 -- To allow using any state function
