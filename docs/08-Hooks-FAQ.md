@@ -104,6 +104,8 @@ state /\ (setState :: Int -> HookM m Unit) <- useStateFn Hooks.put 0
 state /\ (modifyState :: ((Int -> Int) -> HookM m Unit) <- useStateFn Hooks.modify_ 0
 ```
 
+`useStateFn` and many other helper functions are available in the [halogen-hooks-extra](https://github.com/JordanMartinez/purescript-halogen-hooks-extra) package.
+
 ### Why am I seeing stale input or state?
 
 If you define a function in one Hooks evaluation which is going to be run during or after another Hooks evaluation, and this function refers to an `input` value or a value returned by `useState`, then the function will probably see a stale value when it runs. That's because `input` and values returned by `useState` are not mutable references; when your function runs, it will still be pointing at the value that existed when it was defined.
