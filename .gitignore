@@ -17,3 +17,5 @@ package-lock.json
 
 # Extra files
 examples/app.js
+test/test.js
+test/*trace.json

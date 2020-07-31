@@ -2,7 +2,7 @@ module Example.Hooks.Components where
 
 import Prelude
 
-import Data.Argonaut (decodeJson, encodeJson)
+import Data.Argonaut (decodeJson, encodeJson, printJsonDecodeError)
 import Data.Either (Either(..), either)
 import Data.Lens (_Right, over)
 import Data.Maybe (Maybe(..), maybe)
@@ -71,7 +71,7 @@ localStorage = Hooks.component \_ _ -> Hooks.do
           [ HE.onClick \_ -> Just clearCount ]
           [ HH.text "Clear" ]
       , HH.br_
-      , HH.text $ "You have " <> either identity show state <> " at the intStorageExample key in local storage."
+      , HH.text $ "You have " <> either printJsonDecodeError show state <> " at the intStorageExample key in local storage."
       , HH.button
           [ HE.onClick \_ -> Just increment ]
           [ HH.text "Increment" ]

@@ -2,36 +2,39 @@ name: CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+      - uses: actions/checkout@v2
 
-    - name: Use Node.js
-      uses: actions/setup-node@v1
-      with:
-        node-version: '12.x'
-    
-    - name: Install PureScript
-      run: npm install -g purescript
-    
-    - name: Install Spago
-      run: npm install -g spago
+      - name: Use Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: "12.x"
 
-    - name: Build source
-      run: npm run build
-    
-    - name: Build examples
-      run: npm run build:examples
-    
-    - name: Build tests
-      run: npm run build:test
+      - name: Install PureScript
+        run: npm install -g purescript
 
-    - name: Run tests
-      run: npm run test
+      - name: Install Spago
+        run: npm install -g spago
+
+      - name: Install test dependencies
+        run: npm install
+
+      - name: Build source
+        run: npm run build
+
+      - name: Build examples
+        run: npm run build:examples
+
+      - name: Build tests
+        run: npm run build:test
+
+      - name: Run tests
+        run: npm run test
