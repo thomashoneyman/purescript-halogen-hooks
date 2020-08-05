@@ -28,7 +28,7 @@ spec = around withBrowser $ describe "Performance Tests" do
       example, to verify the numbers or to review the flamechart).
 
       Note: Chrome's processing speed can vary widely from machine to machine.
-      Compare numbers from the master branch on your machine against your test
+      Compare numbers from the main branch on your machine against your test
       branch on your machine, or rely on comparative numbers between the component
       and hooks implementations.
       """
