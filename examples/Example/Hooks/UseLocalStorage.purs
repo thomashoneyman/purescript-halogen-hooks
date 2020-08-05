@@ -25,7 +25,7 @@ import Web.Storage.Storage (getItem, setItem)
 foreign import data UseLocalStorage :: Type -> Hooks.HookType
 
 type UseLocalStorage' a =
-  UseState (Either JsodDecodeError a)
+  UseState (Either JsonDecodeError a)
     <> UseInitializer
     <> UseEffect
     <> Hooks.Pure
