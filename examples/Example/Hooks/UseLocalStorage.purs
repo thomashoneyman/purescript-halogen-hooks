@@ -59,12 +59,12 @@ useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap hook
     state /\ stateId <- Hooks.useState (Right defaultValue)
     let Key k = key
 
-  useInitializer do
-    storage <- liftEffect (localStorage =<< window)
-    mbItem <- liftEffect (getItem k storage)
-    mbItem # maybe
-      (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
-      (\item -> Hooks.modify_ stateId \_ -> parseJson item >>= fromJson)
+    useInitializer do
+      storage <- liftEffect (localStorage =<< window)
+      mbItem <- liftEffect (getItem k storage)
+      mbItem # maybe
+        (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
+        (\item -> Hooks.modify_ stateId \_ -> parseJson item >>= fromJson)
 
     useWriteStorage { value: state, key: k }
 
