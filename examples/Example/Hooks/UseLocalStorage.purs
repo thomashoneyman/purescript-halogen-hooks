@@ -8,7 +8,7 @@ module Example.Hooks.UseLocalStorage
 
 import Prelude
 
-import Data.Argonaut (Json, jsonParser, stringify)
+import Data.Argonaut (Json, JsonDecodeError, parseJson, stringify)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..), maybe)
@@ -25,7 +25,7 @@ import Web.Storage.Storage (getItem, setItem)
 foreign import data UseLocalStorage :: Type -> Hooks.HookType
 
 type UseLocalStorage' a =
-  UseState (Either String a)
+  UseState (Either JsodDecodeError a)
     <> UseInitializer
     <> UseEffect
     <> Hooks.Pure
@@ -38,7 +38,7 @@ type StorageInterface a =
   { key :: Key
   , defaultValue :: a
   , toJson :: a -> Json
-  , fromJson :: Json -> Either String a
+  , fromJson :: Json -> Either JsonDecodeError a
   }
 
 -- | A key for a cell in local storage
@@ -51,21 +51,20 @@ useLocalStorage
    . MonadEffect m
   => Eq a
   => StorageInterface a
-  -> Hook m (UseLocalStorage a) (Either String a /\ ((Either String a -> Either String a) -> HookM m Unit))
+  -> Hook m (UseLocalStorage a) (Either JsonDecodeError a /\ ((Either JsonDecodeError a -> Either JsonDecodeError a) -> HookM m Unit))
 useLocalStorage { key, defaultValue, toJson, fromJson } = Hooks.wrap hook
   where
   hook :: Hook m (UseLocalStorage' a) _
   hook = Hooks.do
     state /\ stateId <- Hooks.useState (Right defaultValue)
-
     let Key k = key
 
-    useInitializer do
-      storage <- liftEffect (localStorage =<< window)
-      mbItem <- liftEffect (getItem k storage)
-      mbItem # maybe
-        (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
-        (\item -> Hooks.modify_ stateId \_ -> jsonParser item >>= fromJson)
+  useInitializer do
+    storage <- liftEffect (localStorage =<< window)
+    mbItem <- liftEffect (getItem k storage)
+    mbItem # maybe
+      (liftEffect $ setItem k (stringify (toJson defaultValue)) storage)
+      (\item -> Hooks.modify_ stateId \_ -> parseJson item >>= fromJson)
 
     useWriteStorage { value: state, key: k }
 

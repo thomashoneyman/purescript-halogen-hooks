@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: thomashoneyman/setup-purescript@master
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "12.x"
+
+      - name: Install test dependencies
+        run: npm install
+
+      - name: Build source
+        run: npm run build
+
+      - name: Build examples
+        run: npm run build:examples
+
+      - name: Build tests
+        run: npm run build:test
+
+      - name: Run tests
+        run: npm run test
