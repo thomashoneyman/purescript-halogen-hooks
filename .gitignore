@@ -12,7 +12,6 @@ output
 generated-docs
 
 # Lockfiles
-package-lock.json
 *.lock
 
 # Extra files
