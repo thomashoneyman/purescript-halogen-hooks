@@ -12,8 +12,9 @@ output
 generated-docs
 
 # Lockfiles
-package-lock.json
 *.lock
 
 # Extra files
 examples/app.js
+test/test.js
+test/*trace.json

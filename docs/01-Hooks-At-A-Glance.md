@@ -1,6 +1,6 @@
 # Hooks at a Glance
 
-Hooks are a new library for Halogen. This page provides an overview of using Hooks for experienced Halogen users. If you haven't read it yet, you should [read Introducing Halogen Hooks](https://thomashoneyman.com/articles/introducing-halogen-hooks) to understand the motivation for Hooks.
+Hooks are a new library for Halogen. This page provides an overview of using Hooks for experienced Halogen users. If you haven't read it yet, you should [read Introducing Halogen Hooks](https://thomashoneyman.com/articles/introducing-halogen-hooks) to understand the motivation for Hooks. You may also be interested in the Hooks recipes in the [PureScript Cookbook](https://github.com/JordanMartinez/purescript-cookbook) to see some common tasks implemented with Hooks.
 
 This is a fast-paced overview. If you're new to Halogen you should take time to get familiar with essential Halogen concepts like input, state, and `HalogenM` before you read this.
 
@@ -30,7 +30,7 @@ example = Hooks.component \_ _ -> Hooks.do
 
   Hooks.pure do
     HH.div_
-      [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
+      [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
           [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
           [ HH.text "Click me" ]
@@ -60,7 +60,7 @@ We're destructuring the tuple that `useState` returns using the tuple operator `
 
 ### Using a modify function instead of an identifier
 
-If you prefer your `useState` Hook to return a modify function directly, instead of an identifier, you can use the `Functor` instance for Hooks to apply a state function to the identifier returned by the hook.
+If you prefer your `useState` Hook to return a modify function directly, instead of an identifier, you can use the `Functor` instance for Hooks to apply a state function to the identifier returned by the hook as seen in the example below (`useStateFn`, as well as variants like `useModifyState`, are available in the [halogen-hooks-extra](https://github.com/JordanMartinez/purescript-halogen-hooks-extra) package).
 
 ```purs
 -- You can provide any of the Hooks state functions to this function.
@@ -69,15 +69,15 @@ useStateFn fn initial = map (map fn) (Hooks.useState initial)
 
 manyStates = Hooks.do
   -- Return a modify function instead of an identifier!
-  age /\ modifyAge <- useStateFn H.modify_ 42
-  fruit /\ setFruit <- useStateFn H.put "banana"
+  age /\ modifyAge <- useStateFn Hooks.modify_ 42
+  fruit /\ setFruit <- useStateFn Hooks.put "banana"
 
   let
     handler :: HookM _ Unit
     handler = do
-      -- instead of H.modify_ ageId \n -> n + 10
+      -- instead of Hooks.modify_ ageId \n -> n + 10
       modifyAge \n -> n + 10
-      -- instead of H.put fruitId "strawberry"
+      -- instead of Hooks.put fruitId "strawberry"
       setFruit "strawberry"
 ```
 
@@ -110,7 +110,7 @@ example = Hooks.component \_ _ -> Hooks.do
 
   Hooks.pure do
     HH.div_
-      [ HH.p_ [ HH.text $ "You clicked " <> show count <> "times" ]
+      [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
           [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
       ]
