@@ -1,6 +1,6 @@
 # Halogen Hooks
 
-[![CI](https://github.com/thomashoneyman/purescript-halogen-hooks/workflows/CI/badge.svg?branch=master)](https://github.com/thomashoneyman/purescript-halogen-hooks/actions?query=workflow%3ACI+branch%3Amaster)
+[![CI](https://github.com/thomashoneyman/purescript-halogen-hooks/workflows/CI/badge.svg?branch=main)](https://github.com/thomashoneyman/purescript-halogen-hooks/actions?query=workflow%3ACI+branch%3Amain)
 [![Latest release](http://img.shields.io/github/release/thomashoneyman/purescript-halogen-hooks.svg)](https://github.com/thomashoneyman/purescript-halogen-hooks/releases)
 [![Latest package set](https://img.shields.io/endpoint.svg?url=https://package-sets-badge-0lf69kxs4fbd.runkit.sh/halogen-hooks)](https://github.com/purescript/package-sets)
 
@@ -32,7 +32,7 @@ let additions =
   { halogen-hooks =
       { dependencies = [ "halogen" ]
       , repo = "https://github.com/thomashoneyman/purescript-halogen-hooks.git"
-      , version = "master"
+      , version = "main"
       }
   }
 ```
