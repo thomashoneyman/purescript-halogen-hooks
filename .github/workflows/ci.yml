@@ -12,7 +12,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+
       - uses: thomashoneyman/setup-purescript@main
+
+      - name: Cache PureScript dependencies
+        uses: actions/cache@v2
+        with:
+          key: ${{ runner.os }}-spago-${{ hashFiles('**/*.dhall') }}
+          path: |
+            .spago
+            output
+
       - uses: actions/setup-node@v1
         with:
           node-version: "12.x"
