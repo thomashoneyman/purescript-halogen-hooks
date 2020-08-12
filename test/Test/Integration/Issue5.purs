@@ -1,4 +1,4 @@
-module Test.Hooks.Complex.Bug5 where
+module Test.Integration.Issue5 where
 
 import Prelude
 
