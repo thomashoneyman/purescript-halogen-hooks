@@ -48,8 +48,9 @@ spec = around withBrowser do
     liftEffect $ writeResult test result
 
 writeResult :: TestType -> ComparisonSummary -> Effect Unit
-writeResult test { componentAverage, hookAverage } = do
+writeResult test { componentAverage, hookAverage, componentResults, hookResults } = do
   writePath "summary" $ encodeJson { componentAverage, hookAverage }
+  writePath "results" $ encodeJson { componentResults, hookResults }
   where
   writePath label = writeTextFile UTF8 (mkPath label) <<< stringify
   mkPath label = "test-results/" <> testTypeToString test <> "-" <> label <> ".json"
