@@ -8,7 +8,7 @@ exports.filterConsole = function () {
 };
 
 exports.launchImpl = function () {
-  return puppeteer.launch(); // to debug visually, set { headless: true }
+  return puppeteer.launch(); // to debug visually, set { headless: false }
 };
 
 exports.newPageImpl = function (browser) {
