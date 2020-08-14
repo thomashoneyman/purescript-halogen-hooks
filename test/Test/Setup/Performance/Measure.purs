@@ -36,7 +36,7 @@ type ComparisonSummary =
 
 -- | Bracket test runs by supplying a new browser to each one
 withBrowser :: (Browser -> Aff Unit) -> Aff Unit
-withBrowser = bracket Puppeteer.launch Puppeteer.closeBrowser
+withBrowser = bracket (Puppeteer.launch { headless: true }) Puppeteer.closeBrowser
 
 data TestType = StateTest | TodoTest
 

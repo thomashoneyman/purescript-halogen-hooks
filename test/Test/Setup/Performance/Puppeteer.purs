@@ -54,10 +54,16 @@ foreign import filterConsole :: Effect Unit
 -- | the start of any Puppeteer session and closed at the end.
 foreign import data Browser :: Type
 
-foreign import launchImpl :: Effect (Promise Browser)
+-- | The headless :: Boolean argument specifies whether or not to run the browser in headless mode.
+-- | To debug/test visually, set headless to false
+type LaunchArgs =
+  { headless :: Boolean
+  }
 
-launch :: Aff Browser
-launch = toAffE launchImpl
+foreign import launchImpl :: LaunchArgs -> Effect (Promise Browser)
+
+launch :: LaunchArgs -> Aff Browser
+launch config = toAffE (launchImpl config)
 
 -- | An instance of a Puppeteer page, which is necessary to run page-level
 -- | functions like collecting metrics and starting and stopping traces.
