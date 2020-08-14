@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: thomashoneyman/setup-purescript@main
+      - uses: purescript-contrib/setup-purescript@main
 
       - name: Cache PureScript dependencies
         uses: actions/cache@v2
