@@ -87,7 +87,7 @@ evalHookM runHooks (HookM hm) = foldFree go hm
       -- For now, all other constructors are ordinary `HalogenM`
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
-interpretHook
+evalHook
   :: forall h q a
    . (HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a)
   -> (InterpretHookReason -> HalogenM' q LogRef Aff a a)
@@ -96,7 +96,7 @@ interpretHook
   -> UseHookF Aff
   -- Fully expanded because type synonyms can't be partially applied
   ~> Free (H.HalogenF (HookState q LogRef Aff a) (HookM Aff Unit) SlotType OutputValue Aff)
-interpretHook runHookM runHook reason hookFn = case _ of
+evalHook runHookM runHook reason hookFn = case _ of
   {-
     Left here as an example of how to insert logging into this test, but logging
     hook evaluation is too noisy at the moment. If this is needed in a special
@@ -109,7 +109,7 @@ interpretHook runHookM runHook reason hookFn = case _ of
   -}
 
   c -> do
-    Hooks.Eval.interpretHook runHookM runHook reason hookFn c
+    Hooks.Eval.evalHook runHookM runHook reason hookFn c
 
 -- | Hooks.Eval.mkEval, specialized to local evalHookHm and interpretUseHookFn
 -- | functions, and pre-specialized to `Unit` for convenience.
@@ -126,17 +126,17 @@ mkEvalQuery
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
 mkEvalQuery =
-  Hooks.Eval.mkEval (\_ _ -> false) evalHookM (interpretUseHookFn evalHookM)
+  Hooks.Eval.mkEval (\_ _ -> false) evalHookM runHook
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
-  interpretUseHookFn runHookM reason hookFn = do
+  runHook reason hookFn = do
     { input } <- H.HalogenM Hooks.Eval.getState
     let Hooked (Indexed hookF) = hookFn input
 
     writeLog (RunHooks reason) input
-    a <- H.HalogenM $ substFree (interpretHook runHookM (\r -> interpretUseHookFn runHookM r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a
 

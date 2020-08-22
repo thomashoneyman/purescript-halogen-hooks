@@ -2,6 +2,7 @@ module Test.Setup.Types where
 
 import Prelude
 
+import Data.Foldable (fold)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Effect.Aff (Aff)
@@ -10,7 +11,7 @@ import Halogen as H
 import Halogen.Aff.Driver.State (DriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (HookM)
-import Halogen.Hooks.Internal.Eval.Types (HookState, InterpretHookReason)
+import Halogen.Hooks.Internal.Eval.Types (HookState, InterpretHookReason(..))
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 
 type HalogenF' q i m b a = H.HalogenF (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
@@ -30,10 +31,30 @@ data TestEvent
   | Render
 
 derive instance eqTestEvent :: Eq TestEvent
-derive instance genericTestEvent :: Generic TestEvent _
 
 instance showTestEvent :: Show TestEvent where
-  show = genericShow
+  show = case _ of
+    RunHooks reason ->
+      append "RunHooks " case reason of
+        Initialize -> "Initialize"
+        Queued -> "Queued"
+        Step -> "Step"
+        Finalize -> "Finalize"
+
+    ModifyState ->
+      "ModifyState"
+
+    RunEffect effect ->
+      fold [ "RunEffect ", show effect ]
+
+    RunMemo memo ->
+      fold [ "RunMemo ", show memo ]
+
+    EvaluateHook hook ->
+      fold [ "EvaluateHook ", show hook ]
+
+    Render ->
+      "Render"
 
 data HookType
   = UseStateHook
