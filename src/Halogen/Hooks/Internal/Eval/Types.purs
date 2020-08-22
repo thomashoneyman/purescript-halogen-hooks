@@ -30,13 +30,6 @@ data InterpretHookReason
 
 derive instance eqInterpretHookReason :: Eq InterpretHookReason
 
-instance showInterpretHookReason :: Show InterpretHookReason where
-  show = case _ of
-    Initialize -> "Initialize"
-    Queued -> "Queued"
-    Step -> "Step"
-    Finalize -> "Finalize"
-
 foreign import data QueryFn :: (Type -> Type) -> (Type -> Type) -> Type
 
 toQueryFn :: forall q m. (forall a. q a -> HookM m (Maybe a)) -> QueryFn q m

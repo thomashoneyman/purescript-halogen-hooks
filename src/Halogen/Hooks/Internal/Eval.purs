@@ -82,7 +82,7 @@ mkEval inputEq runHookM runHook hookFn = case _ of
 
     H.gets (_.result <<< unwrap)
 
-interpretHook
+evalHook
   :: forall hooks q i m a
    . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
   -> (InterpretHookReason -> HalogenM' q i m a a)
@@ -90,7 +90,7 @@ interpretHook
   -> (i -> Hooked m Unit hooks a)
   -> UseHookF m
   ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
-interpretHook runHookM runHook reason hookFn = case _ of
+evalHook runHookM runHook reason hookFn = case _ of
   UseState initial reply ->
     case reason of
       Initialize -> do

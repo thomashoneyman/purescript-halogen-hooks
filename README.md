@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/thomashoneyman/purescript-halogen-hooks/workflows/CI/badge.svg?branch=main)](https://github.com/thomashoneyman/purescript-halogen-hooks/actions?query=workflow%3ACI+branch%3Amain)
 [![Latest release](http://img.shields.io/github/release/thomashoneyman/purescript-halogen-hooks.svg)](https://github.com/thomashoneyman/purescript-halogen-hooks/releases)
-[![Latest package set](https://img.shields.io/endpoint.svg?url=https://package-sets-badge-0lf69kxs4fbd.runkit.sh/halogen-hooks)](https://github.com/purescript/package-sets)
 
 Reusable stateful logic for [Halogen](https://github.com/purescript-halogen/purescript-halogen/), inspired by [React Hooks](https://reactjs.org/docs/hooks-intro.html).
 
@@ -83,14 +82,6 @@ You can contribute to Halogen Hooks in many ways:
 
 - If you have suggestions for the documentation, please open an issue or pull request.
 
-- If you would like to contribute code to the library, please make sure to read the [contributor's guidelines](./.github/CONTRIBUTING.md). In general, pull requests which improve the performance and ergonomics of the library are welcome, but I am unlikely to expand the core API or merge additions which I believe make the library more complicated to use.
+- If you would like to contribute code to the library, please make sure to read the [Hooks Internals](./docs/09-Hooks-Internals.md) documentation and the [Contributors Guidelines](./.github/CONTRIBUTING.md), which includes advice on setting up your development environment.
 
 - If you have written a custom hook, a tutorial, or another resource on top of Halogen Hooks I encourage you to share it on the [PureScript Discourse](https://discourse.purescript.org)! Implementing your own hooks and writing your own guides and resources are a great way to help Halogen Hooks grow.
-
-### Developer Environments
-
-If you would like to contribute code to Halogen Hooks, you can enter a development environment with common PureScript tooling available at the same versions I use via Nix. Just run this command in the root of the project:
-
-```sh
-nix-shell
-```
