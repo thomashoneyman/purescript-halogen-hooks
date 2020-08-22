@@ -43,9 +43,7 @@ These two free monads (`Hook` and `HookM`) and their interpreters (`evalHook` an
 
 ### Executing Hooks in a Component
 
-The two free monads `Hook` and `HookM` are both interpreted into `HalogenM`. More specifically, they're interpreted into the full type:
-
-https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L15
+The two free monads `Hook` and `HookM` are both interpreted into `HalogenM`. More specifically, they're interpreted into [this full type](https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L15).
 
 As indicated by this type, the underlying component which executes Hooks will:
 
@@ -66,9 +64,7 @@ Users of the Hooks library can write simple stateful functions which accept some
 
 The underlying component will create this initial bookkeeping state. Then, it will update this state when evaluating the `Hook` and `HookM` free monads and return portions of this state to those monads when asked.
 
-Here's what the internal state looks like:
-
-https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L48-L65
+Here's [the internal state](https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L48-L65) used in Hooks.
 
 We can break down some of its major parts:
 
