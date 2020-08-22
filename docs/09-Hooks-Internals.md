@@ -84,7 +84,7 @@ useTickEffect do ...
 _ <- useState ""
 ```
 
-...then on the first Hooks evaluation we would insert `0` in the state array, then a `HookM` effect in the effects array, and then `""` in the state array. On each subsequent evaluation we would read the state at the first index in the state arry, the effect at the first index in the effects array, and then the state at the second index in the state array.
+...then on the first Hooks evaluation we would insert `0` in the state array, then a `HookM` effect in the effects array, and then `""` in the state array. On each subsequent evaluation we would read the state at the first index in the state array, the effect at the first index in the effects array, and then the state at the second index in the state array.
 
 #### Enforcing Safety With Indexed Free Monads
 
