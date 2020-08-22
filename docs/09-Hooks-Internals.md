@@ -45,7 +45,7 @@ These two free monads (`Hook` and `HookM`) and their interpreters (`evalHook` an
 
 The two free monads `Hook` and `HookM` are both interpreted into `HalogenM`. More specifically, they're interpreted into the full type:
 
-!! TODO: link-to-halogenm !!
+https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L15
 
 As indicated by this type, the underlying component which executes Hooks will:
 
@@ -68,7 +68,7 @@ The underlying component will create this initial bookkeeping state. Then, it wi
 
 Here's what the internal state looks like:
 
-!! TODO: link-to-state !!
+https://github.com/thomashoneyman/purescript-halogen-hooks/blob/c3b4730f9a5e17dcc3f50d2629bed6d09c34a680/src/Halogen/Hooks/Internal/Eval/Types.purs#L48-L65
 
 We can break down some of its major parts:
 
@@ -155,4 +155,16 @@ Let's make that concept more concrete by describing what specifically happens in
 4. When the component receives an action to run, we know it must be some `HookM` code (as that's the action type for our component). We therefore evaluate our `HookM` code via `evalHookM`.
 5. When the component receives a query to run, we evaluate the `HookM` code the user has provided to run for that query and return the result to the parent component.
 
-#### The `component` Function
+#### Component Tokens
+
+The `component` and `memoComponent` functions allow you to turn a Hook which produces takes some input and produces `ComponentHTML` into a regular Halogen component. However, some features of Halogen do not make sense to be used in a Hook other than one which has been turned into a component. Queries, output messages, and child component slots are all features which are only relevant when you're using a component and should not be used in an arbitrary Hook.
+
+To prevent users from trying to use these features in arbitrary Hooks code they require _tokens_. These tokens are only produced by via a the `component` functions and represent the component's query, output, and slot types. They are implemented as data types with no inhabitants -- there is no actual value which corresponds with a token and they are produced by coercing the unit value (an empty record).
+
+These tokens are passed through to the Hook which the component is executing. That Hook can use:
+
+1. The `OutputToken` value in calls to `raise` to send an output message
+2. The `QueryToken` value in calls to the `useQuery` Hook to respond to queries from a parent
+3. The `SlotToken` value in callso to `query` and `queryAll`, to query child components.
+
+These tokens enable safe use of component features in Hooks code.
