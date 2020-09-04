@@ -10,6 +10,7 @@ node_modules
 # Generated files
 output
 generated-docs
+test-results
 
 # Lockfiles
 *.lock
@@ -17,4 +18,3 @@ generated-docs
 # Extra files
 examples/app.js
 test/test.js
-test/*trace.json

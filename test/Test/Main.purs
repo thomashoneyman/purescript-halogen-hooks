@@ -1,4 +1,4 @@
-module Test.Main where
+module Test.Main (main) where
 
 import Prelude hiding (compare)
 
@@ -8,33 +8,21 @@ import Data.Newtype (un)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Aff as Aff
-import Test.Hooks.Complex.Bug5 (rerunTickAfterInitialEffectsHook)
-import Test.Hooks.Primitive.UseEffect (effectHook)
-import Test.Hooks.Primitive.UseMemo (memoHook)
-import Test.Hooks.Primitive.UseRef (refHook)
-import Test.Hooks.Primitive.UseState (stateHook)
-import Test.Performance.Spec as Performance
+import Test.Hooks.Spec as Hooks.Spec
+import Test.Integration.Spec as Integration.Spec
+import Test.Performance.Spec as Performance.Spec
 import Test.Spec (Spec, describe)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (Config, defaultConfig, runSpecT)
 
 main :: Effect Unit
 main = launchAff_ $ runSpec' do
-  describe "Primitive Tests" do
-    stateHook
-    effectHook
-    memoHook
-    refHook
+  describe "Hooks Tests" Hooks.Spec.spec
+  describe "Integration Tests" Integration.Spec.spec
+  describe "Performance Tests" Performance.Spec.spec
 
-  describe "Complex Tests" do
-    rerunTickAfterInitialEffectsHook
+runSpec' :: Spec Unit -> Aff Unit
+runSpec' = void <<< un Identity <<< runSpecT testConfig [ consoleReporter ]
 
-  describe "Performance Tests" do
-    Performance.spec
-
-  where
-  runSpec' :: Spec Unit -> Aff Unit
-  runSpec' = void <<< un Identity <<< runSpecT testConfig [ consoleReporter ]
-
-  testConfig :: Config
-  testConfig = defaultConfig { timeout = Just $ Aff.Milliseconds 30_000.0 }
+testConfig :: Config
+testConfig = defaultConfig { timeout = Just $ Aff.Milliseconds 30_000.0 }

@@ -33,6 +33,7 @@ import Prelude
 import Control.Promise (Promise, toAffE)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (decodeJson, printJsonDecodeError, (.:), (.:?))
+import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
 import Data.Int (round)
 import Data.Maybe (Maybe, fromMaybe)
@@ -53,10 +54,16 @@ foreign import filterConsole :: Effect Unit
 -- | the start of any Puppeteer session and closed at the end.
 foreign import data Browser :: Type
 
-foreign import launchImpl :: Effect (Promise Browser)
+-- | The headless :: Boolean argument specifies whether or not to run the browser in headless mode.
+-- | To debug/test visually, set headless to false
+type LaunchArgs =
+  { headless :: Boolean
+  }
 
-launch :: Aff Browser
-launch = toAffE launchImpl
+foreign import launchImpl :: LaunchArgs -> Effect (Promise Browser)
+
+launch :: LaunchArgs -> Aff Browser
+launch config = toAffE (launchImpl config)
 
 -- | An instance of a Puppeteer page, which is necessary to run page-level
 -- | functions like collecting metrics and starting and stopping traces.
@@ -176,6 +183,9 @@ derive newtype instance ringKilobytes :: Ring Kilobytes
 derive newtype instance commutativeRingKilobytes :: CommutativeRing Kilobytes
 derive newtype instance euclidianRingKilobytes :: EuclideanRing Kilobytes
 
+instance encodeJsonKilobytes :: EncodeJson Kilobytes where
+  encodeJson = encodeJson <<< show
+
 instance showKilobytes :: Show Kilobytes where
   show (Kilobytes kb) = show kb <> "kb"
 
@@ -188,6 +198,9 @@ derive newtype instance semiringMilliseconds :: Semiring Milliseconds
 derive newtype instance ringMilliseconds :: Ring Milliseconds
 derive newtype instance commutativeRingMilliseconds :: CommutativeRing Milliseconds
 derive newtype instance euclidianRingMilliseconds :: EuclideanRing Milliseconds
+
+instance encodeJsonMilliseconds :: EncodeJson Milliseconds where
+  encodeJson = encodeJson <<< show
 
 instance showMilliseconds :: Show Milliseconds where
   show (Milliseconds ms) = show ms <> "ms"

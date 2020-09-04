@@ -3,7 +3,7 @@ module Test.Setup.Performance.Measure where
 import Prelude hiding (compare)
 
 import Control.Monad.Rec.Class (forever)
-import Data.Array (replicate)
+import Data.Array (fold, replicate)
 import Data.Array as Array
 import Data.Foldable (foldl, for_, maximum, sum)
 import Data.Maybe (fromJust, fromMaybe)
@@ -36,9 +36,14 @@ type ComparisonSummary =
 
 -- | Bracket test runs by supplying a new browser to each one
 withBrowser :: (Browser -> Aff Unit) -> Aff Unit
-withBrowser = bracket Puppeteer.launch Puppeteer.closeBrowser
+withBrowser = bracket (Puppeteer.launch { headless: true }) Puppeteer.closeBrowser
 
 data TestType = StateTest | TodoTest
+
+testTypeToString :: TestType -> String
+testTypeToString = case _ of
+  StateTest -> "state-test"
+  TodoTest -> "todo-test"
 
 compare :: Browser -> Int -> TestType -> Aff ComparisonSummary
 compare browser n testType = do
@@ -81,7 +86,7 @@ measure browser test = do
 
   -- Prepare for the test by collecting garbage (for more accurate heap usage
   -- metrics) and starting metrics collection
-  let tracePath = FilePath $ "test/" <> testToString test <> "-trace.json"
+  let tracePath = FilePath $ fold [ "test-results/", testToString test, "-trace.json" ]
 
   -- Initialize data for capturing heap measurements
   var <- AVar.new { captures: [], count: 0 }

@@ -7,8 +7,10 @@ exports.filterConsole = function () {
   filterConsole(["Failed to parse CPU profile."]);
 };
 
-exports.launchImpl = function () {
-  return puppeteer.launch(); // to debug visually, set { headless: true }
+exports.launchImpl = function (args) {
+  return function() {
+    return puppeteer.launch(args);
+  }
 };
 
 exports.newPageImpl = function (browser) {

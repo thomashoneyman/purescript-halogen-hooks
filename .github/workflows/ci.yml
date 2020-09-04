@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - uses: thomashoneyman/setup-purescript@main
+      - uses: purescript-contrib/setup-purescript@main
 
       - name: Cache PureScript dependencies
         uses: actions/cache@v2
@@ -54,3 +54,9 @@ jobs:
 
       - name: Run tests
         run: npm run test
+
+      - name: Archive test results
+        uses: actions/upload-artifact@v2
+        with:
+          name: test-results
+          path: test-results

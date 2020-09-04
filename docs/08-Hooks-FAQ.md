@@ -245,15 +245,3 @@ myComponent :: forall q i o m. H.Component q i o m
 myComponent = Hooks.component \_ _ -> Hooks.pure do
   HH.button [ HE.onClick \_ -> Just $ handleAction Click ] [ HH.text "Click me" ]
 ```
-
----
-
-## Technical Choices
-
-- How does Hooks code compile to a Halogen component?
-
-- Why do Hooks have to be run in order?
-
-- Why do custom Hooks have to use newtypes?
-
-- How are Hooks evaluated on each render?
