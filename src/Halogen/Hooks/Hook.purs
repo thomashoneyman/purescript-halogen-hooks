@@ -26,6 +26,12 @@ derive newtype instance functorHook :: Functor (Hook m h)
 -- | ```
 foreign import kind HookType
 
+-- | A proxy used to provide type information for types of kind `HookType` when
+-- | there is not a value available for the type. Used in the same situations
+-- | you might reach for the `Type.Proxy` module, but usable for types of kind
+-- | `HookType` instead of types of kind `Type`.
+data HProxy (h :: HookType) = HProxy
+
 -- | A type for listing several Hook types in order. Typically this is used via
 -- | the operator `<>`.
 -- |
