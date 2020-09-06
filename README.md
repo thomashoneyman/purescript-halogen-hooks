@@ -29,7 +29,7 @@ If Halogen Hooks is not available in your package set, add it to your project's 
 ```dhall
 let additions =
   { halogen-hooks =
-      { dependencies = [ "halogen", "indexed-monad" ]
+      { dependencies = [ "halogen" ]
       , repo = "https://github.com/thomashoneyman/purescript-halogen-hooks.git"
       , version = "main"
       }
@@ -44,7 +44,7 @@ All types and functions available in Hooks are exported from the `Halogen.Hooks`
 import Halogen.Hooks as Hooks
 ```
 
-Halogen Hooks uses an indexed free monad to ensure Hooks are always run in the same order. For that reason you should use `do`, `bind`, and `pure` as qualified imports from the `Halogen.Hooks` module.
+Halogen Hooks ensures Hooks are always evaluated in the same order. For that reason you should use `do`, `bind`, and `pure` as qualified imports from the `Halogen.Hooks` module. You will see compile-time errors if you forget!
 
 This code replicates the Halogen basic button example which renders a count that is incremented on click:
 

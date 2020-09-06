@@ -5,11 +5,10 @@ import Prelude
 import Data.Array (replicate)
 import Data.Foldable (fold)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -17,12 +16,12 @@ import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 
-newtype LogHook h = LogHook (UseEffect (UseState Int h))
+type Interface = { tick :: HookM Aff Unit }
 
-derive instance newtypeLogHook :: Newtype (LogHook h) _
+type UseLogHook = UseState Int <> UseEffect <> Hooks.Pure
 
-useLifecycleEffectLog :: LogRef -> Hook Aff LogHook { tick :: HookM Aff Unit }
-useLifecycleEffectLog log = Hooks.wrap Hooks.do
+useLifecycleEffectLog :: LogRef -> Hook Aff UseLogHook Interface
+useLifecycleEffectLog log = Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
   -- because lifecycle effects run only once.
   state /\ stateId <- Hooks.useState 0

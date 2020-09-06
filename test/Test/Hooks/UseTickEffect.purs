@@ -5,11 +5,10 @@ import Prelude
 import Data.Array (replicate)
 import Data.Foldable (fold)
 import Data.Maybe (Maybe(..))
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -18,12 +17,15 @@ import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-newtype LogHook h = LogHook (UseEffect (UseState Boolean (UseState Int h)))
+type Interface =
+  { increment :: HookM Aff Unit
+  , toggle :: HookM Aff Unit, count :: Int
+  }
 
-derive instance newtypeLogHook :: Newtype (LogHook h) _
+type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Pure
 
-useTickEffectLog :: LogRef -> Hook Aff LogHook { increment :: HookM Aff Unit, toggle :: HookM Aff Unit, count :: Int }
-useTickEffectLog log = Hooks.wrap Hooks.do
+useTickEffectLog :: LogRef -> Hook Aff UseLogHook Interface
+useTickEffectLog log = Hooks.do
   count /\ countId <- Hooks.useState 0
   toggle /\ toggleId <- Hooks.useState false
   useLogger { count, id: 0 }

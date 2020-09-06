@@ -12,7 +12,7 @@ import Effect.Aff.Class (class MonadAff)
 import Effect.Class (class MonadEffect)
 import Example.Hooks.UseDebouncer (useDebouncer)
 import Example.Hooks.UseLocalStorage (Key(..), useLocalStorage)
-import Example.Hooks.UsePreviousValue (usePreviousValue)
+import Example.Hooks.UsePrevious (usePrevious)
 import Example.Hooks.UseStateFn (useStateFn)
 import Example.Hooks.UseWindowWidth (useWindowWidth)
 import Halogen as H
@@ -33,7 +33,7 @@ windowWidth = Hooks.component \_ _ -> Hooks.do
 previousValue :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
 previousValue = Hooks.component \_ _ -> Hooks.do
   state /\ modifyState <- useStateFn Hooks.modify_ 0
-  prevState <- usePreviousValue state
+  prevState <- usePrevious state
 
   Hooks.pure do
     HH.div

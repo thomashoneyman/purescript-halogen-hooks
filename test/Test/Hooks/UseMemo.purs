@@ -3,11 +3,10 @@ module Test.Hooks.UseMemo where
 import Prelude
 
 import Data.Foldable (fold)
-import Data.Newtype (class Newtype)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (HookM, UseMemo, UseState, Hook)
+import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseMemo, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval, initDriver)
@@ -16,12 +15,20 @@ import Test.Setup.Types (LogRef, MemoType(..), TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-newtype MemoHook h =
-  MemoHook (UseMemo Int (UseMemo Int (UseMemo Int (UseState Int (UseState Int (UseState Int h))))))
+foreign import data UseMemoCount :: Hooks.HookType
 
-derive instance newtypeMemoHook :: Newtype (MemoHook h) _
+type UseMemoCount' =
+  UseState Int
+    <> UseState Int
+    <> UseState Int
+    <> UseMemo Int
+    <> UseMemo Int
+    <> UseMemo Int
+    <> Hooks.Pure
 
-type MemoCount =
+instance newtypeUseMemoCount :: HookEquals h UseMemoCount' => HookNewtype UseMemoCount h
+
+type Interface =
   { incrementA :: HookM Aff Unit
   , incrementB :: HookM Aff Unit
   , incrementC :: HookM Aff Unit
@@ -30,7 +37,7 @@ type MemoCount =
   , expensive3 :: Int
   }
 
-useMemoCount :: LogRef -> Hook Aff MemoHook MemoCount
+useMemoCount :: LogRef -> Hook Aff UseMemoCount Interface
 useMemoCount log = Hooks.wrap Hooks.do
   state1 /\ state1Id <- Hooks.useState 0
   state2 /\ state2Id <- Hooks.useState 0

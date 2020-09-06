@@ -86,17 +86,25 @@ _ <- useState ""
 
 ...then on the first Hooks evaluation we would insert `0` in the state array, then a `HookM` effect in the effects array, and then `""` in the state array. On each subsequent evaluation we would read the state at the first index in the state array, the effect at the first index in the effects array, and then the state at the second index in the state array.
 
-#### Enforcing Safety With Indexed Free Monads
+#### Enforcing Safety With Indices
 
-This is a good time to revisit our first free monad, `Hook`. As you have noticed as a user of the library this is not a regular free monad. Instead, it's an _indexed_ free monad, which means that you can track the state before and after a bind in the type:
+This is a good time to revisit our first free monad, `Hook`. As you have noticed as a user of the library, this free monad takes a type parameter of kind `HookType` and the `bind` implementation affects this type parameter. Hooks are implemented as a take on an indexed free monad, which lets us ensure that Hooks are always used in the same order.
 
 ```purs
-type Hook m (newHook :: Type -> Type) a = forall hooks. Hooked m hooks (newHook hooks) a
+foreign import kind HookType
 
-newtype Hooked m pre post a = Hooked (Indexed (Free (UseHookF m)) pre post a)
+newtype Hook m (h :: HookType) a = Hook (Free (UseHookF m) a)
+derive newtype instance functorHook :: Functor (Hook m h)
+
+foreign import data HookAppend :: HookType -> HookType -> HookType
+infixr 1 type HookAppend as <>
+
+bind :: forall h h' m a b. Hook m h a -> (a -> Hook m h' b) -> Hook m (h <> h') b
 ```
 
-The hook type tracked by this indexed free monad ensures that there is only one possible sequence of binds when it is evaluated. In other words, there are no "forks in the road": you can't use conditionals to decide what code to evaluate. You must always evaluate the same Hooks in the same order, enforced by the type.
+In fact, the first version _was_ an indexed free monad, but subsequent versions have used a single index instead of tracking both before / after states.
+
+The `HookType` tracked by this indexed free monad ensures that there is only one possible sequence of binds when it is evaluated. In other words, there are no "forks in the road": you can't use conditionals to decide what code to evaluate. You must always evaluate the same Hooks in the same order, enforced by the type.
 
 Why does this matter?
 

@@ -8,7 +8,7 @@ import Effect.Aff (Aff)
 import Effect.Ref as Ref
 import Halogen (liftEffect)
 import Halogen as H
-import Halogen.Hooks (Hook, HookM, UseRef)
+import Halogen.Hooks (type (<>), Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -17,7 +17,9 @@ import Test.Setup.Types (LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
-useRefCount :: LogRef -> Hook Aff (UseRef Int) { increment :: HookM Aff Unit, count :: Int }
+type Interface = { increment :: HookM Aff Unit, count :: Int }
+
+useRefCount :: LogRef -> Hook Aff (UseRef Int <> Hooks.Pure) Interface
 useRefCount ref = Hooks.do
   count /\ countRef <- Hooks.useRef 0
   Hooks.pure { count, increment: liftEffect $ Ref.modify_ (_ + 1) countRef }
