@@ -29,7 +29,7 @@ where
 
 import Halogen.Hooks.HookM
 
-import Control.Monad.Free (liftF)
+import Control.Monad.Freed (lift)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
@@ -59,7 +59,7 @@ foreign import data UseState :: Type -> HookType
 -- |       Hooks.modify_ stateId \st -> st + 10
 -- | ```
 useState :: forall state m. state -> Hook m (UseState state) (state /\ StateId state)
-useState initialState = Hook $ liftF $ UseState initialState' interface
+useState initialState = Hook $ lift $ UseState initialState' interface
   where
   initialState' :: IT.StateValue
   initialState' = IT.toStateValue initialState
@@ -75,7 +75,7 @@ foreign import data UseEffect :: HookType
 -- |
 -- | If you would like to run your effect after every render, see `useTickEffect`.
 useLifecycleEffect :: forall m. HookM m (Maybe (HookM m Unit)) -> Hook m UseEffect Unit
-useLifecycleEffect fn = Hook $ liftF $ UseEffect Nothing fn unit
+useLifecycleEffect fn = Hook $ lift $ UseEffect Nothing fn unit
 
 -- | A Hook providing the ability to run an effect after every render, which
 -- | includes the first time the hook is run.
@@ -99,7 +99,7 @@ useLifecycleEffect fn = Hook $ liftF $ UseEffect Nothing fn unit
 -- |   ...
 -- | ```
 useTickEffect :: forall m. MemoValues -> HookM m (Maybe (HookM m Unit)) -> Hook m UseEffect Unit
-useTickEffect memos fn = Hook $ liftF $ UseEffect (Just memos) fn unit
+useTickEffect memos fn = Hook $ lift $ UseEffect (Just memos) fn unit
 
 foreign import data UseQuery :: HookType
 
@@ -115,7 +115,7 @@ useQuery
    . QueryToken query
   -> (forall a. query a -> HookM m (Maybe a))
   -> Hook m UseQuery Unit
-useQuery token handler = Hook $ liftF $ UseQuery token' handler' unit
+useQuery token handler = Hook $ lift $ UseQuery token' handler' unit
   where
   token' :: QueryToken IT.QueryValue
   token' = unsafeCoerce token
@@ -155,7 +155,7 @@ foreign import data UseMemo :: Type -> HookType
 -- |     expensiveFunction x y
 -- | ```
 useMemo :: forall m a. MemoValues -> (Unit -> a) -> Hook m (UseMemo a) a
-useMemo memos fn = Hook $ liftF $ UseMemo memos to from
+useMemo memos fn = Hook $ lift $ UseMemo memos to from
   where
   to :: Unit -> IT.MemoValue
   to = IT.toMemoValue <<< fn
@@ -185,7 +185,7 @@ foreign import data UseRef :: Type -> HookType
 -- | Hooks.pure $ HH.text (show value)
 -- | ```
 useRef :: forall m a. a -> Hook m (UseRef a) (a /\ Ref a)
-useRef initialValue = Hook $ liftF $ UseRef initialValue' interface
+useRef initialValue = Hook $ lift $ UseRef initialValue' interface
   where
   initialValue' :: IT.RefValue
   initialValue' = IT.toRefValue initialValue

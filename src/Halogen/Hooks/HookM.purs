@@ -9,7 +9,7 @@ import Prelude
 
 import Control.Applicative.Free (FreeAp, liftFreeAp)
 import Control.Monad.Error.Class (class MonadThrow, throwError)
-import Control.Monad.Free (Free, liftF)
+import Control.Monad.Freed (Free, lift)
 import Control.Monad.Reader (class MonadAsk, class MonadTrans, ask)
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
 import Control.Monad.Writer (class MonadTell, tell)
@@ -61,17 +61,15 @@ derive newtype instance applyHookM :: Apply (HookM m)
 derive newtype instance applicativeHookM :: Applicative (HookM m)
 derive newtype instance bindHookM :: Bind (HookM m)
 derive newtype instance monadHookM :: Monad (HookM m)
-derive newtype instance semigroupHookM :: Semigroup a => Semigroup (HookM m a)
-derive newtype instance monoidHookM :: Monoid a => Monoid (HookM m a)
 
 instance monadEffectHookM :: MonadEffect m => MonadEffect (HookM m) where
-  liftEffect = HookM <<< liftF <<< Lift <<< liftEffect
+  liftEffect = HookM <<< lift <<< Lift <<< liftEffect
 
 instance monadAffHookM :: MonadAff m => MonadAff (HookM m) where
-  liftAff = HookM <<< liftF <<< Lift <<< liftAff
+  liftAff = HookM <<< lift <<< Lift <<< liftAff
 
 instance monadTransHookM :: MonadTrans HookM where
-  lift = HookM <<< liftF <<< Lift
+  lift = HookM <<< lift <<< Lift
 
 instance monadRecHookM :: MonadRec (HookM m) where
   tailRecM k a = k a >>= case _ of
@@ -79,13 +77,13 @@ instance monadRecHookM :: MonadRec (HookM m) where
     Done y -> pure y
 
 instance monadAskHookM :: MonadAsk r m => MonadAsk r (HookM m) where
-  ask = HookM $ liftF $ Lift ask
+  ask = HookM $ lift $ Lift ask
 
 instance monadTellHookM :: MonadTell w m => MonadTell w (HookM m) where
-  tell = HookM <<< liftF <<< Lift <<< tell
+  tell = HookM <<< lift <<< Lift <<< tell
 
 instance monadThrowHookM :: MonadThrow e m => MonadThrow e (HookM m) where
-  throwError = HookM <<< liftF <<< Lift <<< throwError
+  throwError = HookM <<< lift <<< Lift <<< throwError
 
 -- | An applicative-only version of `HookM` to allow for parallel evaluation.
 newtype HookAp m a = HookAp (FreeAp (HookM m) a)
@@ -97,7 +95,7 @@ derive newtype instance applicativeHookAp :: Applicative (HookAp m)
 
 instance parallelHookM :: Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
-  sequential = HookM <<< liftF <<< Par
+  sequential = HookM <<< lift <<< Par
 
 -- | Get a piece of state using an identifier received from the `useState` hook.
 -- |
@@ -136,7 +134,7 @@ modify_ identifier = map (const unit) <<< modify identifier
 -- |     ...
 -- | ```
 modify :: forall state m. StateId state -> (state -> state) -> HookM m state
-modify identifier f = HookM $ liftF $ Modify identifier' f' state
+modify identifier f = HookM $ lift $ Modify identifier' f' state
   where
   identifier' :: StateId StateValue
   identifier' = unsafeCoerce identifier
@@ -163,7 +161,7 @@ put identifier state = modify_ identifier (const state)
 -- | output type of the component, which is provided by the `Hooks.component`
 -- | function.
 raise :: forall o m. OutputToken o -> o -> HookM m Unit
-raise _ o = HookM $ liftF $ Raise (toOutputValue o) unit
+raise _ o = HookM $ lift $ Raise (toOutputValue o) unit
 
 -- | Send a query to a child of a component at the specified slot. Requires a
 -- | token carrying the slot type of the component, which is provided by the
@@ -179,7 +177,7 @@ query
   -> query a
   -> HookM m (Maybe a)
 query _ label p q =
-  HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
+  HookM $ lift $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> maybe (pure Nothing) k <<< Slot.lookup label p) q identity
   where
   box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
@@ -198,7 +196,7 @@ queryAll
   -> query a
   -> HookM m (Map slot a)
 queryAll _ label q =
-  HookM $ liftF $ ChildQuery $ box $ CQ.mkChildQueryBox do
+  HookM $ lift $ ChildQuery $ box $ CQ.mkChildQueryBox do
     CQ.ChildQuery (\k -> map catMapMaybes <<< traverse k <<< Slot.slots label) q identity
   where
   box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
@@ -211,7 +209,7 @@ queryAll _ label q =
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
 subscribe :: forall m. ES.EventSource m (HookM m Unit) -> HookM m H.SubscriptionId
-subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
+subscribe es = HookM $ lift $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
 -- | themselves. Instead of returning the `SubscriptionId` from `subscribe'`, it
@@ -223,12 +221,12 @@ subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 -- | be stopped and no further subscriptions will be possible during
 -- | finalization.
 subscribe' :: forall m. (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) -> HookM m Unit
-subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
+subscribe' esc = HookM $ lift $ Subscribe esc (const unit)
 
 -- | Unsubscribes a component from an `EventSource`. If the subscription
 -- | associated with the ID has already ended this will have no effect.
 unsubscribe :: forall m. H.SubscriptionId -> HookM m Unit
-unsubscribe sid = HookM $ liftF $ Unsubscribe sid unit
+unsubscribe sid = HookM $ lift $ Unsubscribe sid unit
 
 -- | Starts a `HalogenM` process running independent from the current `eval`
 -- | "thread".
@@ -247,18 +245,18 @@ unsubscribe sid = HookM $ liftF $ Unsubscribe sid unit
 -- | be killed. New forks can be started during finalization but there will be
 -- | no means of killing them.
 fork :: forall m. HookM m Unit -> HookM m H.ForkId
-fork fn = HookM $ liftF $ Fork fn identity
+fork fn = HookM $ lift $ Fork fn identity
 
 -- | Kills a forked process if it is still running. Attempting to kill a forked
 -- | process that has already ended will have no effect.
 kill :: forall m. H.ForkId -> HookM m Unit
-kill fid = HookM $ liftF $ Kill fid unit
+kill fid = HookM $ lift $ Kill fid unit
 
 -- | Retrieves an `Element` value that is associated with a `Ref` in the
 -- | rendered o of a component. If there is no currently rendered value for
 -- | the requested ref this will return `Nothing`.
 getRef :: forall m. H.RefLabel -> HookM m (Maybe DOM.Element)
-getRef p = HookM $ liftF $ GetRef p identity
+getRef p = HookM $ lift $ GetRef p identity
 
 -- | Retrieves a `HTMLElement` value that is associated with a `Ref` in the
 -- | rendered o of a component. If there is no currently rendered value (or

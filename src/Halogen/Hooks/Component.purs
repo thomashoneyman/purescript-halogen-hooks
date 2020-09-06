@@ -2,7 +2,7 @@ module Halogen.Hooks.Component where
 
 import Prelude
 
-import Control.Monad.Free (substFree)
+import Control.Monad.Freed (interpret)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over)
 import Effect.Ref as Ref
@@ -115,7 +115,7 @@ memoComponent eqInput inputHookFn = do
   runHook reason hookFn = do
     { input } <- H.HalogenM getState
     let Hook hookF = hookFn input
-    a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ interpret (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
     pure a
 

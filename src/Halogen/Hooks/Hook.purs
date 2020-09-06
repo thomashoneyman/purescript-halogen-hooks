@@ -3,7 +3,7 @@ module Halogen.Hooks.Hook where
 import Prelude hiding (bind, discard, pure)
 
 import Control.Applicative as Applicative
-import Control.Monad.Free (Free)
+import Control.Monad.Freed (Free)
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
 import Unsafe.Coerce (unsafeCoerce)
 
