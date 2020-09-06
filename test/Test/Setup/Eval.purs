@@ -4,7 +4,7 @@ module Test.Setup.Eval where
 
 import Prelude
 
-import Control.Monad.Free (Free, foldFree, liftF, substFree)
+import Control.Monad.Freed (Free, interpret, lift)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
@@ -30,7 +30,7 @@ import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
 evalM :: forall r q b. Ref (DriverResultState r q b) -> HalogenM' q LogRef Aff b ~> Aff
-evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
+evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (interpret go hm)
   where
   go :: HalogenF' q LogRef Aff b ~> HalogenM' q LogRef Aff b
   go = case _ of
@@ -50,13 +50,13 @@ evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
               { input } <- liftEffect $ Ref.read (unwrap state).stateRef
               writeLog Render input
 
-      H.HalogenM $ liftF c
+      H.HalogenM $ lift c
 
     c ->
-      H.HalogenM $ liftF c
+      H.HalogenM $ lift c
 
 evalHookM :: forall q a. HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a
-evalHookM runHooks (HookM hm) = foldFree go hm
+evalHookM runHooks (HookM hm) = interpret go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
@@ -80,11 +80,11 @@ evalHookM runHooks (HookM hm) = foldFree go hm
         _ ->
           writeLog ModifyState state.input
 
-      Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
+      Hooks.Eval.evalHookM runHooks (HookM $ lift c)
 
     c ->
       -- For now, all other constructors are ordinary `HalogenM`
-      Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
+      Hooks.Eval.evalHookM runHooks (HookM $ lift c)
 
 evalHook
   :: forall h q a
@@ -135,9 +135,9 @@ mkEvalQuery =
     let Hook hookF = hookFn input
 
     writeLog (RunHooks reason) input
-    a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
+    a <- H.HalogenM $ interpret (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
-    
+
     pure a
 
 -- | Create a new DriverState, which can be used to evaluate multiple calls to
