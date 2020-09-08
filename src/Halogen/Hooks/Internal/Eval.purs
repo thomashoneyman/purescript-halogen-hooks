@@ -362,8 +362,8 @@ getState
   :: forall q i m a
    . Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) (InternalHookState q i m a)
 getState = do
-  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
-  pure $ unsafePerformEffect $ Ref.read stateRef
+  liftF $ H.State \state@(HookState { stateRef }) ->
+    Tuple (unsafePerformEffect $ Ref.read stateRef) state
 
 -- Modify the internal Hook state without incurring a `MonadEffect` constraint
 modifyState_
@@ -371,5 +371,5 @@ modifyState_
    . (InternalHookState q i m a -> InternalHookState q i m a)
   -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) Unit
 modifyState_ fn = do
-  HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
-  pure $ unsafePerformEffect $ Ref.modify_ fn stateRef
+  liftF $ H.State \state@(HookState { stateRef }) ->
+    Tuple (unsafePerformEffect $ Ref.modify_ fn stateRef) state
