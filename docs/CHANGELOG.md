@@ -96,11 +96,11 @@ Other improvements:
 
 This release ensures that state-modifying `HookM` code can't be passed from one component to another without throwing an immediate exception. `HookM` code that modifies state which is written in one component must be evaluated in that component.
 
-Bugfixes
+Bugfixes:
 
 - Throw exception if state-modifying `HookM` code passed between components ([#44](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/44)).
 
-Other improvements
+Other improvements:
 
 - Updates Spago package set and generated Bowerfile
 
@@ -108,7 +108,7 @@ Other improvements
 
 This release updates module exports.
 
-Bugfixes
+Bugfixes:
 
 - Re-export `memoComponent` from the main `Hooks` module ([#43](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/43)).
 
@@ -171,7 +171,7 @@ Breaking changes (😱!!!):
 
 This release fixes several bugs and changes some types used in the Halogen Hooks library.
 
-### Breaking changes (😱!!!):
+Breaking changes (😱!!!):
 
 - **Introduce tokens for all component-only features, not just queries ([#22](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/22)).**
 
