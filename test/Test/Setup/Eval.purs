@@ -8,6 +8,7 @@ import Control.Monad.Free (Free, foldFree, liftF, substFree)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
+import Debug.Trace (spy, traceM)
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception.Unsafe (unsafeThrow)
@@ -59,7 +60,7 @@ evalHookM :: forall q a. HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q 
 evalHookM runHooks (HookM hm) = foldFree go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
-  go = case _ of
+  go z = let _ = spy "evalHookM" z in case z of
     c@(Modify (StateId (Tuple ref id)) f reply) -> do
       state <- H.HalogenM Hooks.Eval.getState
 
@@ -101,13 +102,14 @@ evalHook runHookM runHook reason hookFn = case _ of
     hook evaluation is too noisy at the moment. If this is needed in a special
     case, then this can be provided as an alternate interpreter to `mkEval`.
 
-    c@(UseState initial reply) -> do
-      { input: log } <- Hooks.Eval.getState
-      liftAff $ writeLog (EvaluateHook UseStateHook) log
-      Hooks.Eval.interpretHook runHookM runHook reason hookFn c
+  c@(UseState initial reply) -> do
+    { input: log } <- Hooks.Eval.getState
+    liftAff $ writeLog (EvaluateHook UseStateHook) log
+    Hooks.Eval.interpretHook runHookM runHook reason hookFn c
   -}
 
   c -> do
+    let _ = spy "evalHook" c
     Hooks.Eval.evalHook runHookM runHook reason hookFn c
 
 -- | Hooks.Eval.mkEval, specialized to local evalHookHm and interpretUseHookFn
@@ -137,7 +139,7 @@ mkEvalQuery =
     writeLog (RunHooks reason) input
     a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
     H.modify_ (over HookState _ { result = a })
-    
+
     pure a
 
 -- | Create a new DriverState, which can be used to evaluate multiple calls to

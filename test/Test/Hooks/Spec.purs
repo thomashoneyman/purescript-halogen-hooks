@@ -7,12 +7,12 @@ import Test.Hooks.UseMemo (memoHook)
 import Test.Hooks.UseRef (refHook)
 import Test.Hooks.UseState (stateHook)
 import Test.Hooks.UseTickEffect (tickEffectHook)
-import Test.Spec (Spec)
+import Test.Spec (Spec, focus)
 
 spec :: Spec Unit
 spec = do
   stateHook
   tickEffectHook
   lifecycleEffectHook
-  memoHook
+  focus memoHook
   refHook
