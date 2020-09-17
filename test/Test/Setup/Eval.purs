@@ -4,7 +4,7 @@ module Test.Setup.Eval where
 
 import Prelude
 
-import Control.Monad.Free (Free, foldFree, liftF, substFree)
+import Control.Monad.Free (foldFree, liftF, substFree)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
@@ -20,9 +20,7 @@ import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
 import Halogen.Hooks (Hook(..), HookF(..), HookM(..))
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
-import Halogen.Hooks.Internal.Eval.Types (HookState(..), InterpretHookReason, HalogenM')
-import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
-import Halogen.Hooks.Internal.UseHookF (UseHookF)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..))
 import Halogen.Hooks.Types (ComponentRef, StateId(..))
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
@@ -67,7 +65,10 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
     c@(Modify (StateId (Tuple ref id)) f reply) -> do
-      state <- H.HalogenM Hooks.Eval.getState
+      HookState { stateRef } <- H.get
+
+      let
+        state = Hooks.Eval.get stateRef
 
       case unsafeRefEq state.componentRef ref of
         true ->
@@ -92,30 +93,6 @@ evalHookM runHooks (HookM hm) = foldFree go hm
       -- For now, all other constructors are ordinary `HalogenM`
       Hooks.Eval.evalHookM runHooks (HookM $ liftF c)
 
-evalHook
-  :: forall h q a
-   . (HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q LogRef Aff a)
-  -> (InterpretHookReason -> HalogenM' q LogRef Aff a a)
-  -> InterpretHookReason
-  -> (LogRef -> Hook Aff h a)
-  -> UseHookF Aff
-  -- Fully expanded because type synonyms can't be partially applied
-  ~> Free (H.HalogenF (HookState q LogRef Aff a) (HookM Aff Unit) SlotType OutputValue Aff)
-evalHook runHookM runHook reason hookFn = case _ of
-  {-
-    Left here as an example of how to insert logging into this test, but logging
-    hook evaluation is too noisy at the moment. If this is needed in a special
-    case, then this can be provided as an alternate interpreter to `mkEval`.
-
-  c@(UseState initial reply) -> do
-    { input: log } <- Hooks.Eval.getState
-    liftAff $ writeLog (EvaluateHook UseStateHook) log
-    Hooks.Eval.interpretHook runHookM runHook reason hookFn c
-  -}
-
-  c ->
-    Hooks.Eval.evalHook runHookM runHook reason hookFn c
-
 -- | Hooks.Eval.mkEval, specialized to local evalHookHm and interpretUseHookFn
 -- | functions, and pre-specialized to `Unit` for convenience.
 mkEval
@@ -130,20 +107,29 @@ mkEvalQuery
    . (LogRef -> Hook Aff h b)
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
-mkEvalQuery =
-  Hooks.Eval.mkEval (\_ _ -> false) evalHookM runHook
+mkEvalQuery inputHookFn =
+  Hooks.Eval.mkEval { inputEq: (\_ _ -> false), evalHookM, evalHook: evalHook inputHookFn }
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
-  runHook reason hookFn = do
-    { input } <- H.HalogenM Hooks.Eval.getState
-    let Hook hookF = hookFn input
+  evalHook hookFn reason = do
+    HookState { stateRef } <- H.get
+
+    let
+      { input } = Hooks.Eval.get stateRef
+      Hook hookF = hookFn input
+      eval = Hooks.Eval.evalHook
+        { evalHookM
+        , evalHook: evalHook hookFn
+        , reason
+        , stateRef
+        }
 
     writeLog (RunHooks reason) input
-    a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
-    H.modify_ (over HookState _ { result = a })
+    a <- H.HalogenM (substFree eval hookF)
 
+    H.modify_ (over HookState _ { result = a })
     pure a
 
 -- | Create a new DriverState, which can be used to evaluate multiple calls to

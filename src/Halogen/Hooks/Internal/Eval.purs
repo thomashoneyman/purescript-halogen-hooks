@@ -13,13 +13,13 @@ import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Exception.Unsafe (unsafeThrow)
+import Effect.Ref (Ref)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
 import Halogen as H
-import Halogen.Hooks.Hook (Hook)
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InternalHookState, InterpretHookReason(..), fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InterpretHookReason(..), InternalHookState, fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, OutputValue, SlotType, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateId(..))
@@ -27,260 +27,275 @@ import Halogen.Query.HalogenM (HalogenAp(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
+type WithEval q i m a =
+  ( evalHookM :: HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
+  , evalHook :: InterpretHookReason -> HalogenM' q i m a a
+  )
+
+type MkEval q i m a =
+  { inputEq :: i -> i -> Boolean
+  | WithEval q i m a
+  }
+
 mkEval
-  :: forall h q i m b a
-   . (i -> i -> Boolean)
-  -> (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
-  -> (InterpretHookReason -> (i -> Hook m h b) -> HalogenM' q i m b b)
-  -> (i -> Hook m h b)
+  :: forall q i m b a
+   . MkEval q i m b
   -> H.HalogenQ q (HookM m Unit) i a
   -> HalogenM' q i m b a
-mkEval inputEq runHookM runHook hookFn = case _ of
+mkEval opts@{ inputEq } = case _ of
   H.Initialize a -> do
-    _ <- runHookAndEffects Initialize
+    HookState { stateRef } <- H.get
+    _ <- executeHooksAndEffects stateRef Initialize
     pure a
 
   H.Query q reply -> do
-    { queryFn } <- H.HalogenM getState
+    HookState { stateRef } <- H.get
+    let { queryFn } = get stateRef
     case queryFn of
       Nothing ->
         pure (reply unit)
       Just fn ->
-        runHookM (runHookAndEffects Step)
+        opts.evalHookM (executeHooksAndEffects stateRef Step)
           $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
 
   H.Action act a -> do
-    runHookM (runHookAndEffects Step) act
+    HookState { stateRef } <- H.get
+    opts.evalHookM (executeHooksAndEffects stateRef Step) act
     pure a
 
   H.Receive nextInput a -> do
-    { input: prevInput } <- H.HalogenM getState
+    HookState { stateRef } <- H.get
+    let { input: prevInput } = get stateRef
 
-    unless (prevInput `inputEq` nextInput) do
-      H.HalogenM $ modifyState_ _ { input = nextInput }
-      void $ runHookAndEffects Step
+    unless (inputEq prevInput nextInput) do
+      let (_ :: Unit) = modify_ stateRef _ { input = nextInput }
+      void $ executeHooksAndEffects stateRef Step
 
     pure a
 
   H.Finalize a -> do
-    _ <- runHookAndEffects Finalize
+    HookState { stateRef } <- H.get
+    _ <- executeHooksAndEffects stateRef Finalize
     pure a
 
   where
-  runHookAndEffects reason = do
-    _ <- runHook reason hookFn
-    { evalQueue } <- H.HalogenM getState
+  executeHooksAndEffects
+    :: Ref (InternalHookState q i m b)
+    -> InterpretHookReason
+    -> HalogenM' q i m b b
+  executeHooksAndEffects stateRef reason = do
+    _ <- opts.evalHook reason
+
+    let
+      { evalQueue } = get stateRef
 
     when (not (Array.null evalQueue)) do
-      H.HalogenM $ modifyState_ _ { evalQueue = [], stateDirty = false }
-      sequence_ evalQueue
-      { stateDirty } <- H.HalogenM getState
+      let (_ :: Unit) = modify_ stateRef _ { evalQueue = [], stateDirty = false }
 
-      let initializeOrStepReason = reason == Initialize || reason == Step
+      sequence_ evalQueue
+
+      let
+        { stateDirty } = get stateRef
+        initializeOrStepReason = reason == Initialize || reason == Step
+
       when (stateDirty && initializeOrStepReason) do
-        void $ runHookAndEffects Step
+        void $ executeHooksAndEffects stateRef Step
 
     H.gets (_.result <<< unwrap)
 
+type EvalHook q i m a =
+  { reason :: InterpretHookReason
+  , stateRef :: Ref (InternalHookState q i m a)
+  | WithEval q i m a
+  }
+
 evalHook
-  :: forall hooks q i m a
-   . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
-  -> (InterpretHookReason -> HalogenM' q i m a a)
-  -> InterpretHookReason
-  -> (i -> Hook m hooks a)
+  :: forall q i m a
+   . EvalHook q i m a
   -> UseHookF m
   ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
-evalHook runHookM runHook reason hookFn = case _ of
+evalHook opts@{ reason, stateRef } = case _ of
   UseState initial reply ->
     case reason of
       Initialize ->
-        liftF $ H.State \state@(HookState { stateRef }) -> do
-          let
-            { componentRef, stateCells: { queue } } = unsafePerformEffect $ Ref.read stateRef
-            newQueue = Array.snoc queue initial
-            identifier = StateId (Tuple componentRef (Array.length newQueue - 1))
-            _ = unsafePerformEffect $ Ref.modify_ (_ { stateCells { queue = newQueue } }) stateRef
+        let
+          { componentRef, stateCells: { queue } } = get stateRef
+          newQueue = Array.snoc queue initial
+          identifier = StateId (Tuple componentRef (Array.length newQueue - 1))
+          (_ :: Unit) = modify_ stateRef _ { stateCells { queue = newQueue } }
 
-          Tuple (reply (Tuple initial identifier)) state
+        in
+          pure (reply (Tuple initial identifier))
 
       _ ->
-        liftF $ H.State \state@(HookState { stateRef }) -> do
-          let
-            { componentRef, stateCells: { index, queue } } = unsafePerformEffect $ Ref.read stateRef
-            value = unsafeGetCell index queue
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            identifier = StateId (Tuple componentRef index)
-            _ = unsafePerformEffect $ Ref.modify_ (_ { stateCells { index = nextIndex } }) stateRef
+        let
+          { componentRef, stateCells: { index, queue } } = get stateRef
+          value = unsafeGetCell index queue
+          identifier = StateId (Tuple componentRef index)
+          (_ :: Unit) = modify_ stateRef _ { stateCells { index = stepIndex index queue } }
 
-          Tuple (reply (Tuple value identifier)) state
+        in
+          pure (reply (Tuple value identifier))
 
   UseQuery _ handler a ->
-    liftF $ H.State \state@(HookState { stateRef }) -> do
-      let
-        handler' :: forall b. q b -> HookM m (Maybe b)
-        handler' = handler <<< toQueryValue
+    let
+      handler' :: forall b. q b -> HookM m (Maybe b)
+      handler' = handler <<< toQueryValue
 
-        _ = unsafePerformEffect $ Ref.modify_ (_ { queryFn = Just $ toQueryFn handler' }) stateRef
+      (_ :: Unit) = modify_ stateRef _ { queryFn = Just $ toQueryFn handler' }
 
-      Tuple a state
+    in
+      pure a
 
-  UseEffect mbMemos act a -> do
+  UseEffect mbMemos act a ->
     case reason of
       Initialize ->
-        liftF $ H.State \state@(HookState { stateRef }) -> do
-          let
-            eval = do
-              mbFinalizer <- runHookM (runHook Queued) act
+        let
+          eval = do
+            mbFinalizer <- opts.evalHookM (opts.evalHook Queued) act
 
-              let
-                finalizer = fromMaybe (pure unit) mbFinalizer
-                newQueue st = Array.snoc st.effectCells.queue (mbMemos /\ finalizer)
+            let
+              finalizer = fromMaybe (pure unit) mbFinalizer
+              newQueue st = Array.snoc st.effectCells.queue (mbMemos /\ finalizer)
+              (_ :: Unit) = modify_ stateRef \s -> s { effectCells { queue = newQueue s } }
 
-              H.HalogenM $ modifyState_ \st -> st { effectCells { queue = newQueue st } }
+            pure unit
 
-            _ = unsafePerformEffect $ Ref.modify_ (\s -> s { evalQueue = Array.snoc s.evalQueue eval }) stateRef
+          (_ :: Unit) = modify_ stateRef \s -> s { evalQueue = Array.snoc s.evalQueue eval }
 
-          Tuple a state
+        in
+          pure a
 
       Queued ->
         pure a
 
       Step ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
-          let
-            { effectCells: { index, queue } } = unsafePerformEffect $ Ref.read stateRef
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            mbOldMemos /\ finalizer = unsafeGetCell index queue
+        let
+          { effectCells: { index, queue } } = get stateRef
+          nextIndex = stepIndex index queue
+          mbOldMemos /\ finalizer = unsafeGetCell index queue
 
-          in case mbMemos, mbOldMemos of
-            Just newMemos, Just oldMemos ->
+        in case mbMemos, mbOldMemos of
+          Just newMemos, Just oldMemos ->
+            let
+              memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
+              memos' = { old: fromMemoValues oldMemos, new: fromMemoValues newMemos }
+
+            in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then
               let
-                memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-                memos' = { old: fromMemoValues oldMemos, new: fromMemoValues newMemos }
+                eval = do
+                  mbFinalizer <- opts.evalHookM (opts.evalHook Queued) (finalizer *> act)
 
-              in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
-                let
-                  eval = do
-                    mbFinalizer <- runHookM (runHook Queued) (finalizer *> act)
-                    H.HalogenM $ liftF $ H.State \state' ->
-                      let
-                        { effectCells: { queue: queue' } } = unsafePerformEffect $ Ref.read stateRef
-                        newFinalizer = fromMaybe (pure unit) mbFinalizer
-                        newValue = mbMemos /\ newFinalizer
-                        newQueue = unsafeSetCell index newValue queue'
-                        _ = unsafePerformEffect $ Ref.modify_ (_ { effectCells { queue = newQueue } }) stateRef
+                  let
+                    { effectCells: { queue: queue' } } = get stateRef
+                    newFinalizer = fromMaybe (pure unit) mbFinalizer
+                    newValue = mbMemos /\ newFinalizer
+                    newQueue = unsafeSetCell index newValue queue'
+                    (_ :: Unit) = modify_ stateRef _ { effectCells { queue = newQueue } }
 
-                      in
-                        Tuple unit state'
+                  pure unit
 
-                  _ =
-                    unsafePerformEffect $ Ref.modify_ (\st -> st
-                      { evalQueue = Array.snoc st.evalQueue eval
-                      , effectCells { index = nextIndex }
-                      }) stateRef
-
-                Tuple a state
-
-              else
-                let
-                  _ = unsafePerformEffect $ Ref.modify_ (_ { effectCells { index = nextIndex } }) stateRef
-
-                in
-                  Tuple a state
-
-            _, _ ->
-              let
-                _ = unsafePerformEffect $ Ref.modify_ (_ { effectCells { index = nextIndex } }) stateRef
+                (_ :: Unit) =
+                  modify_ stateRef \s -> s
+                    { evalQueue = Array.snoc s.evalQueue eval
+                    , effectCells { index = nextIndex  }
+                    }
 
               in
-                Tuple a state
+                pure a
+
+            else
+              let
+                (_ :: Unit) = modify_ stateRef _ { effectCells { index = nextIndex } }
+
+              in
+                pure a
+
+          _, _ ->
+            let
+              (_ :: Unit) = modify_  stateRef _ { effectCells { index = nextIndex } }
+
+            in
+              pure a
 
       Finalize ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
-          let
-            { effectCells: { index, queue } } = unsafePerformEffect $ Ref.read stateRef
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            _ /\ finalizer = unsafeGetCell index queue
-            finalizeHook = runHookM (runHook Queued) finalizer
-            _ = unsafePerformEffect $ Ref.modify_
-              (\s -> s
-                { evalQueue = Array.snoc s.evalQueue finalizeHook
-                , effectCells { index = nextIndex }
-                }
-              )
-              stateRef
+        let
+          { effectCells: { index, queue } } = get stateRef
+          _ /\ finalizer = unsafeGetCell index queue
+          finalizeHook = opts.evalHookM (opts.evalHook Queued) finalizer
+          (_ :: Unit) =
+            modify_ stateRef \s -> s
+              { evalQueue = Array.snoc s.evalQueue finalizeHook
+              , effectCells { index = stepIndex index queue }
+              }
 
-          in
-            Tuple a state
+        in
+          pure a
 
-  UseMemo memos memoFn reply -> do
+  UseMemo memos memoFn reply ->
     case reason of
       Initialize ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
-          let
-            { memoCells: { queue } } = unsafePerformEffect $ Ref.read stateRef
-            newValue = memoFn unit
-            _ = unsafePerformEffect $ Ref.modify_ (_ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }) stateRef
+        let
+          { memoCells: { queue } } = get stateRef
+          newValue = memoFn unit
+          (_ :: Unit) = modify_ stateRef _ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }
 
-          in
-            Tuple (reply newValue) state
+        in
+          pure (reply newValue)
 
       _ ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
+        let
+          { memoCells: { index, queue } } = get stateRef
+
+          m =
+            let
+              oldMemos /\ oldValue = bimap fromMemoValues fromMemoValue (unsafeGetCell index queue)
+              newMemos = fromMemoValues memos
+
+            in
+              { eq: newMemos.eq, old: oldMemos.memos, new: newMemos.memos, value: oldValue }
+
+          nextIndex = stepIndex index queue
+
+        in if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then
           let
-            { memoCells: { index, queue } } = unsafePerformEffect $ Ref.read stateRef
+            newValue = memoFn unit
+            newQueue = unsafeSetCell index (memos /\ newValue) queue
+            (_ :: Unit) = modify_ stateRef _ { memoCells = { index: nextIndex, queue: newQueue } }
 
-            m =
-              let
-                oldMemos /\ oldValue = bimap fromMemoValues fromMemoValue (unsafeGetCell index queue)
-                newMemos = fromMemoValues memos
+          in
+            pure (reply newValue)
 
-              in
-                { eq: newMemos.eq, old: oldMemos.memos, new: newMemos.memos, value: oldValue }
+        else
+          let
+            (_ :: Unit) = modify_ stateRef _ { memoCells { index = nextIndex } }
 
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-
-          in if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then
-            let
-              newValue = memoFn unit
-              newQueue = unsafeSetCell index (memos /\ newValue) queue
-              _ = unsafePerformEffect $ Ref.modify_ (_ { memoCells = { index: nextIndex, queue: newQueue } }) stateRef
-
-            in
-              Tuple (reply newValue) state
-
-          else
-            let
-              _ = unsafePerformEffect $ Ref.modify_ (_ { memoCells { index = nextIndex } }) stateRef
-
-            in
-              Tuple (reply m.value) state
+          in
+            pure (reply m.value)
 
   UseRef initial reply ->
     case reason of
       Initialize ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
-          let
-            { refCells: { queue } } = unsafePerformEffect $ Ref.read stateRef
-            ref = unsafePerformEffect $ Ref.new initial
-            _ = unsafePerformEffect $ Ref.modify_ (_ { refCells { queue = Array.snoc queue ref } }) stateRef
+        let
+          { refCells: { queue } } = get stateRef
+          ref = unsafePerformEffect $ Ref.new initial
+          (_ :: Unit) = modify_ stateRef _ { refCells { queue = Array.snoc queue ref } }
 
-          in
-            Tuple (reply (Tuple initial ref)) state
+        in
+          pure (reply (Tuple initial ref))
 
       _ ->
-        liftF $ H.State \state@(HookState { stateRef }) ->
-          let
-            { refCells: { index, queue } } = unsafePerformEffect $ Ref.read stateRef
-            ref = unsafeGetCell index queue
-            nextIndex = if index + 1 < Array.length queue then index + 1 else 0
-            value = unsafePerformEffect $ Ref.read ref
-            _ = unsafePerformEffect $ Ref.modify_ (_ { refCells { index = nextIndex } }) stateRef
+        let
+          { refCells: { index, queue } } = get stateRef
+          ref = unsafeGetCell index queue
+          value = unsafePerformEffect $ Ref.read ref
+          _ = modify_ stateRef _ { refCells { index = stepIndex index queue } }
 
-          in
-            Tuple (reply (Tuple value ref)) state
+        in
+          pure (reply (Tuple value ref))
 
-evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
+evalHookM
+  :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
 evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
   H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where
@@ -289,7 +304,10 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
     ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
     Modify (StateId (Tuple ref id)) f reply -> do
-      state <- getState
+      HookState { stateRef } <- liftF $ H.State \state -> Tuple state state
+
+      let
+        { componentRef, stateCells } = get stateRef
 
       -- It is not safe to use `HookM` code which modifies state outside of the
       -- component that defines it, because the state identifiers are referring
@@ -300,14 +318,14 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
       --
       -- NOTE: Using `unless` here throws an exception -- strictness? Using a
       -- case statement behaves as expected.
-      case unsafeRefEq state.componentRef ref of
+      case unsafeRefEq componentRef ref of
         true ->
           pure unit
         _ ->
           unsafeThrow "Attempted to use state-modifying `HookM` code outside the component where it was defined."
 
       let
-        current = unsafeGetCell id state.stateCells.queue
+        current = unsafeGetCell id stateCells.queue
         next = f current
 
       -- Like Halogen's implementation, `Modify` covers both get and set calls
@@ -317,11 +335,14 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
         true ->
           pure unit
         _ -> do
-          let newQueue = unsafeSetCell id next
-          modifyState_ _
-            { stateCells { queue = newQueue state.stateCells.queue }
-            , stateDirty = true
-            }
+          let
+            newQueue = unsafeSetCell id next
+            (_ :: Unit) =
+              modify_ stateRef \s -> s
+                { stateCells { queue = newQueue s.stateCells.queue }
+                , stateDirty = true
+                }
+
           void runHooks
 
       pure (reply next)
@@ -361,19 +382,11 @@ unsafeGetCell index array = unsafePartial (Array.unsafeIndex array index)
 unsafeSetCell :: forall a. Int -> a -> Array a -> Array a
 unsafeSetCell index a array = unsafePartial (fromJust (Array.modifyAt index (const a) array))
 
--- Read the internal Hook state without incurring a `MonadEffect` constraint
-getState
-  :: forall q i m a
-   . Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) (InternalHookState q i m a)
-getState = do
-  liftF $ H.State \state@(HookState { stateRef }) ->
-    Tuple (unsafePerformEffect $ Ref.read stateRef) state
+stepIndex :: forall a. Int -> Array a -> Int
+stepIndex index array = if index + 1 < Array.length array then index + 1 else 0
 
--- Modify the internal Hook state without incurring a `MonadEffect` constraint
-modifyState_
-  :: forall q i m a
-   . (InternalHookState q i m a -> InternalHookState q i m a)
-  -> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m) Unit
-modifyState_ fn = do
-  liftF $ H.State \state@(HookState { stateRef }) ->
-    Tuple (unsafePerformEffect $ Ref.modify_ fn stateRef) state
+get :: forall q i m a. Ref (InternalHookState q i m a) -> InternalHookState q i m a
+get = unsafePerformEffect <<< Ref.read
+
+modify_ :: forall q i m a. Ref (InternalHookState q i m a) -> (InternalHookState q i m a -> InternalHookState q i m a) -> Unit
+modify_ ref fn = unsafePerformEffect $ Ref.modify_ fn ref

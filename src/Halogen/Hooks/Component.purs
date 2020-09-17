@@ -11,7 +11,8 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hook(..))
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Internal.Eval (evalHookM, evalHook, mkEval, getState)
+import Halogen.Hooks.Internal.Eval (evalHookM, mkEval)
+import Halogen.Hooks.Internal.Eval as Internal.Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
 import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
@@ -105,17 +106,31 @@ memoComponent eqInput inputHookFn = do
 
   H.mkComponent
     { initialState
-    , render: \(HookState { result }) -> result
-    , eval: toHalogenM slotToken outputToken <<< mkEval eqInput evalHookM runHook hookFn
+    , render:
+        \(HookState { result }) -> result
+    , eval:
+        toHalogenM slotToken outputToken
+          <<< mkEval { inputEq: eqInput, evalHookM, evalHook: evalHook hookFn }
     }
   where
   -- WARNING: If you update this function, make sure to apply the same update
   -- to the tests, which use their own version of this function. The test function
   -- should be identical, except with the addition of logging.
-  runHook reason hookFn = do
-    { input } <- H.HalogenM getState
-    let Hook hookF = hookFn input
-    a <- H.HalogenM $ substFree (evalHook evalHookM (\r -> runHook r hookFn) reason hookFn) hookF
+  evalHook hookFn reason = do
+    HookState { stateRef } <- H.get
+
+    let
+      { input } = Internal.Eval.get stateRef
+      Hook hookF = hookFn input
+      eval = Internal.Eval.evalHook
+        { evalHookM
+        , evalHook: evalHook hookFn
+        , reason
+        , stateRef
+        }
+
+    a <- H.HalogenM (substFree eval hookF)
+
     H.modify_ (over HookState _ { result = a })
     pure a
 
