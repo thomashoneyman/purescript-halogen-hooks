@@ -12,7 +12,6 @@ import Data.Maybe (Maybe(..), fromJust, fromMaybe, maybe)
 import Data.Newtype (unwrap)
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\))
-import Debug.Trace (spy)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
@@ -159,7 +158,7 @@ evalHook runHookM runHook reason hookFn = case _ of
                 memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
                 memos' = { old: fromMemoValues oldMemos, new: fromMemoValues newMemos }
 
-              in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then
+              in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then do
                 let
                   eval = do
                     mbFinalizer <- runHookM (runHook Queued) (finalizer *> act)
@@ -172,10 +171,15 @@ evalHook runHookM runHook reason hookFn = case _ of
                         _ = unsafePerformEffect $ Ref.modify_ (_ { effectCells { queue = newQueue } }) stateRef
 
                       in
-                        Tuple a state'
+                        Tuple unit state'
 
-                in
-                  Tuple a state
+                  _ =
+                    unsafePerformEffect $ Ref.modify_ (\st -> st
+                      { evalQueue = Array.snoc st.evalQueue eval
+                      , effectCells { index = nextIndex }
+                      }) stateRef
+
+                Tuple a state
 
               else
                 let
@@ -215,11 +219,11 @@ evalHook runHookM runHook reason hookFn = case _ of
         liftF $ H.State \state@(HookState { stateRef }) ->
           let
             { memoCells: { queue } } = unsafePerformEffect $ Ref.read stateRef
-            newValue = spy "evaluating memo in initialize..." (memoFn unit)
+            newValue = memoFn unit
             _ = unsafePerformEffect $ Ref.modify_ (_ { memoCells { queue = Array.snoc queue (memos /\ newValue) } }) stateRef
 
           in
-            Tuple (reply (spy "returning newValue after applying memo" newValue)) state
+            Tuple (reply newValue) state
 
       _ ->
         liftF $ H.State \state@(HookState { stateRef }) ->
@@ -238,12 +242,12 @@ evalHook runHookM runHook reason hookFn = case _ of
 
           in if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then
             let
-              newValue = spy "object is empty or memos didn't match, calculating memo value..." (memoFn unit)
+              newValue = memoFn unit
               newQueue = unsafeSetCell index (memos /\ newValue) queue
               _ = unsafePerformEffect $ Ref.modify_ (_ { memoCells = { index: nextIndex, queue: newQueue } }) stateRef
 
             in
-              Tuple (reply (spy "returning newValue after applying memo" newValue)) state
+              Tuple (reply newValue) state
 
           else
             let

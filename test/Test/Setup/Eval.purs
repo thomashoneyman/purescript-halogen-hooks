@@ -8,7 +8,6 @@ import Control.Monad.Free (Free, foldFree, liftF, substFree)
 import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
-import Debug.Trace (spy, traceM)
 import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception.Unsafe (unsafeThrow)
@@ -30,28 +29,34 @@ import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
 import Unsafe.Reference (unsafeRefEq)
 
+-- Our test `evalM` function hijacks the `State` implementation from the Halogen
+-- `Aff.Driver.Eval.evalM` implementation, and otherwise passes constructors
+-- through. This allows us to inspect the result of a state modification and
+-- log it.
+--
+-- WARNING: This must be kept in sync with the underlying Halogen implementation.
 evalM :: forall r q b. Ref (DriverResultState r q b) -> HalogenM' q LogRef Aff b ~> Aff
 evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
   where
   go :: HalogenF' q LogRef Aff b ~> HalogenM' q LogRef Aff b
   go = case _ of
-    c@(H.State f) -> do
-      -- We'll report renders the same way Halogen triggers them: successful
-      -- state modifications.
-      DriverState { state } <- liftEffect $ Ref.read ref
+    -- We'll report renders the same way Halogen triggers them: successful
+    -- state modifications.
+    c@(H.State f) -> H.lift do
+      DriverState (st@{ state, lifecycleHandlers }) <- liftEffect (Ref.read ref)
       case f state of
         Tuple a state'
-          | unsafeRefEq state state' ->
-              -- Halogen has determined referential equality here, and so it will
-              -- not trigger a re-render.
-              pure unit
+          | unsafeRefEq state state' -> do
+              pure a
           | otherwise -> do
-              -- Halogen has determined a state update has occurred and will now
-              -- render again.
+              -- First, we'll log that a render is occurring.
               { input } <- liftEffect $ Ref.read (unwrap state).stateRef
               writeLog Render input
 
-      H.HalogenM $ liftF c
+              -- Then we'll defer to the Halogen implementation.
+              liftEffect $ Ref.write (DriverState (st { state = state' })) ref
+              _ <- Aff.Driver.Eval.handleLifecycle lifecycleHandlers (pure unit)
+              pure a
 
     c ->
       H.HalogenM $ liftF c
@@ -60,7 +65,7 @@ evalHookM :: forall q a. HalogenM' q LogRef Aff a a -> HookM Aff ~> HalogenM' q 
 evalHookM runHooks (HookM hm) = foldFree go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
-  go z = let _ = spy "evalHookM" z in case z of
+  go = case _ of
     c@(Modify (StateId (Tuple ref id)) f reply) -> do
       state <- H.HalogenM Hooks.Eval.getState
 
@@ -108,8 +113,7 @@ evalHook runHookM runHook reason hookFn = case _ of
     Hooks.Eval.interpretHook runHookM runHook reason hookFn c
   -}
 
-  c -> do
-    let _ = spy "evalHook" c
+  c ->
     Hooks.Eval.evalHook runHookM runHook reason hookFn c
 
 -- | Hooks.Eval.mkEval, specialized to local evalHookHm and interpretUseHookFn

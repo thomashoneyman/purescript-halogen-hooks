@@ -4,7 +4,6 @@ import Prelude
 
 import Data.Foldable (fold)
 import Data.Tuple.Nested ((/\))
-import Debug.Trace (spy, traceM)
 import Effect.Aff (Aff)
 import Halogen as H
 import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseMemo, UseState)
@@ -58,17 +57,14 @@ useMemoCount log = Hooks.wrap Hooks.do
     }
   where
   memoize1 deps@{ state1 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
-    let _ = spy "Evaluating body of memoize1" ""
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 1)) log
     state1 + 5
 
   memoize2 deps@{ state2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
-    let _ = spy "Evaluating body of memoize2" ""
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 2)) log
     state2 + 5
 
   memoize3 deps@{ state1, state2 } = Hooks.captures deps $ flip Hooks.useMemo \_ -> do
-    let _ = spy "Evaluating body of memoize3" ""
     let _ = unsafeWriteLog (RunMemo (CalculateMemo 3)) log
     state1 + state2 + 5
 

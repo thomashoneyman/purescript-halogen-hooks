@@ -33,7 +33,6 @@ import Control.Monad.Free (liftF)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
-import Debug.Trace (spy)
 import Effect.Ref (Ref)
 import Halogen.Hooks.Component (component, memoComponent)
 import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), HookAppend, Pure, bind, discard, pure, wrap, kind HookType)
@@ -201,9 +200,7 @@ useRef initialValue = Hook $ liftF $ UseRef initialValue' interface
 -- | Some values may be expensive to check for value equality. You can optimize
 -- | this by only checking a sub-part of your captured values using `capturesWith`
 captures :: forall memos a. Eq (Record memos) => Record memos -> (MemoValues -> a) -> a
-captures memos fn = do
-  let _ = spy "running captures" ""
-  fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: (==), memos }
+captures memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: (==), memos }
 
 -- | Like `captures`, but without an `Eq` constraint. Use when you only want to
 -- | check part of a captured value for equality or when your captured values
@@ -233,6 +230,4 @@ capturesWith
   -> Record memos
   -> (MemoValues -> a)
   -> a
-capturesWith memosEq memos fn = do
-  let _ = spy "running captures" ""
-  fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
+capturesWith memosEq memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
