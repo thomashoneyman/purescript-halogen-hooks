@@ -54,12 +54,3 @@ jobs:
 
       - name: Run tests
         run: npm run test
-
-      - name: Run performance snapshots
-        run: npm run test:performance
-
-      - name: Archive test results
-        uses: actions/upload-artifact@v2
-        with:
-          name: test-results
-          path: test-results
