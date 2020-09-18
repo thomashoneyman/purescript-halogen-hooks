@@ -1,4 +1,4 @@
-module Test.Performance.State.Component where
+module Performance.Test.State.Component where
 
 import Prelude
 
@@ -10,8 +10,8 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Test.Performance.State.Shared (Output(..), stateUpdates)
-import Test.Performance.Test (Test(..), startSuffix, testToString)
+import Performance.Test.State.Shared (Output(..), stateUpdates)
+import Performance.Test.Types (Test(..), startSuffix, testToString)
 
 _stateComponent = SProxy :: SProxy "stateComponent"
 

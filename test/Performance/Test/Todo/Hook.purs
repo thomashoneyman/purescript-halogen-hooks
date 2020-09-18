@@ -1,4 +1,4 @@
-module Test.Performance.Todo.Hook where
+module Performance.Test.Todo.Hook where
 
 import Prelude
 
@@ -15,8 +15,8 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
-import Test.Performance.Todo.Shared (CheckboxInput, CheckboxOutput(..), TodoInput, TodoOutput(..))
-import Test.Performance.Todo.Shared as Shared
+import Performance.Test.Todo.Shared (CheckboxInput, CheckboxOutput(..), TodoInput, TodoOutput(..))
+import Performance.Test.Todo.Shared as Shared
 
 _todoHook = SProxy :: SProxy "todoHook"
 

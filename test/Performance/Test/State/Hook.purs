@@ -1,4 +1,4 @@
-module Test.Performance.State.Hook where
+module Performance.Test.State.Hook where
 
 import Prelude
 
@@ -13,8 +13,8 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Hooks as Hooks
-import Test.Performance.State.Shared (Output(..), stateUpdates)
-import Test.Performance.Test (Test(..), startSuffix, testToString)
+import Performance.Test.State.Shared (Output(..), stateUpdates)
+import Performance.Test.Types (Test(..), startSuffix, testToString)
 
 _stateHook = SProxy :: SProxy "stateHook"
 

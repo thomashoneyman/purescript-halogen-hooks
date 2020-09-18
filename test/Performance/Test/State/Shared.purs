@@ -1,4 +1,4 @@
-module Test.Performance.State.Shared where
+module Performance.Test.State.Shared where
 
 import Prelude
 
