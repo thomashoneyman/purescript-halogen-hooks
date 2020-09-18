@@ -38,7 +38,7 @@ import Halogen.Hooks.Component (component, memoComponent)
 import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), HookAppend, Pure, bind, discard, pure, wrap, kind HookType)
 import Halogen.Hooks.Internal.Types as IT
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId)
+import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId) -- only export StateId constructor
 import Prelude (class Eq, Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -230,4 +230,5 @@ capturesWith
   -> Record memos
   -> (MemoValues -> a)
   -> a
-capturesWith memosEq memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
+capturesWith memosEq memos fn =
+  fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
