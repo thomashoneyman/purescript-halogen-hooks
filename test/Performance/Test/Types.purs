@@ -1,4 +1,4 @@
-module Test.Performance.Test where
+module Performance.Test.Types where
 
 import Prelude
 

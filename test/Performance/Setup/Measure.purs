@@ -1,4 +1,4 @@
-module Test.Setup.Performance.Measure where
+module Performance.Setup.Measure where
 
 import Prelude hiding (compare)
 
@@ -14,10 +14,10 @@ import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
 import Partial.Unsafe (unsafePartial)
-import Test.Performance.Test (Test(..), completedSuffix, startSuffix, testToString)
-import Test.Performance.Todo.Shared (addNewId, checkId, editId, saveId)
-import Test.Setup.Performance.Puppeteer (Browser, FilePath(..), Kilobytes(..), Milliseconds(..), Page)
-import Test.Setup.Performance.Puppeteer as Puppeteer
+import Performance.Test.Types (Test(..), completedSuffix, startSuffix, testToString)
+import Performance.Test.Todo.Shared (addNewId, checkId, editId, saveId)
+import Performance.Setup.Puppeteer (Browser, FilePath(..), Kilobytes(..), Milliseconds(..), Page)
+import Performance.Setup.Puppeteer as Puppeteer
 
 type PerformanceSummary =
   { averageFPS :: Int
