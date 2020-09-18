@@ -1,4 +1,4 @@
-module Test.Setup.Performance.App where
+module Performance.Test.App where
 
 import Prelude
 
@@ -12,11 +12,11 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.VDom.Driver (runUI)
-import Test.Performance.State.Component as State.Component
-import Test.Performance.State.Hook as State.Hook
-import Test.Performance.Test (Test(..), completedSuffix, testToString)
-import Test.Performance.Todo.Component as Todo.Component
-import Test.Performance.Todo.Hook as Todo.Hook
+import Performance.Test.State.Component as State.Component
+import Performance.Test.State.Hook as State.Hook
+import Performance.Test.Types (Test(..), completedSuffix, testToString)
+import Performance.Test.Todo.Component as Todo.Component
+import Performance.Test.Todo.Hook as Todo.Hook
 
 main :: Effect Unit
 main = launchAff_ do

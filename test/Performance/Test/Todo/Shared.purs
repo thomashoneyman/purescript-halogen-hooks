@@ -1,4 +1,4 @@
-module Test.Performance.Todo.Shared where
+module Performance.Test.Todo.Shared where
 
 import Prelude
 

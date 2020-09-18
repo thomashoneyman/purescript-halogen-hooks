@@ -1,4 +1,4 @@
-module Test.Setup.Performance.Puppeteer
+module Performance.Setup.Puppeteer
   ( filterConsole
   , Browser
   , launch
@@ -32,19 +32,22 @@ import Prelude
 
 import Control.Promise (Promise, toAffE)
 import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (decodeJson, printJsonDecodeError, (.:), (.:?))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError, (.:), (.:?))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
 import Data.Either (Either(..))
 import Data.Int (round)
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Int as Int
+import Data.Maybe (Maybe, fromJust, fromMaybe)
 import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe)
+import Data.String.CodeUnits as String
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn1, EffectFn2, runEffectFn1, runEffectFn2)
 import Node.Path as Path
+import Partial.Unsafe (unsafePartial)
 import Web.HTML (HTMLElement)
 
 -- | Turn off noisy messages from the Puppeteer tests
@@ -186,6 +189,10 @@ derive newtype instance euclidianRingKilobytes :: EuclideanRing Kilobytes
 instance encodeJsonKilobytes :: EncodeJson Kilobytes where
   encodeJson = encodeJson <<< show
 
+instance decodeJsonKilobytes :: DecodeJson Kilobytes where
+  decodeJson json = decodeJson json >>= \str -> do
+    pure (Kilobytes (unsafePartial (fromJust (Int.fromString (String.dropRight 2 str)))))
+
 instance showKilobytes :: Show Kilobytes where
   show (Kilobytes kb) = show kb <> "kb"
 
@@ -204,6 +211,10 @@ instance encodeJsonMilliseconds :: EncodeJson Milliseconds where
 
 instance showMilliseconds :: Show Milliseconds where
   show (Milliseconds ms) = show ms <> "ms"
+
+instance decodeJsonMilliseconds :: DecodeJson Milliseconds where
+  decodeJson json = decodeJson json >>= \str -> do
+    pure (Milliseconds (unsafePartial (fromJust (Int.fromString (String.dropRight 2 str)))))
 
 -- | A snapshot of current page data
 type PageMetrics =
