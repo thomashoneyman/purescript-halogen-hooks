@@ -11,8 +11,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.Hooks.Hook (Hook(..))
 import Halogen.Hooks.HookM (HookM)
-import Halogen.Hooks.Internal.Eval (evalHookM, mkEval)
-import Halogen.Hooks.Internal.Eval as Internal.Eval
+import Halogen.Hooks.Internal.Eval as Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
 import Halogen.Hooks.Types (ComponentRef, ComponentTokens, OutputToken, QueryToken, SlotToken)
 import Unsafe.Coerce (unsafeCoerce)
@@ -104,35 +103,28 @@ memoComponent eqInput inputHookFn = do
     outputToken = unsafeCoerce {} :: OutputToken o
     hookFn = inputHookFn { queryToken, slotToken, outputToken }
 
+    -- WARNING: If you update this function, make sure to apply the same update
+    -- to the tests, which use their own version of this function. The test function
+    -- should be identical, except with the addition of logging.
+    evalHook reason = do
+      HookState { stateRef } <- H.get
+
+      let
+        eval = Eval.evalHook Eval.evalHookM evalHook reason stateRef
+        { input } = Eval.get stateRef
+        Hook hookF = hookFn input
+
+      a <- H.HalogenM (substFree eval hookF)
+
+      H.modify_ (over HookState _ { result = a })
+      pure a
+
   H.mkComponent
     { initialState
-    , render:
-        \(HookState { result }) -> result
-    , eval:
-        toHalogenM slotToken outputToken
-          <<< mkEval { inputEq: eqInput, evalHookM, evalHook: evalHook hookFn }
+    , render: \(HookState { result }) -> result
+    , eval: toHalogenM slotToken outputToken <<< Eval.mkEval eqInput Eval.evalHookM evalHook
     }
   where
-  -- WARNING: If you update this function, make sure to apply the same update
-  -- to the tests, which use their own version of this function. The test function
-  -- should be identical, except with the addition of logging.
-  evalHook hookFn reason = do
-    HookState { stateRef } <- H.get
-
-    let
-      { input } = Internal.Eval.get stateRef
-      Hook hookF = hookFn input
-      eval = Internal.Eval.evalHook
-        { evalHookM
-        , evalHook: evalHook hookFn
-        , reason
-        , stateRef
-        }
-
-    a <- H.HalogenM (substFree eval hookF)
-
-    H.modify_ (over HookState _ { result = a })
-    pure a
 
   initialState input =
     HookState

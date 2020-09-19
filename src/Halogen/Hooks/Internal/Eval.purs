@@ -27,22 +27,14 @@ import Halogen.Query.HalogenM (HalogenAp(..))
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Reference (unsafeRefEq)
 
-type WithEval q i m a =
-  ( evalHookM :: HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
-  , evalHook :: InterpretHookReason -> HalogenM' q i m a a
-  )
-
-type MkEval q i m a =
-  { inputEq :: i -> i -> Boolean
-  | WithEval q i m a
-  }
-
 mkEval
   :: forall q i m b a
-   . MkEval q i m b
+   . (i -> i -> Boolean)
+  -> (HalogenM' q i m b b -> HookM m ~> HalogenM' q i m b)
+  -> (InterpretHookReason -> HalogenM' q i m b b)
   -> H.HalogenQ q (HookM m Unit) i a
   -> HalogenM' q i m b a
-mkEval opts@{ inputEq } = case _ of
+mkEval inputEq _evalHookM _evalHook = case _ of
   H.Initialize a -> do
     HookState { stateRef } <- H.get
     _ <- executeHooksAndEffects stateRef Initialize
@@ -55,12 +47,12 @@ mkEval opts@{ inputEq } = case _ of
       Nothing ->
         pure (reply unit)
       Just fn ->
-        opts.evalHookM (executeHooksAndEffects stateRef Step)
+        _evalHookM (executeHooksAndEffects stateRef Step)
           $ unCoyoneda (\g -> map (maybe (reply unit) g) <<< (fromQueryFn fn)) q
 
   H.Action act a -> do
     HookState { stateRef } <- H.get
-    opts.evalHookM (executeHooksAndEffects stateRef Step) act
+    _evalHookM (executeHooksAndEffects stateRef Step) act
     pure a
 
   H.Receive nextInput a -> do
@@ -84,7 +76,7 @@ mkEval opts@{ inputEq } = case _ of
     -> InterpretHookReason
     -> HalogenM' q i m b b
   executeHooksAndEffects stateRef reason = do
-    _ <- opts.evalHook reason
+    _ <- _evalHook reason
 
     let
       { evalQueue } = get stateRef
@@ -103,18 +95,15 @@ mkEval opts@{ inputEq } = case _ of
 
     H.gets (_.result <<< unwrap)
 
-type EvalHook q i m a =
-  { reason :: InterpretHookReason
-  , stateRef :: Ref (InternalHookState q i m a)
-  | WithEval q i m a
-  }
-
 evalHook
   :: forall q i m a
-   . EvalHook q i m a
+   . (HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a)
+  -> (InterpretHookReason -> HalogenM' q i m a a)
+  -> InterpretHookReason
+  -> Ref (InternalHookState q i m a)
   -> UseHookF m
   ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
-evalHook opts@{ reason, stateRef } = case _ of
+evalHook _evalHookM _evalHook reason stateRef = case _ of
   UseState initial reply ->
     case reason of
       Initialize ->
@@ -152,7 +141,7 @@ evalHook opts@{ reason, stateRef } = case _ of
       Initialize ->
         let
           eval = do
-            mbFinalizer <- opts.evalHookM (opts.evalHook Queued) act
+            mbFinalizer <- _evalHookM (_evalHook Queued) act
 
             let
               finalizer = fromMaybe (pure unit) mbFinalizer
@@ -184,7 +173,7 @@ evalHook opts@{ reason, stateRef } = case _ of
             in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then
               let
                 eval = do
-                  mbFinalizer <- opts.evalHookM (opts.evalHook Queued) (finalizer *> act)
+                  mbFinalizer <- _evalHookM (_evalHook Queued) (finalizer *> act)
 
                   let
                     { effectCells: { queue: queue' } } = get stateRef
@@ -222,7 +211,7 @@ evalHook opts@{ reason, stateRef } = case _ of
         let
           { effectCells: { index, queue } } = get stateRef
           _ /\ finalizer = unsafeGetCell index queue
-          finalizeHook = opts.evalHookM (opts.evalHook Queued) finalizer
+          finalizeHook = _evalHookM (_evalHook Queued) finalizer
           (_ :: Unit) =
             modify_ stateRef \s -> s
               { evalQueue = Array.snoc s.evalQueue finalizeHook
@@ -294,8 +283,7 @@ evalHook opts@{ reason, stateRef } = case _ of
         in
           pure (reply (Tuple value ref))
 
-evalHookM
-  :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
+evalHookM :: forall q i m a. HalogenM' q i m a a -> HookM m ~> HalogenM' q i m a
 evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
   H.HalogenM $ substFree interpretHalogenHook evalUseHookF
   where

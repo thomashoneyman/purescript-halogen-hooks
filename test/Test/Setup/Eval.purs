@@ -107,24 +107,19 @@ mkEvalQuery
    . (LogRef -> Hook Aff h b)
   -> HalogenQ q (HookM Aff Unit) LogRef a
   -> HalogenM' q LogRef Aff b a
-mkEvalQuery inputHookFn =
-  Hooks.Eval.mkEval { inputEq: (\_ _ -> false), evalHookM, evalHook: evalHook inputHookFn }
+mkEvalQuery hookFn =
+  Hooks.Eval.mkEval (\_ _ -> false) evalHookM evalHook
   where
   -- WARNING: Unlike the other functions, this one needs to be manually kept in
   -- sync with the implementation in the main Hooks library. If you change this
   -- function, also check the main library function.
-  evalHook hookFn reason = do
+  evalHook reason = do
     HookState { stateRef } <- H.get
 
     let
+      eval = Hooks.Eval.evalHook evalHookM evalHook reason stateRef
       { input } = Hooks.Eval.get stateRef
       Hook hookF = hookFn input
-      eval = Hooks.Eval.evalHook
-        { evalHookM
-        , evalHook: evalHook hookFn
-        , reason
-        , stateRef
-        }
 
     writeLog (RunHooks reason) input
     a <- H.HalogenM (substFree eval hookF)
