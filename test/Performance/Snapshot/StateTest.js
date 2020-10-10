@@ -1,16 +1,16 @@
 exports.result = {
   "hookAverage": {
-    "totalTime": "191ms",
-    "scriptTime": "133ms",
-    "peakHeap": "1995kb",
-    "averageHeap": "739kb",
-    "averageFPS": 14
+    "totalTime": "143ms",
+    "scriptTime": "102ms",
+    "peakHeap": "1894kb",
+    "averageHeap": "746kb",
+    "averageFPS": 18
   },
   "componentAverage": {
-    "totalTime": "118ms",
-    "scriptTime": "65ms",
-    "peakHeap": "1104kb",
-    "averageHeap": "439kb",
-    "averageFPS": 29
+    "totalTime": "101ms",
+    "scriptTime": "52ms",
+    "peakHeap": "993kb",
+    "averageHeap": "429kb",
+    "averageFPS": 36
   }
 }
