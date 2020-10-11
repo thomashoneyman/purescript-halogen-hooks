@@ -7,7 +7,7 @@ Reusable stateful logic for [Halogen](https://github.com/purescript-halogen/pure
 
 Hooks offer a simpler mental model for writing stateful code in Halogen. They are a better alternative to higher-order and renderless components and offer a more convenient way to write most ordinary components. They can be incrementally adopted and require no changes to existing components in your application.
 
-> **Note:** Hooks can be used in production code today, but Hooks are not as performant as regular Halogen components. A Hooks-based component is typically 1.5x slower and uses 1.75x the memory of an equivalent Halogen component. In most use cases this performance difference is not noticeable, but it is worth keeping in mind if you are using Hooks in a large, performance-sensitive application.
+> **Note:** Hooks can be used in production code today, but Hooks are not as performant as regular Halogen components. A Hooks-based component is typically 1.5x slower and uses 1.75x the memory of an equivalent Halogen component. In most use cases this performance difference is not noticeable, but keep this in mind if you are using Hooks in a large, performance-sensitive application. Please feel free to contribute performance improvements!
 
 Learn more about Hooks:
 
