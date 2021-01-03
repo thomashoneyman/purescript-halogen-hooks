@@ -9,10 +9,10 @@ the root of the repository:
 
 ```sh
 # Ensure you have installed dependencies
-yarn install
+npm install
 
 # Bundle the examples to ./example/app.js
-yarn run bundle
+npm run bundle:examples
 ```
 
 Open `./examples/index.html` to view the live examples.
