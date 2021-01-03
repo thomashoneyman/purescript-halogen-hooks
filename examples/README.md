@@ -12,10 +12,10 @@ the root of the repository:
 yarn install
 
 # Bundle the examples to ./example/app.js
-yarn bundle
+yarn run bundle
 ```
 
-Open `./example/index.html` to view the live examples.
+Open `./examples/index.html` to view the live examples.
 
 ## Contributing
 
