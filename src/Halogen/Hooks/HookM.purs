@@ -19,7 +19,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (traverse)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
@@ -34,6 +34,7 @@ import Web.DOM as DOM
 import Web.HTML as HTML
 import Web.HTML.HTMLElement as HTMLElement
 import FRP.Event as Event
+import Type.Proxy (Proxy)
 
 -- | A DSL compatible with HalogenM which is used to write effectful code
 -- | for Hooks.
@@ -174,7 +175,7 @@ query
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> slot
   -> query a
   -> HookM m (Maybe a)
@@ -194,7 +195,7 @@ queryAll
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> query a
   -> HookM m (Map slot a)
 queryAll _ label q =
