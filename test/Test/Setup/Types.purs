@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Foldable (fold)
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Show.Generic (genericShow)
 import Effect.Aff (Aff)
 import Effect.Ref (Ref)
 import Halogen as H
