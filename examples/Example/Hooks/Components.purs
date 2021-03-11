@@ -43,7 +43,7 @@ previousValue = Hooks.component \_ _ -> Hooks.do
       , HH.text $ "The previous value of the state 'count' was: " <> show prevState
       , HH.br_
       , HH.button
-          [ HE.onClick \_ -> (modifyState (_ + 1)) ]
+          [ HE.onClick \_ -> modifyState (_ + 1) ]
           [ HH.text $ "Increment (" <> show state <> ")" ]
       ]
 
