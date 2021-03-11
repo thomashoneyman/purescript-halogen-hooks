@@ -27,7 +27,7 @@ component = Hooks.component \{ slotToken } _ -> Hooks.do
         Hooks.modify_ countId (_ + 1)
 
     handleClick = do
-      status <- Hooks.query slotToken _button unit (H.mkRequest Button.IsOn)
+      status <- Hooks.request slotToken _button unit Button.IsOn
       Hooks.put buttonStatusId status
 
   Hooks.pure do
