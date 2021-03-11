@@ -4,7 +4,6 @@ import Prelude
 
 import Data.Foldable (fold)
 import Data.Maybe (Maybe(..), maybe)
-import Data.Symbol (SProxy(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect)
 import Example.Halogen.Components.Button as Button
@@ -12,22 +11,23 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
+import Type.Proxy (Proxy(..))
 
-_button :: SProxy "button"
-_button = SProxy
+_button :: Proxy "button"
+_button = Proxy
 
-component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
+component :: forall q i o m. MonadEffect m => H.Component q i o m
 component = Hooks.component \{ slotToken } _ -> Hooks.do
   count /\ countId <- Hooks.useState 0
   buttonStatus /\ buttonStatusId <- Hooks.useState Nothing
 
   let
-    handleButton (Button.Toggled enabled) = Just do
+    handleButton (Button.Toggled enabled) = do
       when enabled do
         Hooks.modify_ countId (_ + 1)
 
-    handleClick = Just do
-      status <- Hooks.query slotToken _button unit (H.request Button.IsOn)
+    handleClick = do
+      status <- Hooks.query slotToken _button unit (H.mkRequest Button.IsOn)
       Hooks.put buttonStatusId status
 
   Hooks.pure do

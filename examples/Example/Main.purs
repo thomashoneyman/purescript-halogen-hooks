@@ -50,7 +50,7 @@ examples =
     , "Halogen|InputRef" /\ Halogen.InputRef.component
     ]
   where
-  index :: forall q i o m. H.Component HH.HTML q i o m
+  index :: forall q i o m. H.Component q i o m
   index = Hooks.component \_ _ -> Hooks.pure do
     HH.div_
       [ HH.h1_

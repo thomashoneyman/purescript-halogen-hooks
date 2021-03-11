@@ -5,7 +5,7 @@ import Prelude
 import Data.Argonaut (decodeJson, encodeJson, printJsonDecodeError)
 import Data.Either (Either(..), either)
 import Data.Lens (_Right, over)
-import Data.Maybe (Maybe(..), maybe)
+import Data.Maybe (maybe)
 import Data.Time.Duration (Milliseconds(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
@@ -20,7 +20,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
 
-windowWidth :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+windowWidth :: forall q i o m. MonadAff m => H.Component q i o m
 windowWidth = Hooks.component \_ _ -> Hooks.do
   width <- useWindowWidth
   Hooks.pure do
@@ -30,7 +30,7 @@ windowWidth = Hooks.component \_ _ -> Hooks.do
       , HH.text $ "Current width: " <> maybe "" show width
       ]
 
-previousValue :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+previousValue :: forall q i o m. MonadAff m => H.Component q i o m
 previousValue = Hooks.component \_ _ -> Hooks.do
   state /\ modifyState <- useStateFn Hooks.modify_ 0
   prevState <- usePrevious state
@@ -43,11 +43,11 @@ previousValue = Hooks.component \_ _ -> Hooks.do
       , HH.text $ "The previous value of the state 'count' was: " <> show prevState
       , HH.br_
       , HH.button
-          [ HE.onClick \_ -> Just (modifyState (_ + 1)) ]
+          [ HE.onClick \_ -> (modifyState (_ + 1)) ]
           [ HH.text $ "Increment (" <> show state <> ")" ]
       ]
 
-localStorage :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
+localStorage :: forall q i o m. MonadEffect m => H.Component q i o m
 localStorage = Hooks.component \_ _ -> Hooks.do
   state /\ modifyState <- useLocalStorage
     { defaultValue: 0
@@ -68,16 +68,16 @@ localStorage = Hooks.component \_ _ -> Hooks.do
       [ ]
       [ HH.text "Click on the button to clear from local storage"
       , HH.button
-          [ HE.onClick \_ -> Just clearCount ]
+          [ HE.onClick \_ -> clearCount ]
           [ HH.text "Clear" ]
       , HH.br_
       , HH.text $ "You have " <> either printJsonDecodeError show state <> " at the intStorageExample key in local storage."
       , HH.button
-          [ HE.onClick \_ -> Just increment ]
+          [ HE.onClick \_ -> increment ]
           [ HH.text "Increment" ]
       ]
 
-debouncer :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+debouncer :: forall q i o m. MonadAff m => H.Component q i o m
 debouncer = Hooks.component \_ _ -> Hooks.do
   text /\ setText <- useStateFn Hooks.put ""
   debouncedText /\ setDebouncedText <- useStateFn Hooks.put ""
@@ -86,7 +86,7 @@ debouncer = Hooks.component \_ _ -> Hooks.do
     useDebouncer (Milliseconds 300.0) setDebouncedText
 
   let
-    handleInput str = Just do
+    handleInput str = do
       setText str
       debouncedHandleInput str
 

@@ -6,8 +6,8 @@ let overrides = { metadata = upstream.metadata // { version = "v0.14.0" } }
 let additions =
       { halogen-storybook =
         { dependencies = [ "halogen", "routing", "foreign-object" ]
-        , repo = "https://github.com/rnons/purescript-halogen-storybook.git"
-        , version = "v1.0.0-rc.1"
+        , repo = "https://github.com/CarstenKoenig/purescript-halogen-storybook.git"
+        , version = "purescript-0.14"
         }
       }
 
