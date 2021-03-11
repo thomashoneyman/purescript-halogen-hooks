@@ -24,7 +24,7 @@ derive newtype instance functorHook :: Functor (Hook m h)
 -- | ```purs
 -- | foreign import data UseX :: Hooks.HookType
 -- | ```
-foreign import kind HookType
+data HookType
 
 -- | A proxy used to provide type information for types of kind `HookType` when
 -- | there is not a value available for the type. Used in the same situations

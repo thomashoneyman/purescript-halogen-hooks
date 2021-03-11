@@ -48,7 +48,7 @@ data QueryToken (a :: Type -> Type)
 -- | component relationship, and so they are not tracked in Hook types.
 -- |
 -- | This token is provided by the `component` function.
-data SlotToken (slots :: # Type)
+data SlotToken (slots :: Row Type)
 
 -- | A token which carries the type of outputs supported by the component
 -- | which is executing a Hook. Output messages slots are specific to the

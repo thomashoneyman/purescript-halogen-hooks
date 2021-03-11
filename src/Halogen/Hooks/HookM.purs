@@ -19,7 +19,7 @@ import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (traverse)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
@@ -28,8 +28,9 @@ import Halogen.Data.Slot as Slot
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
 import Halogen.Hooks.Types (OutputToken, SlotToken, StateId)
 import Halogen.Query.ChildQuery as CQ
-import Halogen.Query.EventSource as ES
+import Halogen.Subscription as HS
 import Prim.Row as Row
+import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM as DOM
 import Web.HTML as HTML
@@ -39,7 +40,7 @@ import Web.HTML.HTMLElement as HTMLElement
 -- | for Hooks.
 data HookF m a
   = Modify (StateId StateValue) (StateValue -> StateValue) (StateValue -> a)
-  | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
+  | Subscribe (H.SubscriptionId -> HS.Emitter (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
   | ChildQuery (CQ.ChildQueryBox SlotType a)
@@ -174,7 +175,7 @@ query
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> slot
   -> query a
   -> HookM m (Maybe a)
@@ -194,7 +195,7 @@ queryAll
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> query a
   -> HookM m (Map slot a)
 queryAll _ label q =
@@ -210,7 +211,7 @@ queryAll _ label q =
 -- | Subscribes a component to an `EventSource`. When a component is disposed of
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
-subscribe :: forall m. ES.EventSource m (HookM m Unit) -> HookM m H.SubscriptionId
+subscribe :: forall m. HS.Emitter (HookM m Unit) -> HookM m H.SubscriptionId
 subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
@@ -222,7 +223,7 @@ subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 -- | When a component is disposed of any active subscriptions will automatically
 -- | be stopped and no further subscriptions will be possible during
 -- | finalization.
-subscribe' :: forall m. (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) -> HookM m Unit
+subscribe' :: forall m. (H.SubscriptionId -> HS.Emitter (HookM m Unit)) -> HookM m Unit
 subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
 
 -- | Unsubscribes a component from an `EventSource`. If the subscription

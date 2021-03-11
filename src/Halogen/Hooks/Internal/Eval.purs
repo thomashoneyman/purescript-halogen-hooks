@@ -335,8 +335,8 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
 
       pure (reply next)
 
-    Subscribe eventSource reply ->
-      liftF $ H.Subscribe eventSource reply
+    Subscribe emitter reply ->
+      liftF $ H.Subscribe emitter reply
 
     Unsubscribe sid a ->
       liftF $ H.Unsubscribe sid a

@@ -31,7 +31,7 @@ Breaking changes (😱!!!):
 
   ```purs
   -- New approach
-  foreign import kind HookType
+  data HookType
 
   newtype Hook m (h :: HookType) a = Hook (Free (UseHookF m) a)
 
