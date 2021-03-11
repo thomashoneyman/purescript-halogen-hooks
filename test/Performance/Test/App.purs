@@ -41,7 +41,7 @@ container = H.mkComponent
   -- Used by Puppeteer to mount a test into the page so that it can be started
   testAction test = do
     let test' = testToString test
-    HH.button [ HP.id test', HE.onClick \_ -> (HandleStartTest test) ] [ HH.text test' ]
+    HH.button [ HP.id test', HE.onClick \_ -> HandleStartTest test ] [ HH.text test' ]
 
   handleComplete test =
     const (HandleTestComplete test)
