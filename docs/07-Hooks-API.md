@@ -39,7 +39,7 @@ Hooks.do
 
   Hooks.pure do
     HH.div
-      [ HE.onClick \_ -> Just update ]
+      [ HE.onClick \_ -> update ]
       [ HH.text $ show count ] -- Use state values directly in your render code
 ```
 

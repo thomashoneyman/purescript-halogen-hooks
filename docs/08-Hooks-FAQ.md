@@ -72,7 +72,7 @@ For example, this Hooks-based component receives an integer as input from its pa
 ```purs
 type Input = Int
 
-example :: forall q o m. H.Component HH.HTML q Input o m
+example :: forall q o m. H.Component q Input o m
 example = Hooks.component \_ input -> Hooks.pure do
   HH.div_
     [ HH.text "My input value is: "
@@ -123,7 +123,7 @@ If you do find yourself with stale input or state then you have two solutions:
 - Copy the relevant portion of input into a `Ref` to retrieve fresh input at the time the function executes
 
 ```purs
-myComponent :: forall q o m. MonadAff m => H.Component HH.HTML q Int o m
+myComponent :: forall q o m. MonadAff m => H.Component q Int o m
 myComponent = Hooks.component \_ input -> Hooks.do
   state /\ stateId <- Hooks.useState 0
   _ /\ inputRef <- Hooks.useRef input
@@ -167,7 +167,7 @@ example = Hooks.component \_ _ -> Hooks.do
 
 We didn't have to persist the subscription ID in state because the finalizer effect is implemented in the same scope as the initializer effect.
 
-### How do I use `HalogenM` functions like `raise` and `query`?
+### How do I use `HalogenM` functions like `raise`, `query`, `tell` and `request`?
 
 `HookM` supports all functionality available in `HalogenM`, including raising messages, forking threads, starting and stopping subscriptions, querying child components, and more. All functions from `HalogenM` except for the state functions are also available in `HookM` under the same name:
 
@@ -215,7 +215,7 @@ myComponent :: forall q i o m. Halogen.Component q i o m
 myComponent =
   H.mkComponent
     { initialState: identity
-    , render: \_ -> HH.button [ HE.onClick \_ -> Just Click ] [ HH.text "Click me" ]
+    , render: \_ -> HH.button [ HE.onClick \_ -> Click ] [ HH.text "Click me" ]
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
     }
 ```
@@ -231,7 +231,7 @@ myComponent = Hooks.component \_ _ -> Hooks.do
     handleClick :: HookM m Unit
     handleClick = ...
 
-  Hooks.pure $ HH.button [ HE.onClick \_ -> Just handleClick ] [ HH.text "Click me" ]
+  Hooks.pure $ HH.button [ HE.onClick \_ -> handleClick ] [ HH.text "Click me" ]
 ```
 
 However, in components with complex logic you may still want an `Action` type and a single `handleAction` function so you can better see the logic grouped together. You can easily recreate this pattern in Hooks:
@@ -245,5 +245,5 @@ handleAction = case _ of
 
 myComponent :: forall q i o m. H.Component q i o m
 myComponent = Hooks.component \_ _ -> Hooks.pure do
-  HH.button [ HE.onClick \_ -> Just $ handleAction Click ] [ HH.text "Click me" ]
+  HH.button [ HE.onClick \_ -> handleAction Click ] [ HH.text "Click me" ]
 ```
