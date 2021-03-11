@@ -23,5 +23,6 @@
     "headless-devtools": "^2.0.1",
     "puppeteer": "^5.2.0",
     "tracealyzer": "^0.10.3"
-  }
+  },
+  "dependencies": {}
 }
