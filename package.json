@@ -22,8 +22,6 @@
     "filter-console": "^0.1.1",
     "headless-devtools": "^2.0.1",
     "puppeteer": "^5.2.0",
-    "purescript": "^0.14.0",
-    "spago": "^0.19.1",
     "tracealyzer": "^0.10.3"
   }
 }
