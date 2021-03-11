@@ -84,7 +84,7 @@ Hooks.do
 
     window <- liftEffect HTML.window
     subscriptionId <- Hooks.subscribe do
-      ES.eventListenerEventSource
+      HS.eventListener
         (EventType "resize")
         (Window.toEventTarget window)
         (Event.target >>> map (fromEventTarget >>> readWidth))

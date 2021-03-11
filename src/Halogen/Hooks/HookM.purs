@@ -208,7 +208,7 @@ queryAll _ label q =
   catMapMaybes :: forall k v. Ord k => Map k (Maybe v) -> Map k v
   catMapMaybes = foldrWithIndex (\k v acc -> maybe acc (flip (Map.insert k) acc) v) Map.empty
 
--- | Subscribes a component to an `EventSource`. When a component is disposed of
+-- | Subscribes a component to an `Emitter`. When a component is disposed of
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
 subscribe :: forall m. HS.Emitter (HookM m Unit) -> HookM m H.SubscriptionId
@@ -216,7 +216,7 @@ subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
 -- | themselves. Instead of returning the `SubscriptionId` from `subscribe'`, it
--- | is passed into an `EventSource` constructor. This allows emitted queries
+-- | is passed into an `Emitter` constructor. This allows emitted queries
 -- | to include the `SubscriptionId`, rather than storing it in the state of the
 -- | component.
 -- |
@@ -226,7 +226,7 @@ subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 subscribe' :: forall m. (H.SubscriptionId -> HS.Emitter (HookM m Unit)) -> HookM m Unit
 subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
 
--- | Unsubscribes a component from an `EventSource`. If the subscription
+-- | Unsubscribes a component from an `Emitter`. If the subscription
 -- | associated with the ID has already ended this will have no effect.
 unsubscribe :: forall m. H.SubscriptionId -> HookM m Unit
 unsubscribe sid = HookM $ liftF $ Unsubscribe sid unit
