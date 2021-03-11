@@ -9,14 +9,13 @@ import Effect.Aff (Aff)
 import Effect.Ref (Ref)
 import Halogen as H
 import Halogen.Aff.Driver.State (DriverState)
-import Halogen.HTML as HH
 import Halogen.Hooks (HookM)
 import Halogen.Hooks.Internal.Eval.Types (HookState, InterpretHookReason(..))
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType)
 
 type HalogenF' q i m b a = H.HalogenF (HookState q i m b) (HookM m Unit) SlotType OutputValue m a
 
-type DriverResultState r q a = DriverState HH.HTML r (HookState q LogRef Aff a) q (HookM Aff Unit) SlotType LogRef OutputValue
+type DriverResultState r q a = DriverState r (HookState q LogRef Aff a) q (HookM Aff Unit) SlotType LogRef OutputValue
 
 type LogRef = Ref Log
 

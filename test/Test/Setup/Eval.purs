@@ -100,7 +100,7 @@ mkEval
    . (LogRef -> Hook Aff h b)
   -> (Unit -> HalogenQ q (HookM Aff Unit) LogRef Unit)
   -> HalogenM' q LogRef Aff b Unit
-mkEval h q = mkEvalQuery h (H.tell q)
+mkEval h q = mkEvalQuery h (H.mkTell q)
 
 mkEvalQuery
   :: forall h q b a
@@ -167,6 +167,6 @@ initDriver = liftEffect do
   where
   unDriverStateXRef
     :: forall r' s' f' act' ps' i' o'
-     . Ref (DriverStateX HH.HTML r' f' o')
-    -> Ref (DriverState HH.HTML r' s' f' act' ps' i' o')
+     . Ref (DriverStateX r' f' o')
+    -> Ref (DriverState r' s' f' act' ps' i' o')
   unDriverStateXRef = unsafeCoerce

@@ -5,7 +5,6 @@ import Prelude
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.Set as Set
-import Data.Symbol (SProxy(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen (liftEffect)
 import Halogen as H
@@ -14,15 +13,16 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Performance.Test.Todo.Shared (CheckboxInput, CheckboxOutput(..), TodoInput, TodoOutput(..))
 import Performance.Test.Todo.Shared as Shared
+import Type.Proxy (Proxy(..))
 
-_todoComponent = SProxy :: SProxy "todoComponent"
+_todoComponent = Proxy :: Proxy "todoComponent"
 
 data ContainerAction
   = Initialize
   | HandleTodo TodoOutput
   | AddNew
 
-container :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+container :: forall q i o m. MonadAff m => H.Component q i o m
 container =
   H.mkComponent
     { initialState: \_ -> Shared.initialContainerState
@@ -56,16 +56,16 @@ container =
   render state = do
     let
       todos = state.todos <#> \t ->
-        HH.slot Shared._todo t.id todo { todo: t, completed: state.completed } (Just <<< HandleTodo)
+        HH.slot Shared._todo t.id todo { todo: t, completed: state.completed } HandleTodo
 
     HH.div_
       [ HH.button
-          [ HP.id_ Shared.addNewId
-          , HE.onClick \_ -> Just AddNew
+          [ HP.id Shared.addNewId
+          , HE.onClick \_ -> AddNew
           ]
           [ HH.text "Add New" ]
       , HH.div
-          [ HP.id_ Shared.todosId ]
+          [ HP.id Shared.todosId ]
           todos
       ]
 
@@ -75,7 +75,7 @@ data TodoAction
   | SaveUpdate
   | HandleCheckbox CheckboxOutput
 
-todo :: forall q m. MonadAff m => H.Component HH.HTML q TodoInput TodoOutput m
+todo :: forall q m. MonadAff m => H.Component q TodoInput TodoOutput m
 todo = H.mkComponent
   { initialState: identity
   , render
@@ -102,21 +102,21 @@ todo = H.mkComponent
   render state =
     HH.div_
       [ HH.input
-          [ HP.id_ (Shared.editId state.todo.id)
-          , HE.onValueInput (Just <<< UpdateDescription)
+          [ HP.id (Shared.editId state.todo.id)
+          , HE.onValueInput UpdateDescription
           , HP.value state.todo.description
           ]
-      , HH.slot Shared._checkbox unit checkbox { id: state.todo.id, completed: state.completed } (Just <<< HandleCheckbox)
+      , HH.slot Shared._checkbox unit checkbox { id: state.todo.id, completed: state.completed } HandleCheckbox
       , HH.button
-          [ HP.id_ (Shared.saveId state.todo.id)
-          , HE.onClick \_ -> Just SaveUpdate
+          [ HP.id (Shared.saveId state.todo.id)
+          , HE.onClick \_ -> SaveUpdate
           ]
           [ HH.text "Save Changes" ]
       ]
 
 data CheckboxAction = ReceiveCheckboxInput CheckboxInput | HandleCheck Boolean
 
-checkbox :: forall q m. MonadAff m => H.Component HH.HTML q CheckboxInput CheckboxOutput m
+checkbox :: forall q m. MonadAff m => H.Component q CheckboxInput CheckboxOutput m
 checkbox = H.mkComponent
   { initialState: identity
   , render
@@ -132,8 +132,8 @@ checkbox = H.mkComponent
 
   render state =
     HH.input
-      [ HP.id_ (Shared.checkId state.id)
+      [ HP.id (Shared.checkId state.id)
       , HP.checked $ Set.member state.id state.completed
       , HP.type_ HP.InputCheckbox
-      , HE.onChecked (Just <<< HandleCheck)
+      , HE.onChecked HandleCheck
       ]
