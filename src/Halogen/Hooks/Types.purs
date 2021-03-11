@@ -14,6 +14,7 @@ import Data.Tuple (Tuple)
 -- | let
 -- |   handler = Hooks.modify_ stateId (_ + 10)
 -- | ```
+newtype StateId :: forall k. k -> Type
 newtype StateId state = StateId (Tuple ComponentRef Int)
 
 -- | A unique reference for a component, which is used to track which component
@@ -30,6 +31,7 @@ data ComponentRef
 -- | These tokens enable those features for Hooks which are being turned into
 -- | components, while ensuring Hooks which are being nested are not able to
 -- | access those features.
+type ComponentTokens :: forall k. (Type -> Type) -> Row Type -> k -> Type
 type ComponentTokens q ps o =
   { queryToken :: QueryToken q
   , slotToken :: SlotToken ps
@@ -56,6 +58,7 @@ data SlotToken (slots :: Row Type)
 -- | Hook types.
 -- |
 -- | This token is provided by the `component` function.
+data OutputToken :: forall k. k -> Type
 data OutputToken output
 
 -- | An opaque type which signifies that a set of dependencies have been captured
