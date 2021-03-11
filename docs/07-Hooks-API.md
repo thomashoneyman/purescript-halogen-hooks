@@ -144,7 +144,7 @@ Hooks.do
 
 The `useQuery` Hook enables you to write components which can receive and evaluate queries from a parent component. This Hook is only usable in components constructed with the `Hooks.component` function, because the request/response nature of queries means they only make sense within components. Queries don't make sense in arbitrary Hooks, so they're disallowed.
 
-The resulting component can be queried like any other Halogen component via the `Hooks.query` or `Hooks.queryAll` functions.
+The resulting component can be queried like any other Halogen component via the `Hooks.query`, `Hooks.queryAll`, `Hooks.tell` or `Hooks.request` functions.
 
 If this Hook is used multiple times, then only the last use will take effect.
 

@@ -193,6 +193,8 @@ Functions which send queries or send output messages are the same as they are in
 ```purs
 HalogenM.query     -> Hooks.query slotToken
 HalogenM.queryAll  -> Hooks.queryAll slotToken
+HalogenM.request   -> Hooks.request slotToken
+HalogenM.tell      -> Hooks.tell slotToken
 HalogenM.raise     -> Hooks.raise outputToken
 ```
 

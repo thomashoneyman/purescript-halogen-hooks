@@ -12,7 +12,8 @@ import Control.Monad.Error.Class (class MonadThrow, throwError)
 import Control.Monad.Free (Free, liftF)
 import Control.Monad.Reader (class MonadAsk, class MonadTrans, ask)
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
-import Control.Monad.Writer (class MonadTell, tell)
+import Control.Monad.Writer (class MonadTell)
+import Control.Monad.Writer as MR
 import Control.Parallel (class Parallel)
 import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Map (Map)
@@ -23,6 +24,7 @@ import Data.Symbol (class IsSymbol)
 import Data.Traversable (traverse)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Halogen (Request, Tell, mkRequest, mkTell)
 import Halogen as H
 import Halogen.Data.Slot as Slot
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
@@ -83,7 +85,7 @@ instance monadAskHookM :: MonadAsk r m => MonadAsk r (HookM m) where
   ask = HookM $ liftF $ Lift ask
 
 instance monadTellHookM :: MonadTell w m => MonadTell w (HookM m) where
-  tell = HookM <<< liftF <<< Lift <<< tell
+  tell = HookM <<< liftF <<< Lift <<< MR.tell
 
 instance monadThrowHookM :: MonadThrow e m => MonadThrow e (HookM m) where
   throwError = HookM <<< liftF <<< Lift <<< throwError
@@ -185,6 +187,37 @@ query _ label p q =
   where
   box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
   box = unsafeCoerce
+
+-- | Send a query-request to a child of a component at the specified slot. Requires a
+-- | token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
+request
+  :: forall m label ps query o' slot a _1
+   . Row.Cons label (H.Slot query o' slot) _1 ps
+  => IsSymbol label
+  => Ord slot
+  => SlotToken ps
+  -> Proxy label
+  -> slot
+  -> Request query a
+  -> HookM m (Maybe a)
+request slotToken label slot req = query slotToken label slot $ mkRequest req
+  
+-- | Send a tell-request to a child of a component at the specified slot. Requires a
+-- | token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
+tell
+  :: forall m label ps query o' slot _1
+   . Row.Cons label (H.Slot query o' slot) _1 ps
+  => IsSymbol label
+  => Ord slot
+  => SlotToken ps
+  -> Proxy label
+  -> slot
+  -> Tell query
+  -> HookM m Unit
+tell slotToken label slot req = void $ query slotToken label slot $ mkTell req
+  
 
 -- | Send a query to all children of a component at the specified slot. Requires
 -- | a token carrying the slot type of the component, which is provided by the
