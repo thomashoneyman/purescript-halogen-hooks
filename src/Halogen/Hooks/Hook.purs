@@ -1,6 +1,6 @@
 module Halogen.Hooks.Hook where
 
-import Prelude hiding (bind, discard, pure)
+import Prelude hiding (bind,discard,pure)
 
 import Control.Applicative as Applicative
 import Control.Monad.Free (Free)
@@ -13,7 +13,12 @@ import Unsafe.Coerce (unsafeCoerce)
 -- |
 -- | Functions of this type should be constructed using the Hooks API exposed
 -- | by `Halogen.Hooks`.
-newtype Hook m (h :: HookType) a = Hook (Free (UseHookF m) a)
+newtype Hook :: (Type -> Type) -> HookType -> Type -> Type
+newtype Hook m h a = Hook (Free (UseHookF m) a)
+
+-- Hook types are explicitly given a nominal role as they should not be coercible
+-- to other hook types.
+type role Hook representational nominal representational
 
 derive newtype instance functorHook :: Functor (Hook m h)
 
@@ -25,12 +30,6 @@ derive newtype instance functorHook :: Functor (Hook m h)
 -- | foreign import data UseX :: Hooks.HookType
 -- | ```
 data HookType
-
--- | A proxy used to provide type information for types of kind `HookType` when
--- | there is not a value available for the type. Used in the same situations
--- | you might reach for the `Type.Proxy` module, but usable for types of kind
--- | `HookType` instead of types of kind `Type`.
-data HProxy (h :: HookType) = HProxy
 
 -- | A type for listing several Hook types in order. Typically this is used via
 -- | the operator `<>`.
@@ -69,23 +68,6 @@ foreign import data Pure :: HookType
 -- |   -- ... use useState, useEffect in the implementation
 -- | ```
 class HookNewtype (a :: HookType) (b :: HookType) | a -> b
-
--- | A class for asserting two `HookType`s are the same. Used so that you can
--- | provide a type synonym to `HookNewtype`:
--- |
--- | ```purs
--- | foreign import data UseX :: HookType
--- |
--- | type UseX' = UseState Int <> UseEffect <> Pure
--- |
--- | instance newtypeUseX :: HookEquals h UseX' => HookNewtype UseX h
--- | ```
--- |
--- | This is especially useful with large stacks of hooks or with hooks that
--- | themselves use type synonyms (like type synonyms for records).
-class HookEquals (a :: HookType) (b :: HookType) | a -> b, b -> a
-
-instance hookRefl :: HookEquals a a
 
 -- | Make a stack of hooks opaque to improve error messages and ensure internal
 -- | types like state are not leaked outside the module where the hook is defined.

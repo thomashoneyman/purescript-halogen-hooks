@@ -16,7 +16,7 @@ import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Class (class MonadEffect, liftEffect)
 import Example.Hooks.UseInitializer (UseInitializer, useInitializer)
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Web.HTML (window)
 import Web.HTML.Window (localStorage)
@@ -30,9 +30,7 @@ type UseLocalStorage' a =
     <> UseEffect
     <> Hooks.Pure
 
-instance newtypeUseLocalStorage
-  :: HookEquals (UseLocalStorage' a) h
-  => HookNewtype (UseLocalStorage a) h
+instance newtypeUseLocalStorage :: HookNewtype (UseLocalStorage a) h
 
 type StorageInterface a =
   { key :: Key

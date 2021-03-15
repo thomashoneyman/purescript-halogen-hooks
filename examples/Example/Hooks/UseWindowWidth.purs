@@ -11,7 +11,7 @@ import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Halogen as H
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HE
 import Web.Event.Event (EventType(..))
@@ -23,7 +23,7 @@ foreign import data UseWindowWidth :: Hooks.HookType
 
 type UseWindowWidth' = UseState (Maybe Int) <> UseEffect <> Hooks.Pure
 
-instance newtypeUseWindowWidth :: HookEquals UseWindowWidth' h => HookNewtype UseWindowWidth h
+instance newtypeUseWindowWidth :: HookNewtype UseWindowWidth UseWindowWidth'
 
 useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap hook

@@ -6,7 +6,7 @@ import Data.Maybe (Maybe(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, UseEffect, UseState)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
@@ -25,8 +25,7 @@ type UseTickAfterInitialize' =
     <> UseEffect
     <> Hooks.Pure
 
-instance newtypeUseTickAfterInitialize
-  :: HookEquals h UseTickAfterInitialize' => HookNewtype UseTickAfterInitialize h
+instance newtypeUseTickAfterInitialize :: HookNewtype UseTickAfterInitialize UseTickAfterInitialize'
 
 rerunTickAfterInitialEffects :: LogRef -> Hook Aff UseTickAfterInitialize { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do

@@ -15,14 +15,14 @@ import Effect.Aff.AVar as AVar
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseRef)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 
 foreign import data UseDebouncer :: Type -> Hooks.HookType
 
 type UseDebouncer' a = UseRef (Maybe Debouncer) <> UseRef (Maybe a) <> Hooks.Pure
 
-instance newtypeUseDebouncer :: HookEquals (UseDebouncer' a) h => HookNewtype (UseDebouncer a) h
+instance newtypeUseDebouncer :: HookNewtype (UseDebouncer a) (UseDebouncer' a)
 
 type Debouncer = { var :: AVar Unit, fiber :: Fiber Unit }
 

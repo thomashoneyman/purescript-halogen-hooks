@@ -11,14 +11,14 @@ import Data.Tuple.Nested ((/\))
 import Effect.Aff.Class (class MonadAff)
 import Effect.Class (liftEffect)
 import Effect.Ref as Ref
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, UseEffect, UseRef)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, UseEffect, UseRef)
 import Halogen.Hooks as Hooks
 
 foreign import data UsePrevious :: Type -> Hooks.HookType
 
 type UsePrevious' a = UseRef (Maybe a) <> UseEffect <> Hooks.Pure
 
-instance newtypeUsePrevious :: HookEquals (UsePrevious' a) h => HookNewtype (UsePrevious a) h
+instance newtypeUsePrevious :: HookNewtype (UsePrevious a) (UsePrevious' a)
 
 usePrevious :: forall m a. MonadAff m => Eq a => a -> Hook m (UsePrevious a) (Maybe a)
 usePrevious value = Hooks.wrap hook
