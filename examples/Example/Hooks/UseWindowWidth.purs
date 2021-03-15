@@ -14,10 +14,8 @@ import Halogen as H
 import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Query.Event as HE
-import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (EventType(..))
 import Web.Event.Event as Event
-import Web.Event.EventTarget (EventTarget)
 import Web.HTML as HTML
 import Web.HTML.Window as Window
 
@@ -49,11 +47,7 @@ useWindowWidth = Hooks.wrap hook
         HE.eventListener
           (EventType "resize")
           (Window.toEventTarget window)
-          (Event.target >>> map (fromEventTarget >>> readWidth))
+          (Event.target >=> Window.fromEventTarget >>> map readWidth)
 
       readWidth window
       pure subscriptionId
-
--- This function is missing from the purescript-web-html repository
-fromEventTarget :: EventTarget -> HTML.Window
-fromEventTarget = unsafeCoerce
