@@ -91,7 +91,7 @@ _ <- useState ""
 This is a good time to revisit our first free monad, `Hook`. As you have noticed as a user of the library, this free monad takes a type parameter of kind `HookType` and the `bind` implementation affects this type parameter. Hooks are implemented as a take on an indexed free monad, which lets us ensure that Hooks are always used in the same order.
 
 ```purs
-foreign import kind HookType
+data HookType
 
 newtype Hook m (h :: HookType) a = Hook (Free (UseHookF m) a)
 derive newtype instance functorHook :: Functor (Hook m h)

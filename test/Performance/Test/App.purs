@@ -2,7 +2,6 @@ module Performance.Test.App where
 
 import Prelude
 
-import Data.Maybe (Maybe(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Aff.Class (class MonadAff)
@@ -32,7 +31,7 @@ derive instance eqTestState :: Eq TestState
 
 data Action = HandleStartTest Test | HandleTestComplete Test
 
-container :: forall q i o m. MonadAff m => H.Component HH.HTML q i o m
+container :: forall q i o m. MonadAff m => H.Component q i o m
 container = H.mkComponent
   { initialState: \_ -> NotStarted
   , render
@@ -42,10 +41,10 @@ container = H.mkComponent
   -- Used by Puppeteer to mount a test into the page so that it can be started
   testAction test = do
     let test' = testToString test
-    HH.button [ HP.id_ test', HE.onClick \_ -> Just (HandleStartTest test) ] [ HH.text test' ]
+    HH.button [ HP.id test', HE.onClick \_ -> HandleStartTest test ] [ HH.text test' ]
 
   handleComplete test =
-    Just <<< const (HandleTestComplete test)
+    const (HandleTestComplete test)
 
   render state = do
     HH.div_
@@ -73,7 +72,7 @@ container = H.mkComponent
                 HH.slot Todo.Component._todoComponent unit Todo.Component.container unit (handleComplete TodoComponent)
 
               Completed test ->
-                HH.div [ HP.id_ (testToString test <> completedSuffix) ] [ ]
+                HH.div [ HP.id (testToString test <> completedSuffix) ] [ ]
           ]
       ]
 

@@ -6,21 +6,21 @@ import Data.Array as Array
 import Data.Maybe (Maybe)
 import Data.Set (Set)
 import Data.Set as Set
-import Data.Symbol (SProxy(..))
 import Effect (Effect)
 import Effect.Random (randomInt)
 import Halogen as H
 import Partial.Unsafe (unsafePartial)
+import Type.Proxy (Proxy(..))
 
 data Query a = Run (Unit -> a)
 
 data TodoOutput = Save Todo | SetCompleted Int Boolean
 
-_todo = SProxy :: SProxy "todo"
+_todo = Proxy :: Proxy "todo"
 
 data CheckboxOutput = Check Boolean
 
-_checkbox = SProxy :: SProxy "checkbox"
+_checkbox = Proxy :: Proxy "checkbox"
 
 type Slot = H.Slot Query Void
 

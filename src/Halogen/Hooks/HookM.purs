@@ -12,24 +12,27 @@ import Control.Monad.Error.Class (class MonadThrow, throwError)
 import Control.Monad.Free (Free, liftF)
 import Control.Monad.Reader (class MonadAsk, class MonadTrans, ask)
 import Control.Monad.Rec.Class (class MonadRec, Step(..), tailRecM)
-import Control.Monad.Writer (class MonadTell, tell)
+import Control.Monad.Writer (class MonadTell)
+import Control.Monad.Writer as MR
 import Control.Parallel (class Parallel)
 import Data.FoldableWithIndex (foldrWithIndex)
 import Data.Map (Map)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype)
-import Data.Symbol (class IsSymbol, SProxy)
+import Data.Symbol (class IsSymbol)
 import Data.Traversable (traverse)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Class (class MonadEffect, liftEffect)
+import Halogen (Request, Tell, mkRequest, mkTell)
 import Halogen as H
 import Halogen.Data.Slot as Slot
 import Halogen.Hooks.Internal.Types (OutputValue, SlotType, StateValue, fromStateValue, toOutputValue, toStateValue)
 import Halogen.Hooks.Types (OutputToken, SlotToken, StateId)
 import Halogen.Query.ChildQuery as CQ
-import Halogen.Query.EventSource as ES
+import Halogen.Subscription as HS
 import Prim.Row as Row
+import Type.Proxy (Proxy)
 import Unsafe.Coerce (unsafeCoerce)
 import Web.DOM as DOM
 import Web.HTML as HTML
@@ -39,7 +42,7 @@ import Web.HTML.HTMLElement as HTMLElement
 -- | for Hooks.
 data HookF m a
   = Modify (StateId StateValue) (StateValue -> StateValue) (StateValue -> a)
-  | Subscribe (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) (H.SubscriptionId -> a)
+  | Subscribe (H.SubscriptionId -> HS.Emitter (HookM m Unit)) (H.SubscriptionId -> a)
   | Unsubscribe H.SubscriptionId a
   | Lift (m a)
   | ChildQuery (CQ.ChildQueryBox SlotType a)
@@ -82,7 +85,7 @@ instance monadAskHookM :: MonadAsk r m => MonadAsk r (HookM m) where
   ask = HookM $ liftF $ Lift ask
 
 instance monadTellHookM :: MonadTell w m => MonadTell w (HookM m) where
-  tell = HookM <<< liftF <<< Lift <<< tell
+  tell = HookM <<< liftF <<< Lift <<< MR.tell
 
 instance monadThrowHookM :: MonadThrow e m => MonadThrow e (HookM m) where
   throwError = HookM <<< liftF <<< Lift <<< throwError
@@ -174,7 +177,7 @@ query
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> slot
   -> query a
   -> HookM m (Maybe a)
@@ -185,6 +188,37 @@ query _ label p q =
   box :: CQ.ChildQueryBox ps ~> CQ.ChildQueryBox SlotType
   box = unsafeCoerce
 
+-- | Send a query-request to a child of a component at the specified slot. Requires a
+-- | token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
+request
+  :: forall m label ps query o' slot a _1
+   . Row.Cons label (H.Slot query o' slot) _1 ps
+  => IsSymbol label
+  => Ord slot
+  => SlotToken ps
+  -> Proxy label
+  -> slot
+  -> Request query a
+  -> HookM m (Maybe a)
+request slotToken label slot req = query slotToken label slot $ mkRequest req
+  
+-- | Send a tell-request to a child of a component at the specified slot. Requires a
+-- | token carrying the slot type of the component, which is provided by the
+-- | `Hooks.component` function.
+tell
+  :: forall m label ps query o' slot _1
+   . Row.Cons label (H.Slot query o' slot) _1 ps
+  => IsSymbol label
+  => Ord slot
+  => SlotToken ps
+  -> Proxy label
+  -> slot
+  -> Tell query
+  -> HookM m Unit
+tell slotToken label slot req = void $ query slotToken label slot $ mkTell req
+  
+
 -- | Send a query to all children of a component at the specified slot. Requires
 -- | a token carrying the slot type of the component, which is provided by the
 -- | `Hooks.component` function.
@@ -194,7 +228,7 @@ queryAll
   => IsSymbol label
   => Ord slot
   => SlotToken ps
-  -> SProxy label
+  -> Proxy label
   -> query a
   -> HookM m (Map slot a)
 queryAll _ label q =
@@ -207,25 +241,25 @@ queryAll _ label q =
   catMapMaybes :: forall k v. Ord k => Map k (Maybe v) -> Map k v
   catMapMaybes = foldrWithIndex (\k v acc -> maybe acc (flip (Map.insert k) acc) v) Map.empty
 
--- | Subscribes a component to an `EventSource`. When a component is disposed of
+-- | Subscribes a component to an `Emitter`. When a component is disposed of
 -- | any active subscriptions will automatically be stopped and no further subscriptions
 -- | will be possible during finalization.
-subscribe :: forall m. ES.EventSource m (HookM m Unit) -> HookM m H.SubscriptionId
+subscribe :: forall m. HS.Emitter (HookM m Unit) -> HookM m H.SubscriptionId
 subscribe es = HookM $ liftF $ Subscribe (\_ -> es) identity
 
 -- | An alternative to `subscribe`, intended for subscriptions that unsubscribe
 -- | themselves. Instead of returning the `SubscriptionId` from `subscribe'`, it
--- | is passed into an `EventSource` constructor. This allows emitted queries
+-- | is passed into an `Emitter` constructor. This allows emitted queries
 -- | to include the `SubscriptionId`, rather than storing it in the state of the
 -- | component.
 -- |
 -- | When a component is disposed of any active subscriptions will automatically
 -- | be stopped and no further subscriptions will be possible during
 -- | finalization.
-subscribe' :: forall m. (H.SubscriptionId -> ES.EventSource m (HookM m Unit)) -> HookM m Unit
+subscribe' :: forall m. (H.SubscriptionId -> HS.Emitter (HookM m Unit)) -> HookM m Unit
 subscribe' esc = HookM $ liftF $ Subscribe esc (const unit)
 
--- | Unsubscribes a component from an `EventSource`. If the subscription
+-- | Unsubscribes a component from an `Emitter`. If the subscription
 -- | associated with the ID has already ended this will have no effect.
 unsubscribe :: forall m. H.SubscriptionId -> HookM m Unit
 unsubscribe sid = HookM $ liftF $ Unsubscribe sid unit

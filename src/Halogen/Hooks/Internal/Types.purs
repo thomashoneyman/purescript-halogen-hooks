@@ -20,7 +20,7 @@ toQueryValue = unsafeCoerce
 fromQueryValue :: forall q a. QueryValue a -> q a
 fromQueryValue = unsafeCoerce
 
-foreign import data SlotType :: # Type
+foreign import data SlotType :: Row Type
 
 foreign import data OutputValue :: Type
 

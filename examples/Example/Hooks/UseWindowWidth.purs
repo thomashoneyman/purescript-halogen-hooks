@@ -13,7 +13,7 @@ import Effect.Class (liftEffect)
 import Halogen as H
 import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
-import Halogen.Query.EventSource as ES
+import Halogen.Query.Event as HE
 import Unsafe.Coerce (unsafeCoerce)
 import Web.Event.Event (EventType(..))
 import Web.Event.Event as Event
@@ -46,7 +46,7 @@ useWindowWidth = Hooks.wrap hook
 
       window <- liftEffect HTML.window
       subscriptionId <- Hooks.subscribe do
-        ES.eventListenerEventSource
+        HE.eventListener
           (EventType "resize")
           (Window.toEventTarget window)
           (Event.target >>> map (fromEventTarget >>> readWidth))

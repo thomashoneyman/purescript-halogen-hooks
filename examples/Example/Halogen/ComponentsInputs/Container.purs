@@ -2,8 +2,6 @@ module Example.Halogen.ComponentsInputs.Container where
 
 import Prelude
 
-import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
 import Data.Tuple.Nested ((/\))
 import Effect.Class (class MonadEffect)
 import Example.Halogen.ComponentsInputs.Display as Display
@@ -11,10 +9,11 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.Hooks as Hooks
+import Type.Proxy (Proxy(..))
 
-_display = SProxy :: SProxy "display"
+_display = Proxy :: Proxy "display"
 
-component :: forall q i o m. MonadEffect m => H.Component HH.HTML q i o m
+component :: forall q i o m. MonadEffect m => H.Component q i o m
 component = Hooks.component \_ _ -> Hooks.do
   count /\ countId <- Hooks.useState 1
 
@@ -32,9 +31,9 @@ component = Hooks.component \_ _ -> Hooks.do
           , HH.slot _display 5 Display.component (count * count) absurd
           ]
       , HH.button
-          [ HE.onClick \_ -> Just decrement ]
+          [ HE.onClick \_ -> decrement ]
           [ HH.text "- 1"]
       , HH.button
-          [ HE.onClick \_ -> Just increment ]
+          [ HE.onClick \_ -> increment ]
           [ HH.text "+ 1"]
       ]

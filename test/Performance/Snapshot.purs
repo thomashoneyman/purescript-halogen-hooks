@@ -4,11 +4,11 @@ import Prelude
 
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (JsonDecodeError, decodeJson)
-import Data.Either (Either, fromRight)
+import Data.Either (Either, fromRight')
 import Data.Int (toNumber)
 import Data.Int as Int
 import Data.Newtype (unwrap)
-import Partial.Unsafe (unsafePartial)
+import Effect.Exception.Unsafe (unsafeThrow)
 import Performance.Setup.Measure (PerformanceSummary)
 import Performance.Snapshot.StateTest as StateTest
 import Performance.Snapshot.TodoTest as TodoTest
@@ -23,7 +23,7 @@ decodeSnapshot :: Json -> Either JsonDecodeError Snapshot
 decodeSnapshot = decodeJson
 
 snapshots :: { state :: Snapshot, todo :: Snapshot }
-snapshots = unsafePartial $ fromRight do
+snapshots = fromRight' (\_ -> unsafeThrow "expected Right") do
   state <- decodeJson StateTest.result
   todo <- decodeJson TodoTest.result
   pure { state, todo }

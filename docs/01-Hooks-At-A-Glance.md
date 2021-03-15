@@ -32,7 +32,7 @@ example = Hooks.component \_ _ -> Hooks.do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
+          [ HE.onClick \_ -> Hooks.modify_ countId (_ + 1) ]
           [ HH.text "Click me" ]
       ]
 ```
@@ -112,7 +112,7 @@ example = Hooks.component \_ _ -> Hooks.do
     HH.div_
       [ HH.p_ [ HH.text $ "You clicked " <> show count <> " times" ]
       , HH.button
-          [ HE.onClick \_ -> Just $ Hooks.modify_ countId (_ + 1) ]
+          [ HE.onClick \_ -> Hooks.modify_ countId (_ + 1) ]
       ]
 ```
 

@@ -4,20 +4,20 @@ import Prelude
 
 import Data.Array.NonEmpty (replicate)
 import Data.Foldable (sequence_)
-import Data.Maybe (Maybe(..))
-import Data.Symbol (SProxy(..))
+
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Performance.Test.State.Shared (Output(..), stateUpdates)
 import Performance.Test.Types (Test(..), startSuffix, testToString)
+import Type.Proxy (Proxy(..))
 
-_stateComponent = SProxy :: SProxy "stateComponent"
+_stateComponent = Proxy :: Proxy "stateComponent"
 
 data Action = RunState
 
-component :: forall q i m. H.Component HH.HTML q i Output m
+component :: forall q i m. H.Component q i Output m
 component =
   H.mkComponent
     { initialState: \_ -> { n: 0, n1: 0, n2: 0, n3: 0, n4: 0 }
@@ -28,8 +28,8 @@ component =
   render state =
     HH.div_
       [ HH.button
-          [ HP.id_ (testToString StateComponent <> startSuffix)
-          , HE.onClick \_ -> Just RunState
+          [ HP.id (testToString StateComponent <> startSuffix)
+          , HE.onClick \_ -> RunState
           ]
           [ HH.text "Start Test" ]
       , HH.text $ show state
