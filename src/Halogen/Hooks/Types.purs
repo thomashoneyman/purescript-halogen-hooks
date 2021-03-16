@@ -2,6 +2,15 @@ module Halogen.Hooks.Types where
 
 import Data.Tuple (Tuple)
 
+-- | The kind of types used in Hooks; primitive Hooks already have this kind,
+-- | and Hooks of your own should be foreign imported data types that are also
+-- | types of this kind:
+-- |
+-- | ```purs
+-- | foreign import data UseX :: Hooks.HookType
+-- | ```
+data HookType
+
 -- | A unique identifier for a state produced by `useState`, which can be passed
 -- | to the state functions `get`, `put`, `modify`, and `modify_` to get or
 -- | modify the state.

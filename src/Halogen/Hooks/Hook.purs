@@ -1,11 +1,22 @@
-module Halogen.Hooks.Hook where
+module Halogen.Hooks.Hook
+  ( Hook
+  , HookAppend
+  , type (<>)
+  , Pure
+  , class HookNewtype
+  , bind
+  , discard
+  , pure
+  , unsafeFromHook
+  , unsafeToHook
+  ) where
 
 import Prelude hiding (bind,discard,pure)
 
 import Control.Applicative as Applicative
-import Control.Monad.Free (Free)
+import Control.Monad.Free (Free, liftF)
 import Halogen.Hooks.Internal.UseHookF (UseHookF)
-import Unsafe.Coerce (unsafeCoerce)
+import Halogen.Hooks.Types (HookType)
 
 -- | A function which has access to primitive and custom hooks like UseState,
 -- | UseEffect, UseRef, and UseMemo. Hook functions can be used to implement
@@ -16,20 +27,15 @@ import Unsafe.Coerce (unsafeCoerce)
 newtype Hook :: (Type -> Type) -> HookType -> Type -> Type
 newtype Hook m h a = Hook (Free (UseHookF m) a)
 
--- Hook types are explicitly given a nominal role as they should not be coercible
--- to other hook types.
 type role Hook representational nominal representational
 
-derive newtype instance functorHook :: Functor (Hook m h)
+derive instance functorHook :: Functor (Hook m h)
 
--- | The kind of types used in Hooks; primitive Hooks already have this kind,
--- | and Hooks of your own should be foreign imported data types that are also
--- | types of this kind:
--- |
--- | ```purs
--- | foreign import data UseX :: Hooks.HookType
--- | ```
-data HookType
+unsafeToHook :: forall m h a. UseHookF m a -> Hook m h a
+unsafeToHook = Hook <<< liftF
+
+unsafeFromHook :: forall m h a. Hook m h a -> Free (UseHookF m) a
+unsafeFromHook (Hook hookF) = hookF
 
 -- | A type for listing several Hook types in order. Typically this is used via
 -- | the operator `<>`.
@@ -68,23 +74,6 @@ foreign import data Pure :: HookType
 -- |   -- ... use useState, useEffect in the implementation
 -- | ```
 class HookNewtype (a :: HookType) (b :: HookType) | a -> b
-
--- | Make a stack of hooks opaque to improve error messages and ensure internal
--- | types like state are not leaked outside the module where the hook is defined.
--- |
--- | We recommend using this for any custom hooks you define.
--- |
--- | ```purs
--- | foreign import data MyHook :: HookType
--- |
--- | instance newtypeMyHook :: HookNewtype MyHook (UseState Int <> Pure)
--- |
--- | useMyHook :: forall m. Hook m MyHook Int
--- | useMyHook = Hooks.wrap Hooks.do
--- |   ... -- hook definition goes here
--- | ```
-wrap :: forall h h' m a. HookNewtype h' h => Hook m h a -> Hook m h' a
-wrap = unsafeCoerce -- only necessary because we can't use `Newtype`
 
 -- | For use with qualified-do.
 -- |

@@ -9,7 +9,7 @@ import Effect.Ref as Ref
 import Effect.Unsafe (unsafePerformEffect)
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.Hooks.Hook (Hook(..))
+import Halogen.Hooks.Hook (Hook, unsafeFromHook)
 import Halogen.Hooks.HookM (HookM)
 import Halogen.Hooks.Internal.Eval as Eval
 import Halogen.Hooks.Internal.Eval.Types (HookState(..), toHalogenM)
@@ -112,7 +112,7 @@ memoComponent eqInput inputHookFn = do
       let
         eval = Eval.evalHook Eval.evalHookM evalHook reason stateRef
         { input } = Eval.get stateRef
-        Hook hookF = hookFn input
+        hookF = unsafeFromHook (hookFn input)
 
       a <- H.HalogenM (substFree eval hookF)
 
@@ -125,7 +125,6 @@ memoComponent eqInput inputHookFn = do
     , eval: toHalogenM slotToken outputToken <<< Eval.mkEval eqInput Eval.evalHookM evalHook
     }
   where
-
   initialState input =
     HookState
       { result: HH.text ""
