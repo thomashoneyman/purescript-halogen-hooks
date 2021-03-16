@@ -18,7 +18,8 @@ import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
 import Halogen.Aff.Driver.State (DriverState(..), DriverStateX, initDriverState)
 import Halogen.HTML as HH
-import Halogen.Hooks (Hook(..), HookF(..), HookM(..))
+import Halogen.Hooks (Hook, HookF(..), HookM(..))
+import Halogen.Hooks.Hook (unsafeFromHook)
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..))
 import Halogen.Hooks.Types (ComponentRef, StateId(..))
@@ -119,7 +120,7 @@ mkEvalQuery hookFn =
     let
       eval = Hooks.Eval.evalHook evalHookM evalHook reason stateRef
       { input } = Hooks.Eval.get stateRef
-      Hook hookF = hookFn input
+      hookF = unsafeFromHook (hookFn input)
 
     writeLog (RunHooks reason) input
     a <- H.HalogenM (substFree eval hookF)

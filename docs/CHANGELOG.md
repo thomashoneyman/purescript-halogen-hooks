@@ -6,7 +6,9 @@ Notable changes to Hooks are documented in this file. The format is based on [Ke
 
 Breaking changes (😱!!!):
 
-- **Move to a single index for hook types ([#32](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/32)).**
+- **Add support for PureScript 0.14 and Halogen 6, dropping support for previous versions of the compiler and Halogen.** (#71 by @CarstenKoenig, #72 by @thomashoneyman)
+
+- **Move to a single index for hook types.** (#32 by @thomashoneyman)
 
   Using a single index for Hook types simplifies the Hooks implementation and makes defining your own Hooks easier and less confusing. It also allows the library to drop its dependency on `indexed-monad`.
 
@@ -40,7 +42,7 @@ Breaking changes (😱!!!):
 
   bind
     :: forall h h' m a b
-    . Hook m h a
+     . Hook m h a
     -> (a -> Hook m h' b)
     -> Hook m (h <> h') b
   ```
@@ -79,7 +81,7 @@ Breaking changes (😱!!!):
 
   foreign import data UseX :: Hooks.HookType
 
-  instance newtypeUseX :: HookEquals UseX' h => HookNewtype UseX h
+  instance newtypeUseX :: HookNewtype UseX UseX'
   ```
 
 New features:
@@ -88,9 +90,9 @@ Bugfixes:
 
 Other improvements:
 
-- Docs: Added technical documentation that covers the main concepts used in the internal implementation ([#59](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/59)).
-- Docs: Added a changelog to record changes to the library over time ([#62](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/62)).
-- Tests: Added performance tests to measure the performance impact of changes ([#53](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/53), [#56](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/56)).
+- Docs: Added technical documentation that covers the main concepts used in the internal implementation (#59 by @thomashoneyman).
+- Docs: Added a changelog to record changes to the library over time (#62 by @thomashoneyman).
+- Tests: Added performance tests to measure the performance impact of changes (#53 by @thomashoneyman, #56 by @thomashoneyman).
 
 ## [0.4.3] - 2020-06-17
 
@@ -118,7 +120,7 @@ This release includes small internal performance improvements.
 
 Improvements:
 
-- **Use `substFree` instead of `foldFree` internally ([#33](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/33)).**
+- Use `substFree` instead of `foldFree` internally ([#33](https://github.com/thomashoneyman/purescript-halogen-hooks/pull/33)).
   Using `foldFree` is convenient, but it incurs some overhead due to a `MonadRec` constraint on the monad you interpret into. Switching to `substFree` eliminates this overhead, giving the library a modest performance improvement.
 
 ## [0.4.0] - 2020-05-14

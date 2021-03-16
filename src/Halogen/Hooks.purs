@@ -24,21 +24,22 @@ module Halogen.Hooks
   -- Helpers
   , captures
   , capturesWith
+  , wrap
   )
 where
 
 import Halogen.Hooks.HookM
 
-import Control.Monad.Free (liftF)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Data.Tuple.Nested ((/\), type (/\))
 import Effect.Ref (Ref)
 import Halogen.Hooks.Component (component, memoComponent)
-import Halogen.Hooks.Hook (class HookEquals, class HookNewtype, type (<>), Hook(..), HookAppend, Pure, bind, discard, pure, wrap, HookType)
-import Halogen.Hooks.Internal.Types as IT
+import Halogen.Hooks.Hook (class HookNewtype, type (<>), Hook, HookAppend, Pure, bind, discard, pure)
+import Halogen.Hooks.Hook as Hook
+import Halogen.Hooks.Internal.Types (MemoValue, QueryValue, RefValue, StateValue, fromMemoValue, fromQueryValue, fromRefValue, fromStateValue, toMemoValue, toMemoValues, toMemoValuesImpl, toRefValue, toStateValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
-import Halogen.Hooks.Types (ComponentTokens, MemoValues, OutputToken, QueryToken, SlotToken, StateId) -- only export StateId constructor
+import Halogen.Hooks.Types (ComponentTokens, HookType, MemoValues, OutputToken, QueryToken, SlotToken, StateId)
 import Prelude (class Eq, Unit, unit, ($), (<<<), (==))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -59,13 +60,13 @@ foreign import data UseState :: Type -> HookType
 -- |       Hooks.modify_ stateId \st -> st + 10
 -- | ```
 useState :: forall state m. state -> Hook m (UseState state) (state /\ StateId state)
-useState initialState = Hook $ liftF $ UseState initialState' interface
+useState initialState = Hook.unsafeToHook $ UseState initialState' interface
   where
-  initialState' :: IT.StateValue
-  initialState' = IT.toStateValue initialState
+  initialState' :: StateValue
+  initialState' = toStateValue initialState
 
-  interface :: Tuple IT.StateValue (StateId IT.StateValue) -> Tuple state (StateId state)
-  interface (Tuple value id) = Tuple (IT.fromStateValue value) (unsafeCoerce id)
+  interface :: Tuple StateValue (StateId StateValue) -> Tuple state (StateId state)
+  interface (Tuple value id) = Tuple (fromStateValue value) (unsafeCoerce id)
 
 foreign import data UseEffect :: HookType
 
@@ -75,7 +76,7 @@ foreign import data UseEffect :: HookType
 -- |
 -- | If you would like to run your effect after every render, see `useTickEffect`.
 useLifecycleEffect :: forall m. HookM m (Maybe (HookM m Unit)) -> Hook m UseEffect Unit
-useLifecycleEffect fn = Hook $ liftF $ UseEffect Nothing fn unit
+useLifecycleEffect fn = Hook.unsafeToHook $ UseEffect Nothing fn unit
 
 -- | A Hook providing the ability to run an effect after every render, which
 -- | includes the first time the hook is run.
@@ -99,7 +100,7 @@ useLifecycleEffect fn = Hook $ liftF $ UseEffect Nothing fn unit
 -- |   ...
 -- | ```
 useTickEffect :: forall m. MemoValues -> HookM m (Maybe (HookM m Unit)) -> Hook m UseEffect Unit
-useTickEffect memos fn = Hook $ liftF $ UseEffect (Just memos) fn unit
+useTickEffect memos fn = Hook.unsafeToHook $ UseEffect (Just memos) fn unit
 
 foreign import data UseQuery :: HookType
 
@@ -115,13 +116,13 @@ useQuery
    . QueryToken query
   -> (forall a. query a -> HookM m (Maybe a))
   -> Hook m UseQuery Unit
-useQuery token handler = Hook $ liftF $ UseQuery token' handler' unit
+useQuery token handler = Hook.unsafeToHook $ UseQuery token' handler' unit
   where
-  token' :: QueryToken IT.QueryValue
+  token' :: QueryToken QueryValue
   token' = unsafeCoerce token
 
-  handler' :: forall a. IT.QueryValue a -> HookM m (Maybe a)
-  handler' = handler <<< IT.fromQueryValue
+  handler' :: forall a. QueryValue a -> HookM m (Maybe a)
+  handler' = handler <<< fromQueryValue
 
 foreign import data UseMemo :: Type -> HookType
 
@@ -155,13 +156,13 @@ foreign import data UseMemo :: Type -> HookType
 -- |     expensiveFunction x y
 -- | ```
 useMemo :: forall m a. MemoValues -> (Unit -> a) -> Hook m (UseMemo a) a
-useMemo memos fn = Hook $ liftF $ UseMemo memos to from
+useMemo memos fn = Hook.unsafeToHook $ UseMemo memos to from
   where
-  to :: Unit -> IT.MemoValue
-  to = IT.toMemoValue <<< fn
+  to :: Unit -> MemoValue
+  to = toMemoValue <<< fn
 
-  from :: IT.MemoValue -> a
-  from = IT.fromMemoValue
+  from :: MemoValue -> a
+  from = fromMemoValue
 
 foreign import data UseRef :: Type -> HookType
 
@@ -185,13 +186,13 @@ foreign import data UseRef :: Type -> HookType
 -- | Hooks.pure $ HH.text (show value)
 -- | ```
 useRef :: forall m a. a -> Hook m (UseRef a) (a /\ Ref a)
-useRef initialValue = Hook $ liftF $ UseRef initialValue' interface
+useRef initialValue = Hook.unsafeToHook $ UseRef initialValue' interface
   where
-  initialValue' :: IT.RefValue
-  initialValue' = IT.toRefValue initialValue
+  initialValue' :: RefValue
+  initialValue' = toRefValue initialValue
 
-  interface :: IT.RefValue /\ Ref IT.RefValue -> a /\ Ref a
-  interface (value /\ ref) = IT.fromRefValue value /\ (unsafeCoerce :: Ref IT.RefValue -> Ref a) ref
+  interface :: RefValue /\ Ref RefValue -> a /\ Ref a
+  interface (value /\ ref) = fromRefValue value /\ (unsafeCoerce :: Ref RefValue -> Ref a) ref
 
 -- | Used to improve performance for hooks which may be expensive to run on
 -- | many renders (like `useTickEffect` and `useMemo`). Uses a value equality
@@ -200,7 +201,7 @@ useRef initialValue = Hook $ liftF $ UseRef initialValue' interface
 -- | Some values may be expensive to check for value equality. You can optimize
 -- | this by only checking a sub-part of your captured values using `capturesWith`
 captures :: forall memos a. Eq (Record memos) => Record memos -> (MemoValues -> a) -> a
-captures memos fn = fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: (==), memos }
+captures memos fn = fn $ toMemoValues $ toMemoValuesImpl { eq: (==), memos }
 
 -- | Like `captures`, but without an `Eq` constraint. Use when you only want to
 -- | check part of a captured value for equality or when your captured values
@@ -231,4 +232,21 @@ capturesWith
   -> (MemoValues -> a)
   -> a
 capturesWith memosEq memos fn =
-  fn $ IT.toMemoValues $ IT.toMemoValuesImpl { eq: memosEq, memos }
+  fn $ toMemoValues $ toMemoValuesImpl { eq: memosEq, memos }
+
+-- | Make a stack of hooks opaque to improve error messages and ensure internal
+-- | types like state are not leaked outside the module where the hook is defined.
+-- |
+-- | We recommend using this for any custom hooks you define.
+-- |
+-- | ```purs
+-- | foreign import data MyHook :: HookType
+-- |
+-- | instance newtypeMyHook :: HookNewtype MyHook (UseState Int <> Pure)
+-- |
+-- | useMyHook :: forall m. Hook m MyHook Int
+-- | useMyHook = Hooks.wrap Hooks.do
+-- |   ... -- hook definition goes here
+-- | ```
+wrap :: forall h h' m a. HookNewtype h' h => Hook m h a -> Hook m h' a
+wrap = unsafeCoerce -- only necessary because we can't use `Newtype`

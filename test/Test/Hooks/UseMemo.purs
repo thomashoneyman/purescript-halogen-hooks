@@ -6,7 +6,7 @@ import Data.Foldable (fold)
 import Data.Tuple.Nested ((/\))
 import Effect.Aff (Aff)
 import Halogen as H
-import Halogen.Hooks (class HookEquals, class HookNewtype, type (<>), Hook, HookM, UseMemo, UseState)
+import Halogen.Hooks (class HookNewtype, type (<>), Hook, HookM, UseMemo, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, mkEval, initDriver)
@@ -26,7 +26,7 @@ type UseMemoCount' =
     <> UseMemo Int
     <> Hooks.Pure
 
-instance newtypeUseMemoCount :: HookEquals h UseMemoCount' => HookNewtype UseMemoCount h
+instance newtypeUseMemoCount :: HookNewtype UseMemoCount UseMemoCount'
 
 type Interface =
   { incrementA :: HookM Aff Unit
