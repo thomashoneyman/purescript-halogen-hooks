@@ -6,6 +6,16 @@ Notable changes to Hooks are documented in this file. The format is based on [Ke
 
 Breaking changes (😱!!!):
 
+New features:
+
+Bugfixes:
+
+Other improvements:
+
+## [0.5.0] - 2021-03-15
+
+Breaking changes (😱!!!):
+
 - **Add support for PureScript 0.14 and Halogen 6, dropping support for previous versions of the compiler and Halogen.** (#71 by @CarstenKoenig, #72 by @thomashoneyman)
 
 - **Move to a single index for hook types.** (#32 by @thomashoneyman)
@@ -93,6 +103,7 @@ Other improvements:
 - Docs: Added technical documentation that covers the main concepts used in the internal implementation (#59 by @thomashoneyman).
 - Docs: Added a changelog to record changes to the library over time (#62 by @thomashoneyman).
 - Tests: Added performance tests to measure the performance impact of changes (#53 by @thomashoneyman, #56 by @thomashoneyman).
+- Updated the Nix shell to use PureScript 0.14 tooling
 
 ## [0.4.3] - 2020-06-17
 
