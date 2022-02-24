@@ -2,6 +2,7 @@
 !.gitignore
 !.github
 !.editorconfig
+!.purs.json
 
 # Dependencies
 bower_components
