@@ -1,8 +1,7 @@
 module Example.Hooks.UsePrevious
   ( usePrevious
   , UsePrevious
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -18,7 +17,7 @@ foreign import data UsePrevious :: Type -> Hooks.HookType
 
 type UsePrevious' a = UseRef (Maybe a) <> UseEffect <> Hooks.Pure
 
-instance newtypeUsePrevious :: HookNewtype (UsePrevious a) (UsePrevious' a)
+instance HookNewtype (UsePrevious a) (UsePrevious' a)
 
 usePrevious :: forall m a. MonadAff m => Eq a => a -> Hook m (UsePrevious a) (Maybe a)
 usePrevious value = Hooks.wrap hook
@@ -27,7 +26,7 @@ usePrevious value = Hooks.wrap hook
   hook = Hooks.do
     prev /\ ref <- Hooks.useRef Nothing
 
-    Hooks.captures { } Hooks.useTickEffect do
+    Hooks.captures {} Hooks.useTickEffect do
       liftEffect $ Ref.write (Just value) ref
       pure Nothing
 

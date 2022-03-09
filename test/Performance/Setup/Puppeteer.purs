@@ -136,7 +136,8 @@ collectGarbage :: Page -> Aff Unit
 collectGarbage = toAffE1 collectGarbageImpl
 
 newtype FilePath = FilePath String
-derive instance newtypeFilePath :: Newtype FilePath _
+
+derive instance Newtype FilePath _
 
 foreign import startTraceImpl :: EffectFn2 Page FilePath (Promise Unit)
 
@@ -178,41 +179,41 @@ foreign import pageMetricsImpl :: EffectFn1 Page (Promise JSPageMetrics)
 
 newtype Kilobytes = Kilobytes Int
 
-derive instance newtypeKilobytes :: Newtype Kilobytes _
-derive newtype instance eqKilobytes :: Eq Kilobytes
-derive newtype instance ordKilobytes :: Ord Kilobytes
-derive newtype instance semiringKilobytes :: Semiring Kilobytes
-derive newtype instance ringKilobytes :: Ring Kilobytes
-derive newtype instance commutativeRingKilobytes :: CommutativeRing Kilobytes
-derive newtype instance euclidianRingKilobytes :: EuclideanRing Kilobytes
+derive instance Newtype Kilobytes _
+derive newtype instance Eq Kilobytes
+derive newtype instance Ord Kilobytes
+derive newtype instance Semiring Kilobytes
+derive newtype instance Ring Kilobytes
+derive newtype instance CommutativeRing Kilobytes
+derive newtype instance EuclideanRing Kilobytes
 
-instance encodeJsonKilobytes :: EncodeJson Kilobytes where
+instance EncodeJson Kilobytes where
   encodeJson = encodeJson <<< show
 
-instance decodeJsonKilobytes :: DecodeJson Kilobytes where
+instance DecodeJson Kilobytes where
   decodeJson json = decodeJson json >>= \str -> do
     pure (Kilobytes (unsafePartial (fromJust (Int.fromString (String.dropRight 2 str)))))
 
-instance showKilobytes :: Show Kilobytes where
+instance Show Kilobytes where
   show (Kilobytes kb) = show kb <> "kb"
 
 newtype Milliseconds = Milliseconds Int
 
-derive instance newtypeMilliseconds :: Newtype Milliseconds _
-derive newtype instance eqMilliseconds :: Eq Milliseconds
-derive newtype instance ordMilliseconds :: Ord Milliseconds
-derive newtype instance semiringMilliseconds :: Semiring Milliseconds
-derive newtype instance ringMilliseconds :: Ring Milliseconds
-derive newtype instance commutativeRingMilliseconds :: CommutativeRing Milliseconds
-derive newtype instance euclidianRingMilliseconds :: EuclideanRing Milliseconds
+derive instance Newtype Milliseconds _
+derive newtype instance Eq Milliseconds
+derive newtype instance Ord Milliseconds
+derive newtype instance Semiring Milliseconds
+derive newtype instance Ring Milliseconds
+derive newtype instance CommutativeRing Milliseconds
+derive newtype instance EuclideanRing Milliseconds
 
-instance encodeJsonMilliseconds :: EncodeJson Milliseconds where
+instance EncodeJson Milliseconds where
   encodeJson = encodeJson <<< show
 
-instance showMilliseconds :: Show Milliseconds where
+instance Show Milliseconds where
   show (Milliseconds ms) = show ms <> "ms"
 
-instance decodeJsonMilliseconds :: DecodeJson Milliseconds where
+instance DecodeJson Milliseconds where
   decodeJson json = decodeJson json >>= \str -> do
     pure (Milliseconds (unsafePartial (fromJust (Int.fromString (String.dropRight 2 str)))))
 

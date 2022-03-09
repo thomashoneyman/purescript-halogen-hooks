@@ -3,12 +3,15 @@ in conf //
   { dependencies =
       conf.dependencies #
         [ "argonaut"
-        , "console"
-        , "debug"
+        , "avar"
+        , "datetime"
         , "effect"
+        , "either"
         , "halogen-storybook"
-        , "psci-support"
+        , "profunctor-lenses"
         , "random"
+        , "web-events"
+        , "web-storage"
         ]
   , sources =
       conf.sources #

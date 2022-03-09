@@ -102,7 +102,7 @@ evalHook
   -> InterpretHookReason
   -> Ref (InternalHookState q i m a)
   -> UseHookF m
-  ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
+       ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
 evalHook _evalHookM _evalHook reason stateRef = case _ of
   UseState initial reply ->
     case reason of
@@ -164,48 +164,50 @@ evalHook _evalHookM _evalHook reason stateRef = case _ of
           nextIndex = stepIndex index queue
           mbOldMemos /\ finalizer = unsafeGetCell index queue
 
-        in case mbMemos, mbOldMemos of
-          Just newMemos, Just oldMemos ->
-            let
-              memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
-              memos' = { old: fromMemoValues oldMemos, new: fromMemoValues newMemos }
-
-            in if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then
+        in
+          case mbMemos, mbOldMemos of
+            Just newMemos, Just oldMemos ->
               let
-                eval = do
-                  mbFinalizer <- _evalHookM (_evalHook Queued) (finalizer *> act)
-
-                  let
-                    { effectCells: { queue: queue' } } = get stateRef
-                    newFinalizer = fromMaybe (pure unit) mbFinalizer
-                    newValue = mbMemos /\ newFinalizer
-                    newQueue = unsafeSetCell index newValue queue'
-                    (_ :: Unit) = modify_ stateRef _ { effectCells { queue = newQueue } }
-
-                  pure unit
-
-                (_ :: Unit) =
-                  modify_ stateRef \s -> s
-                    { evalQueue = Array.snoc s.evalQueue eval
-                    , effectCells { index = nextIndex  }
-                    }
+                memos' :: { old :: MemoValuesImpl, new :: MemoValuesImpl }
+                memos' = { old: fromMemoValues oldMemos, new: fromMemoValues newMemos }
 
               in
-                pure a
+                if (Object.isEmpty memos'.new.memos || not memos'.new.eq memos'.old.memos memos'.new.memos) then
+                  let
+                    eval = do
+                      mbFinalizer <- _evalHookM (_evalHook Queued) (finalizer *> act)
 
-            else
+                      let
+                        { effectCells: { queue: queue' } } = get stateRef
+                        newFinalizer = fromMaybe (pure unit) mbFinalizer
+                        newValue = mbMemos /\ newFinalizer
+                        newQueue = unsafeSetCell index newValue queue'
+                        (_ :: Unit) = modify_ stateRef _ { effectCells { queue = newQueue } }
+
+                      pure unit
+
+                    (_ :: Unit) =
+                      modify_ stateRef \s -> s
+                        { evalQueue = Array.snoc s.evalQueue eval
+                        , effectCells { index = nextIndex }
+                        }
+
+                  in
+                    pure a
+
+                else
+                  let
+                    (_ :: Unit) = modify_ stateRef _ { effectCells { index = nextIndex } }
+
+                  in
+                    pure a
+
+            _, _ ->
               let
                 (_ :: Unit) = modify_ stateRef _ { effectCells { index = nextIndex } }
 
               in
                 pure a
-
-          _, _ ->
-            let
-              (_ :: Unit) = modify_  stateRef _ { effectCells { index = nextIndex } }
-
-            in
-              pure a
 
       Finalize ->
         let
@@ -246,21 +248,22 @@ evalHook _evalHookM _evalHook reason stateRef = case _ of
 
           nextIndex = stepIndex index queue
 
-        in if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then
-          let
-            newValue = memoFn unit
-            newQueue = unsafeSetCell index (memos /\ newValue) queue
-            (_ :: Unit) = modify_ stateRef _ { memoCells = { index: nextIndex, queue: newQueue } }
+        in
+          if (Object.isEmpty m.new || not (m.new `m.eq` m.old)) then
+            let
+              newValue = memoFn unit
+              newQueue = unsafeSetCell index (memos /\ newValue) queue
+              (_ :: Unit) = modify_ stateRef _ { memoCells = { index: nextIndex, queue: newQueue } }
 
-          in
-            pure (reply newValue)
+            in
+              pure (reply newValue)
 
-        else
-          let
-            (_ :: Unit) = modify_ stateRef _ { memoCells { index = nextIndex } }
+          else
+            let
+              (_ :: Unit) = modify_ stateRef _ { memoCells { index = nextIndex } }
 
-          in
-            pure (reply m.value)
+            in
+              pure (reply m.value)
 
   UseRef initial reply ->
     case reason of
@@ -289,7 +292,7 @@ evalHookM (H.HalogenM runHooks) (HookM evalUseHookF) =
   where
   interpretHalogenHook
     :: HookF m
-    ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
+         ~> Free (H.HalogenF (HookState q i m a) (HookM m Unit) SlotType OutputValue m)
   interpretHalogenHook = case _ of
     Modify (StateId (Tuple ref id)) f reply -> do
       HookState { stateRef } <- liftF $ H.State \state -> Tuple state state

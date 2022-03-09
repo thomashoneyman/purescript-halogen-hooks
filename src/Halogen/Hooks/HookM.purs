@@ -52,53 +52,53 @@ data HookF m a
   | Kill H.ForkId a
   | GetRef H.RefLabel (Maybe DOM.Element -> a)
 
-derive instance functorHookF :: Functor m => Functor (HookF m)
+derive instance Functor m => Functor (HookF m)
 
 -- | The Hook effect monad, used to write effectful code in Hooks functions.
 -- | This monad is fully compatible with `HalogenM`, meaning all functionality
 -- | available for `HalogenM` is available in `HookM`.
 newtype HookM m a = HookM (Free (HookF m) a)
 
-derive newtype instance functorHookM :: Functor (HookM m)
-derive newtype instance applyHookM :: Apply (HookM m)
-derive newtype instance applicativeHookM :: Applicative (HookM m)
-derive newtype instance bindHookM :: Bind (HookM m)
-derive newtype instance monadHookM :: Monad (HookM m)
-derive newtype instance semigroupHookM :: Semigroup a => Semigroup (HookM m a)
-derive newtype instance monoidHookM :: Monoid a => Monoid (HookM m a)
+derive newtype instance Functor (HookM m)
+derive newtype instance Apply (HookM m)
+derive newtype instance Applicative (HookM m)
+derive newtype instance Bind (HookM m)
+derive newtype instance Monad (HookM m)
+derive newtype instance Semigroup a => Semigroup (HookM m a)
+derive newtype instance Monoid a => Monoid (HookM m a)
 
-instance monadEffectHookM :: MonadEffect m => MonadEffect (HookM m) where
+instance MonadEffect m => MonadEffect (HookM m) where
   liftEffect = HookM <<< liftF <<< Lift <<< liftEffect
 
-instance monadAffHookM :: MonadAff m => MonadAff (HookM m) where
+instance MonadAff m => MonadAff (HookM m) where
   liftAff = HookM <<< liftF <<< Lift <<< liftAff
 
-instance monadTransHookM :: MonadTrans HookM where
+instance MonadTrans HookM where
   lift = HookM <<< liftF <<< Lift
 
-instance monadRecHookM :: MonadRec (HookM m) where
+instance MonadRec (HookM m) where
   tailRecM k a = k a >>= case _ of
     Loop x -> tailRecM k x
     Done y -> pure y
 
-instance monadAskHookM :: MonadAsk r m => MonadAsk r (HookM m) where
+instance MonadAsk r m => MonadAsk r (HookM m) where
   ask = HookM $ liftF $ Lift ask
 
-instance monadTellHookM :: MonadTell w m => MonadTell w (HookM m) where
+instance MonadTell w m => MonadTell w (HookM m) where
   tell = HookM <<< liftF <<< Lift <<< MR.tell
 
-instance monadThrowHookM :: MonadThrow e m => MonadThrow e (HookM m) where
+instance MonadThrow e m => MonadThrow e (HookM m) where
   throwError = HookM <<< liftF <<< Lift <<< throwError
 
 -- | An applicative-only version of `HookM` to allow for parallel evaluation.
 newtype HookAp m a = HookAp (FreeAp (HookM m) a)
 
-derive instance newtypeHookAp :: Newtype (HookAp m a) _
-derive newtype instance functorHookAp :: Functor (HookAp m)
-derive newtype instance applyHookAp :: Apply (HookAp m)
-derive newtype instance applicativeHookAp :: Applicative (HookAp m)
+derive instance Newtype (HookAp m a) _
+derive newtype instance Functor (HookAp m)
+derive newtype instance Apply (HookAp m)
+derive newtype instance Applicative (HookAp m)
 
-instance parallelHookM :: Parallel (HookAp m) (HookM m) where
+instance Parallel (HookAp m) (HookM m) where
   parallel = HookAp <<< liftFreeAp
   sequential = HookM <<< liftF <<< Par
 
@@ -202,7 +202,7 @@ request
   -> Request query a
   -> HookM m (Maybe a)
 request slotToken label slot req = query slotToken label slot $ mkRequest req
-  
+
 -- | Send a tell-request to a child of a component at the specified slot. Requires a
 -- | token carrying the slot type of the component, which is provided by the
 -- | `Hooks.component` function.
@@ -217,7 +217,6 @@ tell
   -> Tell query
   -> HookM m Unit
 tell slotToken label slot req = void $ query slotToken label slot $ mkTell req
-  
 
 -- | Send a query to all children of a component at the specified slot. Requires
 -- | a token carrying the slot type of the component, which is provided by the

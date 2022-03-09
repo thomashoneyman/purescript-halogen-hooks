@@ -24,7 +24,7 @@ useLifecycleEffectLog :: LogRef -> Hook Aff UseLogHook Interface
 useLifecycleEffectLog log = Hooks.do
   -- used to force re-evaluation of the hook; this should not re-run the effect
   -- because lifecycle effects run only once.
-  state /\ stateId <- Hooks.useState 0
+  _ /\ stateId <- Hooks.useState 0
 
   Hooks.useLifecycleEffect do
     writeLog (RunEffect (EffectBody 0)) log

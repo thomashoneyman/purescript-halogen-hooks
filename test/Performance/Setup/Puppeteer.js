@@ -8,9 +8,9 @@ exports.filterConsole = function () {
 };
 
 exports.launchImpl = function (args) {
-  return function() {
+  return function () {
     return puppeteer.launch(args);
-  }
+  };
 };
 
 exports.newPageImpl = function (browser) {

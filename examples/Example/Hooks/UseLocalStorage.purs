@@ -3,8 +3,7 @@ module Example.Hooks.UseLocalStorage
   , UseLocalStorage
   , Key(..)
   , StorageInterface
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -30,7 +29,7 @@ type UseLocalStorage' a =
     <> UseEffect
     <> Hooks.Pure
 
-instance newtypeUseLocalStorage :: HookNewtype (UseLocalStorage a) h
+instance HookNewtype (UseLocalStorage a) h
 
 type StorageInterface a =
   { key :: Key
@@ -42,7 +41,7 @@ type StorageInterface a =
 -- | A key for a cell in local storage
 newtype Key = Key String
 
-derive newtype instance eqKey :: Eq Key
+derive newtype instance Eq Key
 
 useLocalStorage
   :: forall m a

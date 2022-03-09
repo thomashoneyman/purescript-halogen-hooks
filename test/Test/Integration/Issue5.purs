@@ -25,11 +25,11 @@ type UseTickAfterInitialize' =
     <> UseEffect
     <> Hooks.Pure
 
-instance newtypeUseTickAfterInitialize :: HookNewtype UseTickAfterInitialize UseTickAfterInitialize'
+instance HookNewtype UseTickAfterInitialize UseTickAfterInitialize'
 
 rerunTickAfterInitialEffects :: LogRef -> Hook Aff UseTickAfterInitialize { count :: Int, state1 :: Int, state2 :: Int }
 rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do
-  count /\ countId <- Hooks.useState 0
+  count /\ _ <- Hooks.useState 0
 
   state1 /\ state1Id <- Hooks.useState 1
 
@@ -67,38 +67,38 @@ rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterI
 
   where
   initializeSteps =
-    [ RunHooks Initialize         -- initialize hooks
-    , Render                      -- first render occurs
+    [ RunHooks Initialize -- initialize hooks
+    , Render -- first render occurs
 
-    , RunEffect (EffectBody 0)    -- run enqueued lifecycle effect's initializer
-    , ModifyState                 -- state1 gets incremented to 2,
-                                  --    which should cause tick effect to rerun
-    , RunHooks Queued             -- rerun all non-effect hooks to update state
-                                  --    now the returned `state1` value is 2
-    , Render                      -- render
+    , RunEffect (EffectBody 0) -- run enqueued lifecycle effect's initializer
+    , ModifyState -- state1 gets incremented to 2,
+    --    which should cause tick effect to rerun
+    , RunHooks Queued -- rerun all non-effect hooks to update state
+    --    now the returned `state1` value is 2
+    , Render -- render
 
-    , RunEffect (EffectBody 1)    -- run enqueued tick effect's initializer
-    , ModifyState                 -- state2 gets incremented to 1
-                                  -- (i.e. 0 + state1's initial value: 1)
-    , RunHooks Queued             -- rerun all non-effect hooks to update state
-                                  --    now the returned `state2` value is 1
-    , Render                      -- render
+    , RunEffect (EffectBody 1) -- run enqueued tick effect's initializer
+    , ModifyState -- state2 gets incremented to 1
+    -- (i.e. 0 + state1's initial value: 1)
+    , RunHooks Queued -- rerun all non-effect hooks to update state
+    --    now the returned `state2` value is 1
+    , Render -- render
 
-    , RunHooks Step               -- rerun hooks in case tick effect updated state
-                                  --   here we enqueue but don't yet run the
-                                  --   tick effect due to the lifecycle effect's
-                                  --   initializer modifying its dependencies
-    , Render                      -- render (because we have to...)
+    , RunHooks Step -- rerun hooks in case tick effect updated state
+    --   here we enqueue but don't yet run the
+    --   tick effect due to the lifecycle effect's
+    --   initializer modifying its dependencies
+    , Render -- render (because we have to...)
 
     , RunEffect (EffectCleanup 1) -- rerun enqueued tick effect's initializer
-    , RunEffect (EffectBody 1)    --  and finalizer in one call
-    , ModifyState                 -- state2 gets incremented to 3
-                                  -- (i.e. 1 + state2's current value: 2)
+    , RunEffect (EffectBody 1) --  and finalizer in one call
+    , ModifyState -- state2 gets incremented to 3
+    -- (i.e. 1 + state2's current value: 2)
 
-    , RunHooks Queued             -- rerun all non-effect hooks to update state
-                                  --    now the returned `state2` value is 3
-    , Render                      -- render
+    , RunHooks Queued -- rerun all non-effect hooks to update state
+    --    now the returned `state2` value is 3
+    , Render -- render
 
-    , RunHooks Step               -- rerun hooks in case tick effect updated state
+    , RunHooks Step -- rerun hooks in case tick effect updated state
     , Render
     ]

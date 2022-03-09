@@ -1,8 +1,7 @@
 module Example.Hooks.UseInitializer
   ( useInitializer
   , UseInitializer
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -12,7 +11,7 @@ import Halogen.Hooks as Hooks
 
 foreign import data UseInitializer :: Hooks.HookType
 
-instance hookUseInitializer :: HookNewtype UseInitializer UseEffect
+instance HookNewtype UseInitializer UseEffect
 
 useInitializer :: forall m. HookM m Unit -> Hook m UseInitializer Unit
 useInitializer initializer = Hooks.wrap hook

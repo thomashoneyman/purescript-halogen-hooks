@@ -166,30 +166,31 @@ measure browser test = do
 --
 -- Until then, though, we'll just rely on query selectors.
 runScriptForTest :: Page -> Test -> Aff Unit
-runScriptForTest page test = let selector = prependHash (testToString test) in case test of
-  _ | test == StateHook || test == StateComponent -> do
-        n <- Puppeteer.waitForSelector page (selector <> startSuffix)
-        for_ n Puppeteer.click
-        void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
+runScriptForTest page test = do
+  let selector = prependHash (testToString test)
+  if test == StateHook || test == StateComponent then do
+    n <- Puppeteer.waitForSelector page (selector <> startSuffix)
+    for_ n Puppeteer.click
+    void $ Puppeteer.waitForSelector page (selector <> completedSuffix)
 
-    | test == TodoHook || test == TodoComponent -> do
-        addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
-        for_ addNew Puppeteer.click
+  else if test == TodoHook || test == TodoComponent then do
+    addNew <- Puppeteer.waitForSelector page (prependHash addNewId)
+    for_ addNew Puppeteer.click
 
-        check0 <- Puppeteer.waitForSelector page (prependHash $ checkId 0)
-        for_ check0 Puppeteer.click
-        check1 <- Puppeteer.waitForSelector page (prependHash $ checkId 1)
-        for_ check1 Puppeteer.click
+    check0 <- Puppeteer.waitForSelector page (prependHash $ checkId 0)
+    for_ check0 Puppeteer.click
+    check1 <- Puppeteer.waitForSelector page (prependHash $ checkId 1)
+    for_ check1 Puppeteer.click
 
-        Puppeteer.focus page (prependHash $ editId 5)
-        Puppeteer.typeWithKeyboard page "is so fun"
-        save5 <- Puppeteer.waitForSelector page (prependHash $ saveId 5)
-        for_ save5 Puppeteer.click
+    Puppeteer.focus page (prependHash $ editId 5)
+    Puppeteer.typeWithKeyboard page "is so fun"
+    save5 <- Puppeteer.waitForSelector page (prependHash $ saveId 5)
+    for_ save5 Puppeteer.click
 
-        for_ check0 Puppeteer.click
-        for_ check1 Puppeteer.click
+    for_ check0 Puppeteer.click
+    for_ check1 Puppeteer.click
 
-  _ ->
+  else
     throwError $ error "Impossible!!!"
 
 prependHash :: String -> String

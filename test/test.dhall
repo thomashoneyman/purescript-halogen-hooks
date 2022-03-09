@@ -3,13 +3,19 @@ in conf //
   { dependencies =
       conf.dependencies #
         [ "aff-promise"
+        , "avar"
         , "argonaut-codecs"
         , "argonaut-core"
-        , "debug"
+        , "either"
+        , "console"
+        , "integers"
+        , "node-buffer"
         , "node-fs"
+        , "node-path"
+        , "nullable"
         , "spec"
+        , "strings"
         , "random"
-        , "record"
         ]
   , sources =
       conf.sources #

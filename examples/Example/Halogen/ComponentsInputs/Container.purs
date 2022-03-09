@@ -32,8 +32,8 @@ component = Hooks.component \_ _ -> Hooks.do
           ]
       , HH.button
           [ HE.onClick \_ -> decrement ]
-          [ HH.text "- 1"]
+          [ HH.text "- 1" ]
       , HH.button
           [ HE.onClick \_ -> increment ]
-          [ HH.text "+ 1"]
+          [ HH.text "+ 1" ]
       ]

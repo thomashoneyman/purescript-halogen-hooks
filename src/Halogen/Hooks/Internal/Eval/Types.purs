@@ -20,7 +20,7 @@ toHalogenM
   -> OutputToken o
   -> HalogenM' q i m b a
   -> H.HalogenM (HookState q i m b) (HookM m Unit) ps o m a
-toHalogenM slotToken outputToken hm = unsafeCoerce hm
+toHalogenM _ _ hm = unsafeCoerce hm
 
 data InterpretHookReason
   = Initialize
@@ -28,7 +28,7 @@ data InterpretHookReason
   | Step
   | Finalize
 
-derive instance eqInterpretHookReason :: Eq InterpretHookReason
+derive instance Eq InterpretHookReason
 
 foreign import data QueryFn :: (Type -> Type) -> (Type -> Type) -> Type
 
@@ -43,7 +43,7 @@ newtype HookState q i m a = HookState
   , stateRef :: Ref (InternalHookState q i m a)
   }
 
-derive instance newtypeHookState :: Newtype (HookState q i m a) _
+derive instance Newtype (HookState q i m a) _
 
 type InternalHookState q i m a =
   { input :: i

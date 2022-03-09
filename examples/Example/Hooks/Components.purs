@@ -36,8 +36,7 @@ previousValue = Hooks.component \_ _ -> Hooks.do
   prevState <- usePrevious state
 
   Hooks.pure do
-    HH.div
-      [ ]
+    HH.div_
       [ HH.h4_ [ HH.text "Previous Value" ]
       , HH.p_ [ HH.text "This example demonstrates a hook to persist a value from the previous render." ]
       , HH.text $ "The previous value of the state 'count' was: " <> show prevState
@@ -64,8 +63,7 @@ localStorage = Hooks.component \_ _ -> Hooks.do
       modifyState (over _Right (_ + 1))
 
   Hooks.pure do
-    HH.div
-      [ ]
+    HH.div_
       [ HH.text "Click on the button to clear from local storage"
       , HH.button
           [ HE.onClick \_ -> clearCount ]

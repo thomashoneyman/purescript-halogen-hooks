@@ -27,7 +27,7 @@ data TestState
   | Running Test
   | Completed Test
 
-derive instance eqTestState :: Eq TestState
+derive instance Eq TestState
 
 data Action = HandleStartTest Test | HandleTestComplete Test
 
@@ -72,7 +72,7 @@ container = H.mkComponent
                 HH.slot Todo.Component._todoComponent unit Todo.Component.container unit (handleComplete TodoComponent)
 
               Completed test ->
-                HH.div [ HP.id (testToString test <> completedSuffix) ] [ ]
+                HH.div [ HP.id (testToString test <> completedSuffix) ] []
           ]
       ]
 

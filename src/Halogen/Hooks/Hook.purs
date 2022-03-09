@@ -11,7 +11,7 @@ module Halogen.Hooks.Hook
   , unsafeToHook
   ) where
 
-import Prelude hiding (bind,discard,pure)
+import Prelude hiding (bind, discard, pure)
 
 import Control.Applicative as Applicative
 import Control.Monad.Free (Free, liftF)
@@ -29,7 +29,7 @@ newtype Hook m h a = Hook (Free (UseHookF m) a)
 
 type role Hook representational nominal representational
 
-derive instance functorHook :: Functor (Hook m h)
+derive instance Functor (Hook m h)
 
 unsafeToHook :: forall m h a. UseHookF m a -> Hook m h a
 unsafeToHook = Hook <<< liftF

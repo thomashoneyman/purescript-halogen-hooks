@@ -19,4 +19,4 @@ data UseHookF m a
   | UseMemo MemoValues (Unit -> MemoValue) (MemoValue -> a)
   | UseRef RefValue ((RefValue /\ Ref RefValue) -> a)
 
-derive instance functorUseHookF :: Functor (UseHookF m)
+derive instance Functor (UseHookF m)

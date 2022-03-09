@@ -26,7 +26,7 @@ type UseMemoCount' =
     <> UseMemo Int
     <> Hooks.Pure
 
-instance newtypeUseMemoCount :: HookNewtype UseMemoCount UseMemoCount'
+instance HookNewtype UseMemoCount UseMemoCount'
 
 type Interface =
   { incrementA :: HookM Aff Unit
@@ -41,7 +41,7 @@ useMemoCount :: LogRef -> Hook Aff UseMemoCount Interface
 useMemoCount log = Hooks.wrap Hooks.do
   state1 /\ state1Id <- Hooks.useState 0
   state2 /\ state2Id <- Hooks.useState 0
-  state3 /\ state3Id <- Hooks.useState 0
+  _ /\ state3Id <- Hooks.useState 0
 
   expensive1 <- memoize1 { state1 }
   expensive2 <- memoize2 { state2 }
@@ -97,9 +97,9 @@ memoHook = before initDriver $ describe "useMemo" do
 
     logShouldBe ref $ fold
       [ initializeSteps
-        -- incrementA should recompute memos 1 and 3
+      -- incrementA should recompute memos 1 and 3
       , [ ModifyState, RunHooks Step, RunMemo (CalculateMemo 1), RunMemo (CalculateMemo 3), Render ]
-        -- incrementB should recompute memos 2 and 3
+      -- incrementB should recompute memos 2 and 3
       , [ ModifyState, RunHooks Step, RunMemo (CalculateMemo 2), RunMemo (CalculateMemo 3), Render ]
 
       , finalizeSteps

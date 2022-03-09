@@ -29,9 +29,9 @@ data TestEvent
   | EvaluateHook HookType
   | Render
 
-derive instance eqTestEvent :: Eq TestEvent
+derive instance Eq TestEvent
 
-instance showTestEvent :: Show TestEvent where
+instance Show TestEvent where
   show = case _ of
     RunHooks reason ->
       append "RunHooks " case reason of
@@ -61,24 +61,24 @@ data HookType
   | UseMemoHook
   | UseRefHook
 
-derive instance eqHookType :: Eq HookType
-derive instance genericHookType :: Generic HookType _
+derive instance Eq HookType
+derive instance Generic HookType _
 
-instance showHookType :: Show HookType where
+instance Show HookType where
   show = genericShow
 
 data EffectType = EffectBody Int | EffectCleanup Int
 
-derive instance eqEffectType :: Eq EffectType
-derive instance genericEffectType :: Generic EffectType _
+derive instance Eq EffectType
+derive instance Generic EffectType _
 
-instance showEffectType :: Show EffectType where
+instance Show EffectType where
   show = genericShow
 
 data MemoType = CalculateMemo Int
 
-derive instance eqMemoType :: Eq MemoType
-derive instance genericMemoType :: Generic MemoType _
+derive instance Eq MemoType
+derive instance Generic MemoType _
 
-instance showMemoType :: Show MemoType where
+instance Show MemoType where
   show = genericShow

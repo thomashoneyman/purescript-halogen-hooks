@@ -1,8 +1,7 @@
 module Example.Hooks.UseDebouncer
   ( useDebouncer
   , UseDebouncer
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -22,7 +21,7 @@ foreign import data UseDebouncer :: Type -> Hooks.HookType
 
 type UseDebouncer' a = UseRef (Maybe Debouncer) <> UseRef (Maybe a) <> Hooks.Pure
 
-instance newtypeUseDebouncer :: HookNewtype (UseDebouncer a) (UseDebouncer' a)
+instance HookNewtype (UseDebouncer a) (UseDebouncer' a)
 
 type Debouncer = { var :: AVar Unit, fiber :: Fiber Unit }
 

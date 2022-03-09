@@ -1,8 +1,7 @@
 module Example.Hooks.UseWindowWidth
   ( useWindowWidth
   , UseWindowWidth
-  )
-  where
+  ) where
 
 import Prelude
 
@@ -23,7 +22,7 @@ foreign import data UseWindowWidth :: Hooks.HookType
 
 type UseWindowWidth' = UseState (Maybe Int) <> UseEffect <> Hooks.Pure
 
-instance newtypeUseWindowWidth :: HookNewtype UseWindowWidth UseWindowWidth'
+instance HookNewtype UseWindowWidth UseWindowWidth'
 
 useWindowWidth :: forall m. MonadAff m => Hook m UseWindowWidth (Maybe Int)
 useWindowWidth = Hooks.wrap hook

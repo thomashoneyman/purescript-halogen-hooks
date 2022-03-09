@@ -54,12 +54,12 @@ examples =
   index = Hooks.component \_ _ -> Hooks.pure do
     HH.div_
       [ HH.h1_
-        [ HH.text "Halogen Hooks" ]
+          [ HH.text "Halogen Hooks" ]
       , HH.p_
-        [ HH.text "See the Halogen Hooks "
-        , HH.a
-          [ HP.href "https://github.com/thomashoneyman/purescript-halogen-hooks" ]
-          [ HH.text "README" ]
-        , HH.text " for details."
-        ]
+          [ HH.text "See the Halogen Hooks "
+          , HH.a
+              [ HP.href "https://github.com/thomashoneyman/purescript-halogen-hooks" ]
+              [ HH.text "README" ]
+          , HH.text " for details."
+          ]
       ]

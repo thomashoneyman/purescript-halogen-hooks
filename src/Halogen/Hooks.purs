@@ -25,8 +25,7 @@ module Halogen.Hooks
   , captures
   , capturesWith
   , wrap
-  )
-where
+  ) where
 
 import Halogen.Hooks.HookM
 

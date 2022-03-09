@@ -19,7 +19,8 @@ import Test.Spec.Assertions (shouldEqual)
 
 type Interface =
   { increment :: HookM Aff Unit
-  , toggle :: HookM Aff Unit, count :: Int
+  , toggle :: HookM Aff Unit
+  , count :: Int
   }
 
 type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Pure
@@ -27,7 +28,7 @@ type UseLogHook = UseState Int <> UseState Boolean <> UseEffect <> Hooks.Pure
 useTickEffectLog :: LogRef -> Hook Aff UseLogHook Interface
 useTickEffectLog log = Hooks.do
   count /\ countId <- Hooks.useState 0
-  toggle /\ toggleId <- Hooks.useState false
+  _ /\ toggleId <- Hooks.useState false
   useLogger { count, id: 0 }
   Hooks.pure
     { count
@@ -35,7 +36,7 @@ useTickEffectLog log = Hooks.do
     , toggle: Hooks.modify_ toggleId not
     }
   where
-  useLogger deps@{ count, id } = Hooks.captures deps Hooks.useTickEffect do
+  useLogger deps@{ id } = Hooks.captures deps Hooks.useTickEffect do
     writeLog (RunEffect (EffectBody id)) log
     pure $ Just do
       writeLog (RunEffect (EffectCleanup id)) log
@@ -72,7 +73,7 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
       ]
 
   it "effect is skipped when memos are unchanged" \ref -> do
-    { count } <- evalM ref do
+    _ <- evalM ref do
       eval H.Initialize
 
       { toggle } <- readResult ref

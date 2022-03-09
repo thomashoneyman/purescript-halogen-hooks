@@ -13,20 +13,20 @@ import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
 import Test.Setup.Eval (evalM, initDriver, mkEval)
 import Test.Setup.Log (logShouldBe, readResult)
-import Test.Setup.Types (LogRef, TestEvent(..))
+import Test.Setup.Types (TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
 import Test.Spec.Assertions (shouldEqual)
 
 type Interface = { increment :: HookM Aff Unit, count :: Int }
 
-useRefCount :: LogRef -> Hook Aff (UseRef Int <> Hooks.Pure) Interface
-useRefCount ref = Hooks.do
+useRefCount :: Hook Aff (UseRef Int <> Hooks.Pure) Interface
+useRefCount = Hooks.do
   count /\ countRef <- Hooks.useRef 0
   Hooks.pure { count, increment: liftEffect $ Ref.modify_ (_ + 1) countRef }
 
 refHook :: Spec Unit
 refHook = before initDriver $ describe "useRef" do
-  let eval = mkEval useRefCount
+  let eval = mkEval (const useRefCount)
 
   it "initializes to the proper initial value" \ref -> do
     { count } <- evalM ref do

@@ -8,8 +8,8 @@ data Test
   | TodoHook
   | TodoComponent
 
-derive instance eqTest :: Eq Test
-derive instance ordTest :: Ord Test
+derive instance Eq Test
+derive instance Ord Test
 
 testToString :: Test -> String
 testToString = case _ of
