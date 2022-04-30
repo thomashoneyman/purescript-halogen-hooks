@@ -1,5 +1,5 @@
-exports._memoValuesImpl = function (eq) {
+export function _memoValuesImpl (eq) {
   return function (memos) {
-    return { eq, memos };
-  };
-};
+    return { eq, memos }
+  }
+}

@@ -1,95 +1,95 @@
-const puppeteer = require("puppeteer");
-const filterConsole = require("filter-console");
-const tracealyzer = require("tracealyzer");
-const { getPerformanceModel } = require("headless-devtools");
+import * as puppeteer from 'puppeteer'
+import * as filterConsole from 'filter-console'
+import * as tracealyzer from 'tracealyzer'
+import { getPerformanceModel } from 'headless-devtools'
 
-exports.filterConsole = function () {
-  filterConsole(["Failed to parse CPU profile."]);
-};
+export function filterConsole () {
+  filterConsole(['Failed to parse CPU profile.'])
+}
 
-exports.launchImpl = function (args) {
+export function launchImpl (args) {
   return function () {
-    return puppeteer.launch(args);
-  };
-};
+    return puppeteer.launch(args)
+  }
+}
 
-exports.newPageImpl = function (browser) {
-  return browser.newPage();
-};
+export function newPageImpl (browser) {
+  return browser.newPage()
+}
 
-exports.debugImpl = function (page) {
-  page.on("console", (msg) => console.log("PAGE LOG:", msg.text()));
-  page.on("pageerror", (err) => console.log("ERROR LOG:", err.message));
-};
+export function debugImpl (page) {
+  page.on('console', msg => console.log('PAGE LOG:', msg.text()))
+  page.on('pageerror', err => console.log('ERROR LOG:', err.message))
+}
 
-exports.clickImpl = function (elem) {
-  return elem.click();
-};
+export function clickImpl (elem) {
+  return elem.click()
+}
 
-exports.waitForSelectorImpl = function (page, selector) {
-  return page.waitForSelector(selector);
-};
+export function waitForSelectorImpl (page, selector) {
+  return page.waitForSelector(selector)
+}
 
-exports.focusImpl = function (page, selector) {
-  return page.focus(selector);
-};
+export function focusImpl (page, selector) {
+  return page.focus(selector)
+}
 
-exports.typeWithKeybordImpl = function (page, string) {
-  return page.keyboard.type(string);
-};
+export function typeWithKeybordImpl (page, string) {
+  return page.keyboard.type(string)
+}
 
-exports.gotoImpl = function (page, path) {
-  return page.goto(path);
-};
+export function gotoImpl (page, path) {
+  return page.goto(path)
+}
 
-exports.closePageImpl = function (page) {
-  return page.close();
-};
+export function closePageImpl (page) {
+  return page.close()
+}
 
-exports.closeBrowserImpl = function (browser) {
-  return browser.close();
-};
+export function closeBrowserImpl (browser) {
+  return browser.close()
+}
 
-exports.enableHeapProfilerImpl = function (page) {
-  return page._client.send("HeapProfiler.enable");
-};
+export function enableHeapProfilerImpl (page) {
+  return page._client.send('HeapProfiler.enable')
+}
 
-exports.collectGarbageImpl = function (page) {
-  return page._client.send("HeapProfiler.collectGarbage");
-};
+export function collectGarbageImpl (page) {
+  return page._client.send('HeapProfiler.collectGarbage')
+}
 
-exports.startTraceImpl = function (page, path) {
-  return page.tracing.start({ path });
-};
+export function startTraceImpl (page, path) {
+  return page.tracing.start({ path })
+}
 
-exports.stopTraceImpl = function (page) {
-  return page.tracing.stop();
-};
+export function stopTraceImpl (page) {
+  return page.tracing.stop()
+}
 
 // Should be used on the trace produced by `page.tracing.stop()`
-exports.getPerformanceModelImpl = function (trace) {
+export function getPerformanceModelImpl (trace) {
   try {
-    const traceJSON = JSON.parse(trace.toString());
-    return getPerformanceModel(traceJSON);
+    const traceJSON = JSON.parse(trace.toString())
+    return getPerformanceModel(traceJSON)
   } catch (e) {
-    return null;
+    return null
   }
-};
+}
 
 // Should be used on the model returned by `getPeformanceModel`
-exports.getAverageFPS = function (model) {
-  const frames = model.frames();
-  const durations = frames.map((x) => x.duration);
-  const avg = durations.reduce((acc, item) => acc + item, 0) / durations.length;
-  return Math.round(1000 / avg);
-};
+export function getAverageFPS (model) {
+  const frames = model.frames()
+  const durations = frames.map(x => x.duration)
+  const avg = durations.reduce((acc, item) => acc + item, 0) / durations.length
+  return Math.round(1000 / avg)
+}
 
-exports.pageMetricsImpl = function (page) {
-  return page.metrics();
-};
+export function pageMetricsImpl (page) {
+  return page.metrics()
+}
 
-exports.tracealyzer = function (filename) {
+export function tracealyzer (filename) {
   return function () {
-    return tracealyzer(filename);
-  };
-};
+    return tracealyzer(filename)
+  }
+}

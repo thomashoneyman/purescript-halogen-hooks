@@ -20,7 +20,8 @@ import Performance.Test.Todo.Hook as Todo.Hook
 main :: Effect Unit
 main = launchAff_ do
   body <- HA.awaitBody
-  runUI container unit body
+  _ <- runUI container unit body
+  pure unit
 
 data TestState
   = NotStarted
