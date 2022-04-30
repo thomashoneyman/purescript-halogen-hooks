@@ -1,15 +1,15 @@
-import * as puppeteer from 'puppeteer'
-import * as filterConsole from 'filter-console'
-import * as tracealyzer from 'tracealyzer'
+import P from 'puppeteer'
+import filterConsole from 'filter-console'
+import tracealyzer from 'tracealyzer'
 import { getPerformanceModel } from 'headless-devtools'
 
-export function filterConsole () {
+export function filterConsoleImpl () {
   filterConsole(['Failed to parse CPU profile.'])
 }
 
 export function launchImpl (args) {
   return function () {
-    return puppeteer.launch(args)
+    return P.launch(args)
   }
 }
 
@@ -88,7 +88,7 @@ export function pageMetricsImpl (page) {
   return page.metrics()
 }
 
-export function tracealyzer (filename) {
+export function tracealyzerImpl (filename) {
   return function () {
     return tracealyzer(filename)
   }
