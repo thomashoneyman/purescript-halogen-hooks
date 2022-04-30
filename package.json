@@ -16,12 +16,12 @@
     "test": "spago -x test/test.dhall test",
     "test:performance": "npm run bundle:performance && spago -x test/test.dhall run --main Performance.Main",
     "bundle:examples": "spago -x examples/examples.dhall bundle-app --main Example.Main --to examples/app.js",
-    "bundle:performance": "spago -x test/test.dhall bundle-app --main Performance.Test.App --to test/test.js --no-build"
+    "bundle:performance": "spago -x test/test.dhall bundle-app --minify --main Performance.Test.App --to test/test.js --no-build"
   },
   "devDependencies": {
     "filter-console": "^0.1.1",
     "headless-devtools": "^2.0.1",
-    "puppeteer": "^5.2.0",
+    "puppeteer": "^13.7.0",
     "tracealyzer": "^0.10.3"
   }
 }
