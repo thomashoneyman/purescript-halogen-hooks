@@ -1,11 +1,12 @@
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.14.0-20210313/packages.dhall sha256:ba6368b31902aad206851fec930e89465440ebf5a1fe0391f8be396e2d2f1d87
+      https://github.com/purescript/package-sets/releases/download/psc-0.15.0-20220429/packages.dhall
+        sha256:03c682bff56fc8f9d8c495ffcc6f524cbd3c89fe04778f965265c08757de8c9d
 
 let additions =
       { halogen-storybook =
         { dependencies = [ "halogen", "routing", "foreign-object" ]
-        , repo = "https://github.com/rnons/purescript-halogen-storybook.git"
-        , version = "7327247aea379d4582dad9f93be9749556d26c99"
+        , repo = "https://github.com/CarstenKoenig/purescript-halogen-storybook.git"
+        , version = "purs015"
         }
       }
 
