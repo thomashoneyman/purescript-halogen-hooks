@@ -12,6 +12,13 @@ Bugfixes:
 
 Other improvements:
 
+## [0.6.0] - 2022-05-02
+
+Breaking changes (😱!!!):
+
+- **Add support for PureScript 0.15 and Halogen 7, dropping support for previous versions of the compiler and Halogen.** (#74 by @CarstenKoenig)
+  This is a breaking change because of the upgrade in dependencies only. The code continues to work as-is.
+
 ## [0.5.0] - 2021-03-15
 
 Breaking changes (😱!!!):
