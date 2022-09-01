@@ -1,16 +1,16 @@
-export const result = {
-  hookAverage: {
-    totalTime: '478ms',
-    scriptTime: '333ms',
-    peakHeap: '13948kb',
-    averageHeap: '6594kb',
-    averageFPS: 20
+exports.result = {
+  "hookAverage": {
+    "totalTime": "392ms",
+    "scriptTime": "153ms",
+    "peakHeap": "10916kb",
+    "averageHeap": "5155kb",
+    "averageFPS": 42
   },
-  componentAverage: {
-    totalTime: '358ms',
-    scriptTime: '200ms',
-    peakHeap: '7045kb',
-    averageHeap: '3490kb',
-    averageFPS: 26
+  "componentAverage": {
+    "totalTime": "326ms",
+    "scriptTime": "86ms",
+    "peakHeap": "5945kb",
+    "averageHeap": "3063kb",
+    "averageFPS": 47
   }
 }
