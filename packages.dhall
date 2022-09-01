@@ -5,8 +5,8 @@ let upstream =
 let additions =
       { halogen-storybook =
         { dependencies = [ "halogen", "routing", "foreign-object" ]
-        , repo = "https://github.com/CarstenKoenig/purescript-halogen-storybook.git"
-        , version = "purs015"
+        , repo = "https://github.com/rnons/purescript-halogen-storybook.git"
+        , version = "v2.0.0"
         }
       }
 
