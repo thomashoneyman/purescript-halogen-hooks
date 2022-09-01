@@ -13,6 +13,7 @@ import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
+import Effect.Unsafe (unsafePerformEffect)
 import Halogen (HalogenQ)
 import Halogen as H
 import Halogen.Aff.Driver.Eval as Aff.Driver.Eval
@@ -41,7 +42,7 @@ evalM ref (H.HalogenM hm) = Aff.Driver.Eval.evalM mempty ref (foldFree go hm)
   go = case _ of
     -- We'll report renders the same way Halogen triggers them: successful
     -- state modifications.
-    c@(H.State f) -> H.lift do
+    H.State f -> H.lift do
       DriverState (st@{ state, lifecycleHandlers }) <- liftEffect (Ref.read ref)
       case f state of
         Tuple a state'
@@ -65,11 +66,10 @@ evalHookM runHooks (HookM hm) = foldFree go hm
   where
   go :: HookF Aff ~> HalogenM' q LogRef Aff a
   go = case _ of
-    c@(Modify (StateId (Tuple ref id)) f reply) -> do
+    c@(Modify (StateId (Tuple ref id)) f _) -> do
       HookState { stateRef } <- H.get
 
-      let
-        state = Hooks.Eval.get stateRef
+      let state = unsafePerformEffect $ Ref.read stateRef
 
       case unsafeRefEq state.componentRef ref of
         true ->
@@ -119,7 +119,7 @@ mkEvalQuery hookFn =
 
     let
       eval = Hooks.Eval.evalHook evalHookM evalHook reason stateRef
-      { input } = Hooks.Eval.get stateRef
+      { input } = unsafePerformEffect $ Ref.read stateRef
       hookF = unsafeFromHook (hookFn input)
 
     writeLog (RunHooks reason) input

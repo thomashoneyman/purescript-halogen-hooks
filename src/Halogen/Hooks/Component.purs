@@ -111,7 +111,7 @@ memoComponent eqInput inputHookFn = do
 
       let
         eval = Eval.evalHook Eval.evalHookM evalHook reason stateRef
-        { input } = Eval.get stateRef
+        { input } = unsafePerformEffect $ Ref.read stateRef
         hookF = unsafeFromHook (hookFn input)
 
       a <- H.HalogenM (substFree eval hookF)
