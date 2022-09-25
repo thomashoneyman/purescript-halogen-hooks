@@ -19,7 +19,7 @@ import Effect.Unsafe (unsafePerformEffect)
 import Foreign.Object as Object
 import Halogen as H
 import Halogen.Hooks.HookM (HookAp(..), HookF(..), HookM(..))
-import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..), InterpretHookReason(..), InternalHookState, fromQueryFn, toQueryFn)
+import Halogen.Hooks.Internal.Eval.Types (HookState(..), InternalHookState, InterpretHookReason(..), HalogenM', fromQueryFn, toQueryFn)
 import Halogen.Hooks.Internal.Types (MemoValuesImpl, OutputValue, SlotType, fromMemoValue, fromMemoValues, toQueryValue)
 import Halogen.Hooks.Internal.UseHookF (UseHookF(..))
 import Halogen.Hooks.Types (StateId(..))
@@ -131,13 +131,20 @@ evalHook _evalHookM _evalHook reason stateRef = case _ of
     case reason of
       Initialize -> pure $ unsafePerformEffect do
         let
-          eval = do
+          eval :: Int -> HalogenM' _ _ _ _ _
+          eval index = do
             mbFinalizer <- _evalHookM (_evalHook Queued) act
             let finalizer = fromMaybe (pure unit) mbFinalizer
-            let newQueue st = Array.snoc st.effectCells.queue (mbMemos /\ finalizer)
-            pure $ unsafePerformEffect $ Ref.modify_ (\s -> s { effectCells { queue = newQueue s } }) stateRef
+            let updateQueue st = unsafeSetCell index (mbMemos /\ finalizer) st
+            pure $ unsafePerformEffect $ Ref.modify_ (\s -> s { effectCells { queue = updateQueue s.effectCells.queue } }) stateRef
 
-        Ref.modify_ (\s -> s { evalQueue = Array.snoc s.evalQueue eval }) stateRef
+          initializeState :: InternalHookState _ _ _ _ -> InternalHookState _ _ _ _
+          initializeState st = st
+            { evalQueue = Array.snoc st.evalQueue $ eval $ Array.length st.effectCells.queue
+            , effectCells = st.effectCells { queue = Array.snoc st.effectCells.queue (mbMemos /\ pure unit) }
+            }
+
+        Ref.modify_ initializeState stateRef
         pure a
 
       Queued ->
