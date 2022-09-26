@@ -11,7 +11,7 @@ import Halogen as H
 import Halogen.Hooks (type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Eval (evalM, initDriver)
 import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
@@ -34,18 +34,17 @@ useLifecycleEffectLog log = Hooks.do
   Hooks.pure { tick: Hooks.modify_ stateId (_ + 1) }
 
 lifecycleEffectHook :: Spec Unit
-lifecycleEffectHook = before initDriver $ describe "useLifecycleEffect" do
-  let eval = mkEval useLifecycleEffectLog
+lifecycleEffectHook = before ( initDriver useLifecycleEffectLog ) $ describe "useLifecycleEffect" do
 
-  it "runs the effect on initialize" \ref -> do
+  it "runs the effect on initialize" \{ eval, ref } -> do
     evalM ref $ eval H.Initialize
     logShouldBe ref initializeSteps
 
-  it "runs the effect on initialize and finalize" \ref -> do
+  it "runs the effect on initialize and finalize" \{ eval, ref } -> do
     evalM ref $ eval H.Initialize *> eval H.Finalize
     logShouldBe ref $ fold [ initializeSteps, finalizeSteps ]
 
-  it "doesn't run the effect other than initialize / finalize" \ref -> do
+  it "doesn't run the effect other than initialize / finalize" \{ eval, ref } -> do
     evalM ref do
       eval H.Initialize
 

@@ -69,10 +69,9 @@ useMemoCount log = Hooks.wrap Hooks.do
     state1 + state2 + 5
 
 memoHook :: Spec Unit
-memoHook = before initDriver $ describe "useMemo" do
-  let eval = mkEval useMemoCount
+memoHook = before ( initDriver useMemoCount ) $ describe "useMemo" do
 
-  it "initializes to the proper initial values" \ref -> do
+  it "initializes to the proper initial values" \{ eval, ref } -> do
     { expensive1, expensive2, expensive3 } <- evalM ref do
       eval H.Initialize
       readResult ref
@@ -81,7 +80,7 @@ memoHook = before initDriver $ describe "useMemo" do
     expensive2 `shouldEqual` 5
     expensive3 `shouldEqual` 5
 
-  it "recalculates memoized values in response to actions" \ref -> do
+  it "recalculates memoized values in response to actions" \{ eval, ref } -> do
     { expensive1, expensive2, expensive3 } <- evalM ref do
       eval H.Initialize
 
@@ -105,7 +104,7 @@ memoHook = before initDriver $ describe "useMemo" do
       , finalizeSteps
       ]
 
-  it "does not recalculate memoized values when memos are unchanged" \ref -> do
+  it "does not recalculate memoized values when memos are unchanged" \{ eval, ref } -> do
     { expensive1, expensive2, expensive3 } <- evalM ref do
       eval H.Initialize
 
@@ -127,7 +126,7 @@ memoHook = before initDriver $ describe "useMemo" do
 
   where
   initializeSteps =
-    [ RunHooks Initialize, RunMemo (CalculateMemo 1), RunMemo (CalculateMemo 2), RunMemo (CalculateMemo 3), Render ]
+    [ RunMemo (CalculateMemo 1), RunMemo (CalculateMemo 2), RunMemo (CalculateMemo 3), RunHooks Initialize, Render ]
 
   finalizeSteps =
     [ RunHooks Finalize, Render ]
