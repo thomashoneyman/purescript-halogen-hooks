@@ -176,8 +176,14 @@ evalHook _evalHookM _evalHook reason stateRef = case _ of
         pure { value: unsafeGetCell index queue, identifier: StateId (Tuple componentRef index) }
     pure (reply (Tuple value identifier))
 
-  UseQuery _ _ a -> do
-    pure a
+  UseQuery _ handler a -> do
+    let
+      handler' :: forall b. q b -> HookM m (Maybe b)
+      handler' = handler <<< toQueryValue
+
+    pure $ unsafePerformEffect do
+      _ <- Ref.modify_ (_ { queryFn = Just $ toQueryFn handler' }) stateRef
+      pure a
 
   UseEffect mbMemos act a ->
     case reason of
