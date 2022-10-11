@@ -13,7 +13,7 @@ Everyone is welcome! People of all experience levels can join, begin contributin
 Feel free to ask questions by opening an issue on the relevant library. Maintainers are also active on:
 
 - The [PureScript Discourse](https://discourse.purescript.org) (the most popular option and best for detailed questions)
-- The [Functional Programming Slack](https://functionalprogramming.slack.com) ([link to join](https://fpchat-invite.herokuapp.com)!) in the `#purescript` and `#purescript-beginners` channels (best for quick, informal questions)
+- The [PureScript Discord server](https://purescript.org/chat) (best for quick, informal questions)
 
 ### I'd like to help, how do I pick something to work on?
 
