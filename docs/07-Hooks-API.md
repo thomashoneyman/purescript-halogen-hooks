@@ -6,14 +6,12 @@ This chapter is still a work in progress, but it contains enough information on 
 
 ## Table of Contents
 
-- [The Hooks API](#the-hooks-api)
-  - [Table of Contents](#table-of-contents)
-  - [useState](#usestate)
-  - [useLifecycleEffect](#uselifecycleeffect)
-  - [useTickEffect](#usetickeffect)
-  - [useQuery](#usequery)
-  - [useMemo](#usememo)
-  - [useRef](#useref)
+1. [useState](#usestate)
+2. [useLifecycleEffect](#uselifecycleeffect)
+3. [useTickEffect](#usetickeffect)
+4. [useQuery](#usequery)
+5. [useMemo](#usememo)
+6. [useRef](#useref)
 
 ## useState
 
