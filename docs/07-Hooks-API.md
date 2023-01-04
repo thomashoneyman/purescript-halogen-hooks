@@ -93,7 +93,7 @@ Hooks.do
 
     -- This effect can return another effect to run when these Hooks are removed;
     -- here, we unsubscribe from window resize events.
-    pure $ Just $ Hooks.unsubscribe subscription
+    pure $ Just $ Hooks.unsubscribe subscriptionId
 
   Hooks.pure width
 ```
