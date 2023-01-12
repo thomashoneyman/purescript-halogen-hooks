@@ -11,7 +11,7 @@ import Halogen as H
 import Halogen.Hooks (type (<>), Hook, HookM, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Eval (evalM, initDriver)
 import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
@@ -42,14 +42,13 @@ useTickEffectLog log = Hooks.do
       writeLog (RunEffect (EffectCleanup id)) log
 
 tickEffectHook :: Spec Unit
-tickEffectHook = before initDriver $ describe "useTickEffect" do
-  let eval = mkEval useTickEffectLog
+tickEffectHook = before ( initDriver useTickEffectLog ) $ describe "useTickEffect" do
 
-  it "effect runs on initialize and cleans up on finalize" \ref -> do
+  it "effect runs on initialize and cleans up on finalize" \{ eval, ref } -> do
     evalM ref $ eval H.Initialize *> eval H.Finalize
     logShouldBe ref $ fold [ initializeSteps, finalizeSteps ]
 
-  it "effect runs on memo change and cleans up before next run" \ref -> do
+  it "effect runs on memo change and cleans up before next run" \{ eval, ref } -> do
     { count } <- evalM ref do
       eval H.Initialize
 
@@ -72,7 +71,7 @@ tickEffectHook = before initDriver $ describe "useTickEffect" do
       , finalizeSteps
       ]
 
-  it "effect is skipped when memos are unchanged" \ref -> do
+  it "effect is skipped when memos are unchanged" \{ eval, ref } -> do
     _ <- evalM ref do
       eval H.Initialize
 
