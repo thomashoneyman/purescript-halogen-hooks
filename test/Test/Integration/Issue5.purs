@@ -9,7 +9,7 @@ import Halogen as H
 import Halogen.Hooks (class HookNewtype, type (<>), Hook, UseEffect, UseState)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Eval (evalM, initDriver)
 import Test.Setup.Log (logShouldBe, readResult, writeLog)
 import Test.Setup.Types (EffectType(..), LogRef, TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
@@ -52,10 +52,9 @@ rerunTickAfterInitialEffects log = Hooks.wrap Hooks.do
       writeLog (RunEffect (EffectCleanup 1)) log
 
 rerunTickAfterInitialEffectsHook :: Spec Unit
-rerunTickAfterInitialEffectsHook = before initDriver $ describe "rerunTickAfterInitialEffects" do
-  let eval = mkEval rerunTickAfterInitialEffects
+rerunTickAfterInitialEffectsHook = before ( initDriver rerunTickAfterInitialEffects ) $ describe "rerunTickAfterInitialEffects" do
 
-  it "tick effect reruns when memos are updated via initial effect's state modification" \ref -> do
+  it "tick effect reruns when memos are updated via initial effect's state modification" \{ eval, ref } -> do
     { count, state1, state2 } <- evalM ref do
       eval H.Initialize
       readResult ref

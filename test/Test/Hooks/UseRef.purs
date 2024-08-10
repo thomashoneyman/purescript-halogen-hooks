@@ -11,7 +11,7 @@ import Halogen as H
 import Halogen.Hooks (type (<>), Hook, HookM, UseRef)
 import Halogen.Hooks as Hooks
 import Halogen.Hooks.Internal.Eval.Types (InterpretHookReason(..))
-import Test.Setup.Eval (evalM, initDriver, mkEval)
+import Test.Setup.Eval (evalM, initDriver)
 import Test.Setup.Log (logShouldBe, readResult)
 import Test.Setup.Types (TestEvent(..))
 import Test.Spec (Spec, before, describe, it)
@@ -25,17 +25,16 @@ useRefCount = Hooks.do
   Hooks.pure { count, increment: liftEffect $ Ref.modify_ (_ + 1) countRef }
 
 refHook :: Spec Unit
-refHook = before initDriver $ describe "useRef" do
-  let eval = mkEval (const useRefCount)
-
-  it "initializes to the proper initial value" \ref -> do
+refHook = before ( initDriver $ const useRefCount ) $ describe "useRef" do
+  
+  it "initializes to the proper initial value" \{ eval, ref } -> do
     { count } <- evalM ref do
       eval H.Initialize
       readResult ref
 
     count `shouldEqual` 0
 
-  it "updates state in response to actions" \ref -> do
+  it "updates state in response to actions" \{ eval, ref } -> do
     { count } <- evalM ref do
       eval H.Initialize
 
@@ -49,7 +48,7 @@ refHook = before initDriver $ describe "useRef" do
 
     count `shouldEqual` 3
 
-  it "does not cause re-evaluation when value updates" \ref -> do
+  it "does not cause re-evaluation when value updates" \{ eval, ref } -> do
     { count } <- evalM ref do
       eval H.Initialize
 

@@ -5,11 +5,10 @@ module Test.Setup.Eval where
 import Prelude
 
 import Control.Monad.Free (foldFree, liftF, substFree)
-import Data.Maybe (Maybe(..))
 import Data.Newtype (over, unwrap)
 import Data.Tuple (Tuple(..))
 import Effect.Aff (Aff)
-import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Class (liftEffect)
 import Effect.Exception.Unsafe (unsafeThrow)
 import Effect.Ref (Ref)
 import Effect.Ref as Ref
@@ -23,7 +22,7 @@ import Halogen.Hooks (Hook, HookF(..), HookM(..))
 import Halogen.Hooks.Hook (unsafeFromHook)
 import Halogen.Hooks.Internal.Eval as Hooks.Eval
 import Halogen.Hooks.Internal.Eval.Types (HalogenM', HookState(..))
-import Halogen.Hooks.Types (ComponentRef, StateId(..))
+import Halogen.Hooks.Types (StateId(..))
 import Test.Setup.Log (writeLog)
 import Test.Setup.Types (DriverResultState, LogRef, TestEvent(..), HalogenF')
 import Unsafe.Coerce (unsafeCoerce)
@@ -128,6 +127,11 @@ mkEvalQuery hookFn =
     H.modify_ (over HookState _ { result = a })
     pure a
 
+type Testbed m r q a = 
+  { eval :: ( Unit -> HalogenQ q (HookM m Unit) LogRef Unit ) -> HalogenM' q LogRef m a Unit
+  , ref :: Ref ( DriverResultState r q a )
+  }
+
 -- | Create a new DriverState, which can be used to evaluate multiple calls to
 -- | evaluate test code, and which contains the LogRef.
 -- |
@@ -138,34 +142,24 @@ mkEvalQuery hookFn =
 -- | For more details, look at how Halogen runs components with `runUI` and
 -- | returns an interface that can be used to query them. We essentially want
 -- | to do that, but without the rendering.
-initDriver :: forall m r q a. MonadEffect m => m (Ref (DriverResultState r q a))
-initDriver = liftEffect do
+initDriver :: forall r q a hook . ( LogRef -> Hook Aff hook a ) -> Aff ( Testbed Aff r q a )
+initDriver hookFn = liftEffect do
   logRef <- Ref.new []
-
-  stateRef <- Ref.new
-    { input: logRef
-    , componentRef: unsafeCoerce {} :: ComponentRef
-    , queryFn: Nothing
-    , stateCells: { queue: [], index: 0 }
-    , effectCells: { queue: [], index: 0 }
-    , memoCells: { queue: [], index: 0 }
-    , refCells: { queue: [], index: 0 }
-    , evalQueue: []
-    , stateDirty: false
-    }
-
   lifecycleHandlers <- Ref.new mempty
 
-  map unDriverStateXRef do
-    initDriverState
-      { initialState: \_ -> HookState { result: unit, stateRef }
+  ref <- initDriverState
+      { initialState : Hooks.Eval.mkInitialState hookFn
       , render: \_ -> HH.text ""
       , eval: H.mkEval H.defaultEval
       }
-      unit
+      logRef
       mempty
       lifecycleHandlers
+
+  pure { eval : mkEval hookFn, ref : unDriverStateXRef ref }
+  
   where
+  
   unDriverStateXRef
     :: forall r' s' f' act' ps' i' o'
      . Ref (DriverStateX r' f' o')
