@@ -30,7 +30,8 @@ module Performance.Setup.Puppeteer
 
 import Prelude
 
-import Control.Promise (Promise, toAffE)
+import Promise (Promise)
+import Promise.Aff (toAffE)
 import Data.Argonaut.Core (Json)
 import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError, (.:), (.:?))
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)

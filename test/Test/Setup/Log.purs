@@ -26,7 +26,7 @@ writeLog event ref = liftEffect do
   log <- Ref.read ref
   Ref.write (Array.snoc log event) ref
 
-getLogRef :: forall m r q a. MonadEffect m => Ref (DriverResultState r q a) -> m ( Ref Log )
+getLogRef :: forall m r q a. MonadEffect m => Ref (DriverResultState r q a) -> m (Ref Log)
 getLogRef ref = liftEffect do
   DriverState driver <- Ref.read ref
   state <- Ref.read (unwrap driver.state).stateRef

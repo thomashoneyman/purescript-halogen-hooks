@@ -2,40 +2,35 @@
   description = "Halogen Hooks";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/release-22.05";
-    flake-utils = {
-      url = "github:numtide/flake-utils";
-    };
-    easy-purescript-nix = {
-      url = "github:justinwoo/easy-purescript-nix";
-      flake = false;
+    nixpkgs.url = "github:NixOS/nixpkgs/release-25.11";
+    flake-utils.url = "github:numtide/flake-utils";
+    purescript-overlay = {
+      url = "github:thomashoneyman/purescript-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, easy-purescript-nix, flake-utils, ... }: let
-    name = "halogen-hooks";
-    supportedSystems = ["aarch64-darwin" "x86_64-darwin" "x86_64-linux"];
-  in
-    flake-utils.lib.eachSystem supportedSystems (
-      system: let
-        pkgs = import nixpkgs {inherit system;};
-        pursPkgs = import easy-purescript-nix {inherit pkgs;};
-      in {
-        devShells = {
-          default = pkgs.mkShell {
-            inherit name;
-            packages = [
-              pkgs.nodejs-16_x
-              pkgs.esbuild
-
-              pkgs.nodePackages.bower
-
-              pursPkgs.purs
-              pursPkgs.spago
-              pursPkgs.purs-tidy
-            ];
-          };
+  outputs = { self, nixpkgs, flake-utils, purescript-overlay }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ purescript-overlay.overlays.default ];
         };
-      }
-    );
+      in {
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            git
+            purs
+            purescript-language-server
+            purs-tidy
+            spago-unstable
+          ];
+        };
+
+        checks.purescript-format = pkgs.runCommand "purescript-format" { buildInputs = [ pkgs.purs-tidy ]; } ''
+          ${pkgs.purs-tidy}/bin/purs-tidy check src test examples
+          touch $out
+        '';
+      });
 }

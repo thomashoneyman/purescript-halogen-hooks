@@ -1,0 +1,33 @@
+package:
+  name: halogen-hooks-examples
+  dependencies:
+    - aff: ">=8.0.0 <9.0.0"
+    - argonaut: ">=9.0.0 <10.0.0"
+    - avar: ">=5.0.1 <6.0.0"
+    - datetime: ">=6.1.0 <7.0.0"
+    - effect: ">=4.0.0 <5.0.0"
+    - either: ">=6.1.0 <7.0.0"
+    - halogen: ">=7.0.0 <8.0.0"
+    - halogen-storybook: ">=2.0.0 <3.0.0"
+    - prelude: ">=6.0.2 <7.0.0"
+    - profunctor-lenses: ">=8.0.0 <9.0.0"
+    - random: ">=6.0.0 <7.0.0"
+    - web-events: ">=4.0.0 <5.0.0"
+    - web-storage: ">=5.0.0 <6.0.0"
+  publish:
+    version: 0.0.0
+    license: MIT
+    location:
+      githubOwner: thomashoneyman
+      githubRepo: purescript-halogen-hooks
+workspace:
+  packageSet:
+    registry: 70.0.0
+  extraPackages:
+    halogen-storybook:
+      git: https://github.com/rnons/purescript-halogen-storybook.git
+      ref: v2.0.0
+      dependencies:
+        - foreign-object
+        - halogen
+        - routing
