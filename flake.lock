@@ -1,18 +1,18 @@
 {
   "nodes": {
-    "easy-purescript-nix": {
+    "flake-compat": {
       "flake": false,
       "locked": {
-        "lastModified": 1661176895,
-        "narHash": "sha256-fA0HEajsXLgI+dRJBYysFExELU8o/TgRnrm2UAju6Q0=",
-        "owner": "justinwoo",
-        "repo": "easy-purescript-nix",
-        "rev": "5926981701ac781f08b02e31e4705e46b799299d",
+        "lastModified": 1765121682,
+        "narHash": "sha256-4VBOP18BFeiPkyhy9o4ssBNQEvfvv1kXkasAYd0+rrA=",
+        "owner": "edolstra",
+        "repo": "flake-compat",
+        "rev": "65f23138d8d09a92e30f1e5c87611b23ef451bf3",
         "type": "github"
       },
       "original": {
-        "owner": "justinwoo",
-        "repo": "easy-purescript-nix",
+        "owner": "edolstra",
+        "repo": "flake-compat",
         "type": "github"
       }
     },
@@ -33,25 +33,46 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1662046477,
-        "narHash": "sha256-4vAIkR0ZaV6M8hhUOCc0m9u/RIV+yM0dgzhkS6lSCI0=",
-        "owner": "nixos",
+        "lastModified": 1768529426,
+        "narHash": "sha256-VCKREqtw5GblYynzZ5RkABy4RcFyclquq/9lSoPj+cE=",
+        "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "907f78efd7547dcf0cec2b50974a3e1ccc6068f8",
+        "rev": "cbf8c191891caa7baf4958423e076c9ca53a3292",
         "type": "github"
       },
       "original": {
-        "owner": "nixos",
-        "ref": "release-22.05",
+        "owner": "NixOS",
+        "ref": "release-25.11",
         "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "purescript-overlay": {
+      "inputs": {
+        "flake-compat": "flake-compat",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1765940228,
+        "narHash": "sha256-G21SwmQsdMLfBIyhLtlPiAHkqOSJzNXTqnFGtMYGxAU=",
+        "owner": "thomashoneyman",
+        "repo": "purescript-overlay",
+        "rev": "acca6cfb1b9605b8755b238285fe69ee4090a510",
+        "type": "github"
+      },
+      "original": {
+        "owner": "thomashoneyman",
+        "repo": "purescript-overlay",
         "type": "github"
       }
     },
     "root": {
       "inputs": {
-        "easy-purescript-nix": "easy-purescript-nix",
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs",
+        "purescript-overlay": "purescript-overlay"
       }
     }
   },

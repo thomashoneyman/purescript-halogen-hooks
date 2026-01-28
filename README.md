@@ -24,16 +24,16 @@ You can install Halogen Hooks with Spago:
 spago install halogen-hooks
 ```
 
-If Halogen Hooks is not available in your package set, add it to your project's `packages.dhall` file:
+If Halogen Hooks is not available in your package set, add it to your project's `spago.yaml`:
 
-```dhall
-let additions =
-  { halogen-hooks =
-      { dependencies = [ "halogen" ]
-      , repo = "https://github.com/thomashoneyman/purescript-halogen-hooks.git"
-      , version = "main"
-      }
-  }
+```yaml
+workspace:
+  extraPackages:
+    halogen-hooks:
+      git: https://github.com/thomashoneyman/purescript-halogen-hooks.git
+      ref: main
+      dependencies:
+        - halogen
 ```
 
 ## Quick start

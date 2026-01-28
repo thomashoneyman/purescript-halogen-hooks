@@ -22,11 +22,11 @@ instance HookNewtype UseImmediateRaiseAndReceive UseImmediateRaiseAndReceive'
 
 interruptInitialize :: Aff Unit -> LogRef -> Hook Aff UseImmediateRaiseAndReceive Unit
 interruptInitialize interrupt log = Hooks.wrap Hooks.do
-  Hooks.captures { once : true } Hooks.useTickEffect do
-      writeLog (RunEffect (EffectBody 0)) log
-      liftAff interrupt
-      pure $ Just do
-        writeLog (RunEffect (EffectCleanup 0)) log
+  Hooks.captures { once: true } Hooks.useTickEffect do
+    writeLog (RunEffect (EffectBody 0)) log
+    liftAff interrupt
+    pure $ Just do
+      writeLog (RunEffect (EffectCleanup 0)) log
 
   Hooks.pure unit
 
@@ -38,11 +38,11 @@ safeInitialize = before initDriver $ describe "safeInitialize" do
     -- UseEffect
     receive ref = do
       logRef <- getLogRef ref
-      evalM ref $ mkEval ( interruptInitialize $ pure unit ) ( H.Receive logRef )
+      evalM ref $ mkEval (interruptInitialize $ pure unit) (H.Receive logRef)
 
   it "effect initialization should be safe from interuption by parent" \ref -> do
-    
-    evalM ref $ mkEval ( interruptInitialize $ receive ref ) H.Initialize
+
+    evalM ref $ mkEval (interruptInitialize $ receive ref) H.Initialize
 
     logShouldBe ref initializeSteps
 

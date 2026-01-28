@@ -12,6 +12,14 @@ Bugfixes:
 
 Other improvements:
 
+## [0.6.4] - 2026-01-28
+
+Other improvements:
+
+- Migrate from spago.dhall to spago.yaml
+- Upgrade dependencies for PureScript package set 70.0.0
+- Widen dependency bounds for compatibility with halogen 7 (`aff >=7.0.0`, `parallel >=6.0.0`)
+
 ## [0.6.0] - 2022-05-02
 
 Breaking changes (😱!!!):
