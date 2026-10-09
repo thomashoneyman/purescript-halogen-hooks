@@ -1,5 +1,11 @@
 package:
   name: halogen-hooks
+  publish:
+    version: 0.6.4
+    license: MIT
+    location:
+      githubOwner: thomashoneyman
+      githubRepo: purescript-halogen-hooks
   dependencies:
     - aff: ">=7.1.0 <9.0.0"
     - arrays: ">=7.1.0 <8.0.0"
