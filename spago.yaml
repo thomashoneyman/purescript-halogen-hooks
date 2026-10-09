@@ -1,6 +1,5 @@
 package:
   name: halogen-hooks
-  # Preserve the published 0.6.3 bounds; spago.lock records the tested resolution.
   dependencies:
     - aff: ">=7.1.0 <9.0.0"
     - arrays: ">=7.1.0 <8.0.0"

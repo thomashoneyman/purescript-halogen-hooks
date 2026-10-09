@@ -18,20 +18,14 @@ Learn more about Hooks:
 
 ## Installation
 
-You can install Halogen Hooks with Spago 1.x (this repository uses 1.0.4):
+You can install Halogen Hooks with Spago:
 
 ```sh
 spago install halogen-hooks
 ```
 
-If Halogen Hooks is not available in your package set, select a registry package
-set that includes it, or add a compatible released version under
-`workspace.extraPackages` in your project's `spago.yaml`.
-
-For development, use Node 24 LTS and `npm ci`; see the
-[contributor instructions](./.github/CONTRIBUTING.md) for the pinned compiler,
-build, browser tests, and Nix shell. Bower and Spago Dhall configuration are no
-longer used by this repository.
+See the [contributor setup](./.github/CONTRIBUTING.md#developer-environments)
+to build this checkout.
 
 ## Quick start
 
