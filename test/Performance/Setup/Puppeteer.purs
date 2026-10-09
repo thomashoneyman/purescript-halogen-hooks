@@ -1,6 +1,5 @@
 module Performance.Setup.Puppeteer
-  ( filterConsole
-  , Browser
+  ( Browser
   , launch
   , Page
   , newPage
@@ -16,45 +15,31 @@ module Performance.Setup.Puppeteer
   , collectGarbage
   , FilePath(..)
   , startTrace
-  , Trace
   , stopTrace
-  , PerformanceModel
-  , getPerformanceModel
-  , getAverageFPS
   , Kilobytes(..)
   , Milliseconds(..)
   , PageMetrics
   , pageMetrics
-  , readScriptingTime
   ) where
 
 import Prelude
 
 import Control.Promise (Promise, toAffE)
-import Data.Argonaut.Core (Json)
-import Data.Argonaut.Decode (class DecodeJson, decodeJson, printJsonDecodeError, (.:), (.:?))
+import Data.Argonaut.Decode (class DecodeJson, decodeJson)
 import Data.Argonaut.Encode (class EncodeJson, encodeJson)
-import Data.Either (Either(..))
 import Data.Int (round)
 import Data.Int as Int
-import Data.Maybe (Maybe, fromJust, fromMaybe)
+import Data.Maybe (Maybe, fromJust)
 import Data.Newtype (class Newtype)
 import Data.Nullable (Nullable, toMaybe)
 import Data.String.CodeUnits as String
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Effect.Exception (throw)
 import Effect.Uncurried (EffectFn1, EffectFn2, runEffectFn1, runEffectFn2)
 import Node.Path as Path
 import Partial.Unsafe (unsafePartial)
 import Web.HTML (HTMLElement)
-
--- | Turn off noisy messages from the Puppeteer tests
-foreign import filterConsoleImpl :: Effect Unit
-
-filterConsole :: Effect Unit
-filterConsole = filterConsoleImpl
 
 -- | An instance of a Puppeteer browser, which should be created at
 -- | the start of any Puppeteer session and closed at the end.
@@ -150,32 +135,16 @@ foreign import startTraceImpl :: EffectFn2 Page FilePath (Promise Unit)
 startTrace :: Page -> FilePath -> Aff Unit
 startTrace = toAffE2 startTraceImpl
 
--- | The opaque blob returned by a performance trace, which can be analyzed to
--- | retrieve performance measurements like FPS.
-foreign import data Trace :: Type
+foreign import stopTraceImpl :: EffectFn1 Page (Promise Int)
 
-foreign import stopTraceImpl :: EffectFn1 Page (Promise Trace)
-
--- | Begin measuring a performance trace. Use `stopTrace` to complete the
--- | measurement.
-stopTrace :: Page -> Aff Trace
+-- | Finish the trace and return average requestAnimationFrame cadence in FPS.
+stopTrace :: Page -> Aff Int
 stopTrace = toAffE1 stopTraceImpl
 
--- | The opaque blob returned by the `getPerformanceModel` function, which can
--- | be used to retrieve the average frames per second over the measured duration
-foreign import data PerformanceModel :: Type
-
-foreign import getPerformanceModelImpl :: EffectFn1 Trace (Promise (Nullable PerformanceModel))
-
-getPerformanceModel :: Trace -> Aff (Maybe PerformanceModel)
-getPerformanceModel = map toMaybe <<< toAffE1 getPerformanceModelImpl
-
--- | Retrieve the average frames per second over the course of the performance trace
-foreign import getAverageFPS :: PerformanceModel -> Int
-
 type JSPageMetrics =
-  { "JSHeapUsedSize" :: Number -- megabytes
-  , "Timestamp" :: Number -- microseconds
+  { "JSHeapUsedSize" :: Number -- bytes
+  , "Timestamp" :: Number -- seconds
+  , "ScriptDuration" :: Number -- seconds
   }
 
 foreign import pageMetricsImpl :: EffectFn1 Page (Promise JSPageMetrics)
@@ -224,34 +193,17 @@ instance DecodeJson Milliseconds where
 type PageMetrics =
   { heapUsed :: Kilobytes
   , timestamp :: Milliseconds
+  , scriptTime :: Milliseconds
   }
 
 -- | Retrieve a snapshot of the current page metrics, which can be used to see
 -- | current heap usage and execution times
 pageMetrics :: Page -> Aff PageMetrics
-pageMetrics = toAffE1 pageMetricsImpl >>> map \{ "JSHeapUsedSize": heap, "Timestamp": ts } ->
+pageMetrics = toAffE1 pageMetricsImpl >>> map \{ "JSHeapUsedSize": heap, "Timestamp": ts, "ScriptDuration": script } ->
   { heapUsed: Kilobytes (round (heap / 1000.0))
   , timestamp: Milliseconds (round (ts * 1000.0))
+  , scriptTime: Milliseconds (round (script * 1000.0))
   }
-
--- | Retrieve the time spent in scripting during the execution
-readScriptingTime :: FilePath -> Effect Milliseconds
-readScriptingTime fp = do
-  json <- tracealyzer fp
-
-  let
-    decoded = do
-      obj <- decodeJson json
-      (_ .:? "scripting") =<< (_ .: "categories") =<< obj .: "profiling"
-
-  case decoded of
-    Left err -> throw $ printJsonDecodeError err
-    Right val -> pure $ Milliseconds $ round $ fromMaybe 0.0 val
-
-foreign import tracealyzerImpl :: FilePath -> Effect Json
-
-tracealyzer :: FilePath -> Effect Json
-tracealyzer = tracealyzerImpl
 
 toAffE1 :: forall a b. EffectFn1 a (Promise b) -> a -> Aff b
 toAffE1 fn = toAffE <<< runEffectFn1 fn

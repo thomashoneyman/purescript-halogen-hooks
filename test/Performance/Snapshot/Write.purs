@@ -20,7 +20,6 @@ main :: Effect Unit
 main = launchAff_ do
   bracket (Puppeteer.launch { headless: true }) Puppeteer.closeBrowser \browser -> do
     liftEffect do
-      Puppeteer.filterConsole
       catchException mempty (mkdir "test-results")
 
     Console.log "Running state tests..."

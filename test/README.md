@@ -21,12 +21,20 @@ These tests are meant to measure the overhead incurred by Hooks and aid in attem
 
 Each Hooks release contains a snapshot, which is an average of several runs of a benchmark, which can be used to ensure regressions haven't occurred.
 
-`npm ci` installs Puppeteer 13.7.0 and downloads its matching Chromium. On Linux,
+`npm ci` installs Puppeteer 25.13.0 and downloads its matching Chrome for Testing. On Linux,
 the browser also needs the usual Chromium system libraries and a working sandbox.
 The performance command uses Spago's CoreFn output, `purs-backend-es`, and esbuild,
-then writes traces and summaries under `test-results/`. The two test cases collect
-measurements but do not assert numerical regression thresholds; review their
-results rather than treating a passing run as proof of unchanged performance.
+then writes traces and summaries under `test-results/`. The two test cases verify
+positive FPS, scripting time and peak heap measurements for every run, but do not
+assert performance regression thresholds. Review results rather than treating a
+passing run as proof of unchanged performance.
+
+FPS now measures `requestAnimationFrame` cadence; scripting time is the change
+in Chrome DevTools Protocol `ScriptDuration`. Heap sampling and full trace output
+remain available. This replaces obsolete trace parsers that produced zero FPS
+with current Chrome. Compiler, optimizer, browser and measurement changes make
+historical snapshot deltas non-comparable. Do not interpret the generated `change`
+files as regressions until a maintainer has reviewed and replaced those baselines.
 
 `npm run snapshot` intentionally replaces the checked-in performance snapshots.
 Only run it when updating those baselines, not as a migration validation step.

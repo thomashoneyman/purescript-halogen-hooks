@@ -6,8 +6,9 @@
   "repository": "https://github.com/thomashoneyman/purescript-halogen-hooks",
   "author": "Thomas Honeyman <hello@thomashoneyman.com>",
   "license": "MIT",
+  "packageManager": "npm@11.19.0",
   "engines": {
-    "node": ">=22.5.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "build": "spago build -p halogen-hooks --pedantic-packages",
@@ -20,13 +21,11 @@
     "bundle:performance": "spago build -p halogen-hooks && purs-backend-es build && purs-backend-es bundle-app --no-build --minify --main Performance.Test.App --to test/test.js"
   },
   "devDependencies": {
-    "esbuild": "0.25.5",
-    "filter-console": "^0.1.1",
-    "headless-devtools": "^2.0.1",
-    "puppeteer": "^13.7.0",
-    "purs-backend-es": "^1.1.0",
-    "purescript": "0.15.4",
-    "spago": "1.0.4",
-    "tracealyzer": "^0.10.3"
+    "esbuild": "0.28.2",
+    "puppeteer": "25.13.0",
+    "purescript": "0.15.16",
+    "purs-backend-es": "1.4.3",
+    "purs-tidy": "0.11.1",
+    "spago": "1.0.4"
   }
 }

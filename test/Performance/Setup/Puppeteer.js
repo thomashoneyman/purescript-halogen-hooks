@@ -1,11 +1,6 @@
 import P from 'puppeteer'
-import filterConsole from 'filter-console'
-import tracealyzer from 'tracealyzer'
-import { getPerformanceModel } from 'headless-devtools'
 
-export function filterConsoleImpl () {
-  filterConsole(['Failed to parse CPU profile.'])
-}
+const sessions = new WeakMap()
 
 export function launchImpl (args) {
   return function () {
@@ -13,8 +8,10 @@ export function launchImpl (args) {
   }
 }
 
-export function newPageImpl (browser) {
-  return browser.newPage()
+export async function newPageImpl (browser) {
+  const page = await browser.newPage()
+  sessions.set(page, await page.createCDPSession())
+  return page
 }
 
 export function debugImpl (page) {
@@ -42,8 +39,10 @@ export function gotoImpl (page, path) {
   return page.goto(path)
 }
 
-export function closePageImpl (page) {
-  return page.close()
+export async function closePageImpl (page) {
+  await sessions.get(page).detach()
+  sessions.delete(page)
+  await page.close()
 }
 
 export function closeBrowserImpl (browser) {
@@ -51,45 +50,40 @@ export function closeBrowserImpl (browser) {
 }
 
 export function enableHeapProfilerImpl (page) {
-  return page._client.send('HeapProfiler.enable')
+  return sessions.get(page).send('HeapProfiler.enable')
 }
 
 export function collectGarbageImpl (page) {
-  return page._client.send('HeapProfiler.collectGarbage')
+  return sessions.get(page).send('HeapProfiler.collectGarbage')
 }
 
-export function startTraceImpl (page, path) {
-  return page.tracing.start({ path })
+export async function startTraceImpl (page, path) {
+  await page.tracing.start({ path })
+  await page.evaluate(() => {
+    const sample = { timestamps: [], request: 0 }
+    window.__hooksFrameSample = sample
+    const frame = timestamp => {
+      sample.timestamps.push(timestamp)
+      sample.request = requestAnimationFrame(frame)
+    }
+    sample.request = requestAnimationFrame(frame)
+  })
 }
 
-export function stopTraceImpl (page) {
-  return page.tracing.stop()
-}
-
-// Should be used on the trace produced by `page.tracing.stop()`
-export function getPerformanceModelImpl (trace) {
-  try {
-    const traceJSON = JSON.parse(trace.toString())
-    return getPerformanceModel(traceJSON)
-  } catch (e) {
-    return null
+export async function stopTraceImpl (page) {
+  const timestamps = await page.evaluate(() => {
+    const sample = window.__hooksFrameSample
+    cancelAnimationFrame(sample.request)
+    delete window.__hooksFrameSample
+    return sample.timestamps
+  })
+  await page.tracing.stop()
+  if (timestamps.length < 2) {
+    throw new Error('Not enough animation frames to measure FPS')
   }
-}
-
-// Should be used on the model returned by `getPeformanceModel`
-export function getAverageFPS (model) {
-  const frames = model.frames()
-  const durations = frames.map(x => x.duration)
-  const avg = durations.reduce((acc, item) => acc + item, 0) / durations.length
-  return Math.round(1000 / avg)
+  return Math.round(1000 * (timestamps.length - 1) / (timestamps.at(-1) - timestamps[0]))
 }
 
 export function pageMetricsImpl (page) {
   return page.metrics()
-}
-
-export function tracealyzerImpl (filename) {
-  return function () {
-    return tracealyzer(filename)
-  }
 }

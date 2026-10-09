@@ -6,14 +6,13 @@ import Control.Monad.Rec.Class (forever)
 import Data.Array (fold, replicate)
 import Data.Array as Array
 import Data.Foldable (foldl, for_, maximum, sum)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Traversable (for)
 import Effect.Aff (Aff, bracket, delay, error, forkAff, killFiber, throwError)
 import Effect.Aff as Aff
 import Effect.Aff.AVar as AVar
 import Effect.Class (liftEffect)
 import Node.Path (resolve)
-import Partial.Unsafe (unsafePartial)
 import Performance.Test.Types (Test(..), completedSuffix, startSuffix, testToString)
 import Performance.Test.Todo.Shared (addNewId, checkId, editId, saveId)
 import Performance.Setup.Puppeteer (Browser, FilePath(..), Kilobytes(..), Milliseconds(..), Page)
@@ -104,8 +103,6 @@ measure browser test = do
 
   -- Start collecting heap measurements every 10 milliseconds
   --
-  -- TODO: It may be better to ditch the dependencies and just use this strategy
-  -- with `requestAnimationFrame` to measure the FPS as well.
   heapFiber <- forkAff $ forever do
     { heapUsed } <- Puppeteer.pageMetrics page
     { captures, count } <- AVar.take var
@@ -123,16 +120,12 @@ measure browser test = do
   finalPageMetrics <- Puppeteer.pageMetrics page
 
   -- Stop recording the trace and write it to disk
-  trace <- Puppeteer.stopTrace page
+  averageFPS <- Puppeteer.stopTrace page
   Puppeteer.closePage page
   killFiber (error "time's up!") heapFiber
 
-  -- Use the trace to get the average FPS during the execution
-  mbModel <- Puppeteer.getPerformanceModel trace
-  let averageFPS = Puppeteer.getAverageFPS $ unsafePartial $ fromJust mbModel
-
-  -- Use the trace to retrieve time spent executing scripts (JS execution)
-  scriptTime <- liftEffect (Puppeteer.readScriptingTime tracePath)
+  -- CDP metrics are cumulative, so subtract the sample taken before the workload.
+  let scriptTime = finalPageMetrics.scriptTime - initialPageMetrics.scriptTime
 
   -- Use the initial and final metrics to record the total time spent recording
   -- the trace

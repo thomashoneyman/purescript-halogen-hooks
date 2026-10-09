@@ -35,8 +35,8 @@ In general, pull requests which improve the performance and ergonomics of the li
 
 ### Developer Environments
 
-Use Node 22.16.0 (Spago requires at least 22.5.0). Install the locked npm tools,
-including PureScript 0.15.4 and Spago 1.0.4, from the repository root:
+Use Node 24.21.0 LTS and npm 11.19.0. Install the locked npm tools,
+including PureScript 0.15.16 and Spago 1.0.4, from the repository root:
 
 ```sh
 npm ci
@@ -52,17 +52,33 @@ npm run test:performance
 explicit alias. Examples are a workspace package under `examples/src`, and use
 the local library. See [test documentation](../test/README.md) for browser setup.
 
-Alternatively, run `nix develop`, then the same npm commands. The flake retains
-the existing PureScript 0.15.4 and purs-tidy inputs and supplies a locked Node 22.
-Spago and esbuild come from `npm ci`, not the legacy Nix Spago package.
+Alternatively, with Nix 2.18 or newer, run `nix develop`, then the same npm
+commands. The flake pins a current nixos-26.05 package set and supplies Node 24
+and Git. PureScript, Spago, purs-tidy, and esbuild all come from `npm ci`, matching
+the npm-based CI toolchain. Linux x86_64 is verified; macOS and NixOS are not.
 
 Registry package set `0.0.1` preserves the original dependency resolutions.
-Production dependency versions are deliberately exact: they describe the tested
-configuration, not an assertion of wider compatibility. Commit both
-`package-lock.json` and `spago.lock` when dependencies change. Do not use
-`--ensure-ranges` to preserve those declarations.
+Production bounds preserve the published registry manifest for `halogen-hooks`
+0.6.3, rather than inferring new bounds from that one resolution. Legacy Dhall
+declared names, not version ranges. No published bound is narrowed or widened by
+this migration; in particular Aff remains `>=7.1.0 <9.0.0` and Parallel remains
+`>=6.0.0 <8.0.0`. Toolchain upgrades do not by themselves establish compatibility
+with every admitted dependency version. Commit both `package-lock.json` and
+`spago.lock` when dependencies change; avoid `--ensure-ranges` when preserving
+published bounds.
+
+Run `npm audit` to check all development tooling too. As of this upgrade, the
+remaining high-severity advisory is
+[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) in
+`spago -> micromatch -> braces`, with no patched upstream release. npm reports
+three affected packages for that chain. The CI audit step intentionally fails
+until the dependency is fixed; no audit suppression or forced downgrade is used.
 
 This configuration does not select a new release version or enable publication.
+The library API and published bounds are unchanged, so these edits alone do not
+require a breaking dependency-bound release; final version selection remains a
+maintainer decision. Browser/compiler upgrades require newly reviewed performance
+baselines, not comparison with the historical snapshots.
 Before a release, review compatibility bounds, license/location/version metadata,
 and the registry-only production dependency closure. Do not run `spago publish`
 as a check: it has no dry-run mode and can push a tag.
