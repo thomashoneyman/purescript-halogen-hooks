@@ -67,12 +67,13 @@ with every admitted dependency version. Commit both `package-lock.json` and
 `spago.lock` when dependencies change; avoid `--ensure-ranges` when preserving
 published bounds.
 
-Run `npm audit` to check all development tooling too. As of this upgrade, the
+Optionally run `npm audit` locally to check development tooling. As of this upgrade, the
 remaining high-severity advisory is
 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) in
 `spago -> micromatch -> braces`, with no patched upstream release. npm reports
-three affected packages for that chain. The CI audit step intentionally fails
-until the dependency is fixed; no audit suppression or forced downgrade is used.
+three affected packages for that chain. The maintainer accepts this build-tooling
+risk; dependency auditing does not gate CI. The advisory remains unresolved, and
+no audit suppression or forced downgrade is used.
 
 This configuration does not select a new release version or enable publication.
 The library API and published bounds are unchanged, so these edits alone do not
