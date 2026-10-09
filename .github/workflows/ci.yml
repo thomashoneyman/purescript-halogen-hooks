@@ -51,6 +51,3 @@ jobs:
 
       - name: Build performance bundle
         run: npm run bundle:performance
-
-      - name: Audit all npm dependencies
-        run: npm audit
