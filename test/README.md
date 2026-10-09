@@ -5,7 +5,9 @@ Hooks are tested in two ways:
 1. Behavior tests, which exercise the logic of each of the primitive Hooks in isolation and together to verify they behave as they should;
 2. Performance tests, which ensure that the overhead incurred by Hooks is not too large and that changes to the library don't cause regressions.
 
-The `test` command exercises both tests.
+Run `npm test` for behavioral/integration tests and `npm run test:performance`
+for browser performance measurements, from the repository root. CI compiles both
+targets and runs the behavioral suite; browser measurements remain a local check.
 
 ## Behavioral Tests
 
@@ -18,3 +20,13 @@ The `Performance` directory contains small apps that are run by Puppeteer. These
 These tests are meant to measure the overhead incurred by Hooks and aid in attempts to make the library more performant. **These tests are not typically reflective of real-world use, and large numbers don't mean poor performance in the real world. They are simply meant to measure whether internal changes have positive or negative performance implications.** Hooks tests are usually accompanied by the equivalent implementation using ordinary Halogen components as a reference.
 
 Each Hooks release contains a snapshot, which is an average of several runs of a benchmark, which can be used to ensure regressions haven't occurred.
+
+`npm ci` installs Puppeteer 13.7.0 and downloads its matching Chromium. On Linux,
+the browser also needs the usual Chromium system libraries and a working sandbox.
+The performance command uses Spago's CoreFn output, `purs-backend-es`, and esbuild,
+then writes traces and summaries under `test-results/`. The two test cases collect
+measurements but do not assert numerical regression thresholds; review their
+results rather than treating a passing run as proof of unchanged performance.
+
+`npm run snapshot` intentionally replaces the checked-in performance snapshots.
+Only run it when updating those baselines, not as a migration validation step.

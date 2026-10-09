@@ -100,7 +100,7 @@ Hooks.do
 
 Note: Asynchronous functions (functions defined during one Hooks evaluation, but run after another) should not reference `state` or `input` directly. Instead, any state or input they need access to should be copied into a mutable reference so that the function can read the reference when it runs, guaranteeing it has up-to-date values. In ordinary Hooks usage this mainly applies to the effect cleanup functions.
 
-For a convenient Hook which does this for you, see the `useGet` Hook in the [examples](../examples/Example/Hooks).
+For a convenient Hook which does this for you, see the `useGet` Hook in the [examples](../examples/src/Example/Hooks).
 
 ## useTickEffect
 

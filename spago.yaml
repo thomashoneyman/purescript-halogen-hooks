@@ -1,0 +1,57 @@
+package:
+  name: halogen-hooks
+  # Exact tested versions, not inferred compatibility across a major series.
+  dependencies:
+    - aff: 7.1.0
+    - arrays: 7.1.0
+    - bifunctors: 6.0.0
+    - effect: 4.0.0
+    - exceptions: 6.0.0
+    - foldable-traversable: 6.0.0
+    - foreign-object: 4.0.0
+    - free: 7.0.0
+    - freeap: 7.0.0
+    - halogen: 7.0.0
+    - halogen-subscriptions: 2.0.0
+    - maybe: 6.0.0
+    - newtype: 5.0.0
+    - ordered-collections: 3.0.0
+    - parallel: 6.0.0
+    - partial: 4.0.0
+    - prelude: 6.0.1
+    - refs: 6.0.0
+    - tailrec: 6.1.0
+    - transformers: 6.0.0
+    - tuples: 7.0.0
+    - unsafe-coerce: 6.0.0
+    - unsafe-reference: 5.0.0
+    - web-dom: 6.0.0
+    - web-html: 4.1.0
+  test:
+    main: Test.Main
+    dependencies:
+      - aff-promise
+      - avar
+      - argonaut-codecs
+      - argonaut-core
+      - either
+      - console
+      - integers
+      - node-buffer
+      - node-fs
+      - node-path
+      - nullable
+      - spec
+      - strings
+      - random
+workspace:
+  packageSet:
+    registry: 0.0.1
+  extraPackages:
+    halogen-storybook:
+      git: https://github.com/rnons/purescript-halogen-storybook.git
+      ref: v2.0.0
+      dependencies:
+        - foreign-object
+        - halogen
+        - routing

@@ -16,6 +16,7 @@ test-results
 
 # Lockfiles
 *.lock
+!spago.lock
 
 # Extra files
 examples/app.js

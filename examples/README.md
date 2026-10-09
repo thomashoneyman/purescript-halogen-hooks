@@ -9,9 +9,9 @@ the root of the repository:
 
 ```sh
 # Ensure you have installed dependencies
-npm install
+npm ci
 
-# Bundle the examples to ./example/app.js
+# Bundle examples/src to ./examples/app.js
 npm run bundle:examples
 ```
 

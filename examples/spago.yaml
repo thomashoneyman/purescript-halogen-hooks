@@ -1,0 +1,23 @@
+package:
+  name: halogen-hooks-examples
+  dependencies:
+    - aff
+    - argonaut
+    - avar
+    - datetime
+    - effect
+    - either
+    - foldable-traversable
+    - foreign-object
+    - halogen
+    - halogen-hooks
+    - halogen-storybook
+    - maybe
+    - prelude
+    - profunctor-lenses
+    - random
+    - refs
+    - tuples
+    - web-events
+    - web-html
+    - web-storage

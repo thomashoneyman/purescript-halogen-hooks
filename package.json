@@ -6,22 +6,27 @@
   "repository": "https://github.com/thomashoneyman/purescript-halogen-hooks",
   "author": "Thomas Honeyman <hello@thomashoneyman.com>",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
-    "postinstall": "node node_modules/puppeteer/install.js",
-    "build": "spago build",
-    "build:examples": "spago -x examples/examples.dhall build",
-    "build:test": "spago -x test/test.dhall build",
+    "build": "spago build -p halogen-hooks --pedantic-packages",
+    "build:examples": "spago build -p halogen-hooks-examples --pedantic-packages",
+    "build:test": "spago build -p halogen-hooks --pedantic-packages",
     "snapshot": "npm run bundle:performance && node test/run-snapshot.mjs",
-    "test": "spago -x test/test.dhall test",
+    "test": "spago test -p halogen-hooks --pedantic-packages",
     "test:performance": "npm run bundle:performance && node test/run-test.mjs",
-    "bundle:examples": "spago -x examples/examples.dhall bundle-app --minify --main Example.Main --to examples/app.js",
-    "bundle:performance": "spago -x test/test.performance.dhall build && purs-backend-es bundle-app --no-build --minify --main Performance.Test.App --to test/test.js"
+    "bundle:examples": "spago bundle -p halogen-hooks-examples --minify --module Example.Main --outfile app.js --platform browser --bundle-type app",
+    "bundle:performance": "spago build -p halogen-hooks && purs-backend-es build && purs-backend-es bundle-app --no-build --minify --main Performance.Test.App --to test/test.js"
   },
   "devDependencies": {
+    "esbuild": "0.25.5",
     "filter-console": "^0.1.1",
     "headless-devtools": "^2.0.1",
     "puppeteer": "^13.7.0",
     "purs-backend-es": "^1.1.0",
+    "purescript": "0.15.4",
+    "spago": "1.0.4",
     "tracealyzer": "^0.10.3"
   }
 }

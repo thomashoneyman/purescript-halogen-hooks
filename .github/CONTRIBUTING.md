@@ -35,13 +35,37 @@ In general, pull requests which improve the performance and ergonomics of the li
 
 ### Developer Environments
 
-If you would like to contribute code to Halogen Hooks, you can enter a development environment with common PureScript tooling available at the same versions I use via Nix. Just run this command in the root of the project:
+Use Node 22.16.0 (Spago requires at least 22.5.0). Install the locked npm tools,
+including PureScript 0.15.4 and Spago 1.0.4, from the repository root:
 
 ```sh
-nix-shell
+npm ci
+npm run build
+npm run build:examples
+npm test
+npm run bundle:examples
+npm run test:performance
 ```
 
-You will also need to install development dependencies from the `package.json` file if you are working on the tests. That file also contains scripts helpful for building tests and examples.
+`npm test` runs behavioral/integration tests, not browser performance tests.
+`npm run build` also compiles `test/**/*.purs`; `build:test` is retained as an
+explicit alias. Examples are a workspace package under `examples/src`, and use
+the local library. See [test documentation](../test/README.md) for browser setup.
+
+Alternatively, run `nix develop`, then the same npm commands. The flake retains
+the existing PureScript 0.15.4 and purs-tidy inputs and supplies a locked Node 22.
+Spago and esbuild come from `npm ci`, not the legacy Nix Spago package.
+
+Registry package set `0.0.1` preserves the original dependency resolutions.
+Production dependency versions are deliberately exact: they describe the tested
+configuration, not an assertion of wider compatibility. Commit both
+`package-lock.json` and `spago.lock` when dependencies change. Do not use
+`--ensure-ranges` to preserve those declarations.
+
+This configuration does not select a new release version or enable publication.
+Before a release, review compatibility bounds, license/location/version metadata,
+and the registry-only production dependency closure. Do not run `spago publish`
+as a check: it has no dry-run mode and can push a tag.
 
 ### Proposing changes
 
